@@ -34,11 +34,9 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
   final BleScanManager _scanManager = BleScanManager();
   bool _initialized = false;
   final Map<String, Color> _rollingColors = {};
-  Timer? _rollTimer;
-  DateTime? _rollStartTime;
-  bool _isRolling = false;
   final Map<String, int> _rollingDie = {};
-  Duration _lastRollDuration = Duration.zero;
+  Timer? _rollUpdateTimer;
+  bool _isRolling = false;
 
   @override
   void initState() {
@@ -109,8 +107,6 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
             );
           }
 
-
-
           return ListView.builder(
             itemCount: devices.length,
             itemBuilder: (context, index) {
@@ -129,9 +125,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
 
                   _rollingDie[die.device.remoteId.str] = die.state.currentFaceValue!;
                   if (allDiceRolled && _isRolling) {
-                    _rollTimer?.cancel();
-                    _lastRollDuration =
-                        DateTime.now().difference(_rollStartTime!);
+                    _rollUpdateTimer?.cancel();
                     _isRolling = false;
                   }
 
@@ -144,9 +138,8 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                   if (!_isRolling) {
                     _isRolling = true;
                     _rollingDie.clear();
-                    _rollStartTime = DateTime.now();
-                    _rollTimer?.cancel();
-                    _rollTimer = Timer.periodic(
+                    _rollUpdateTimer?.cancel();
+                    _rollUpdateTimer = Timer.periodic(
                         const Duration(milliseconds: 100), (timer) {
                       setState(() {});
                     });
@@ -188,7 +181,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
   @override
   void dispose() {
     _scanManager.dispose();
-    _rollTimer?.cancel();
+    _rollUpdateTimer?.cancel();
     super.dispose();
   }
 }

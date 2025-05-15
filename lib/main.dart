@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -33,6 +34,11 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
   final BleScanManager _scanManager = BleScanManager();
   bool _initialized = false;
   final Map<String, Color> _rollingColors = {};
+  Timer? _rollTimer;
+  DateTime? _rollStartTime;
+  bool _isRolling = false;
+  final Map<String, int> _rollingDie = {};
+  Duration _lastRollDuration = Duration.zero;
 
   @override
   void initState() {
@@ -104,6 +110,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
           }
 
 
+
           return ListView.builder(
             itemCount: devices.length,
             itemBuilder: (context, index) {
@@ -115,13 +122,36 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                     rollStateMsg.rollState == RollState.onFace.index) {
                   _rollingColors[die.device.remoteId.toString()] = Colors.green;
 
+                  // Check if all dice have finished rolling
+                  bool allDiceRolled = devices.every((d) =>
+                  d.state.rollState == RollState.rolled.index ||
+                      d.state.rollState == RollState.onFace.index);
+
+                  _rollingDie[die.device.remoteId.str] = die.state.currentFaceValue!;
+                  if (allDiceRolled && _isRolling) {
+                    _rollTimer?.cancel();
+                    _lastRollDuration =
+                        DateTime.now().difference(_rollStartTime!);
+                    _isRolling = false;
+                  }
+
                   setState(() {
                     // UI will automatically update via StreamBuilder
                   });
                 } else if (rollStateMsg.rollState == RollState.rolling.index) {
-                  _rollingColors[die.device.remoteId.toString()] = Colors.orange;
+                  _rollingColors[die.device.remoteId.toString()] =
+                      Colors.orange;
+                  if (!_isRolling) {
+                    _isRolling = true;
+                    _rollingDie.clear();
+                    _rollStartTime = DateTime.now();
+                    _rollTimer?.cancel();
+                    _rollTimer = Timer.periodic(
+                        const Duration(milliseconds: 100), (timer) {
+                      setState(() {});
+                    });
+                  }
                   setState(() {
-
                     // UI will automatically update via StreamBuilder
                   });
                 }
@@ -135,7 +165,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                 textColor: _rollingColors[die.device.remoteId.toString()],
                 title: Text(die.device.platformName.isEmpty
                   ? 'Unknown Device ${die.device.remoteId}'
-                  : '${die.device.platformName} ${die.state.batteryLevel}'),
+                  : '${die.device.platformName} ${die.state.batteryLevel} Sum ${_rollingDie.values.fold(0, (p, c) => p + c)} DisAdv ${_rollingDie.values.fold(21, min)} Adv ${_rollingDie.values.fold(0, max)}'),
                 subtitle: Text('${RollState.values[die.state.rollState ?? RollState.unknown.index].name} ${die.state.currentFaceValue}'),
                 onTap: () {
                   var blinker = BlinkMessage();
@@ -158,6 +188,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
   @override
   void dispose() {
     _scanManager.dispose();
+    _rollTimer?.cancel();
     super.dispose();
   }
 }

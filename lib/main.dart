@@ -57,7 +57,19 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Roll Feathers')),
+      appBar: AppBar(
+        title: const Text('Roll Feathers'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: FloatingActionButton(
+              onPressed: _rfController.startScanning,
+              child: const Icon(Icons.refresh),
+              mini: true, // Makes the FAB smaller to fit in the AppBar
+            ),
+          ),
+        ],
+      ),
       body: Row(
         children: [
           // First column - existing StreamBuilder (taking half the width)
@@ -107,13 +119,13 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                           var result = _rfController.stopRollWithResult(rollType: rollType);
                           // Add the roll result to history with advantage/disadvantage information
                           setState(() {
-                            String rollResult = 'Roll: ';
+                            String rollResult = 'Roll';
                             if (_withAdvantage) {
-                              rollResult += 'With Advantage: ${result}';
+                              rollResult += ' (Adv): ${result}';
                             } else if (_withDisadvantage) {
-                              rollResult += 'With Disadvantage: ${result}';
+                              rollResult += ' (Dis): ${result}';
                             } else {
-                              rollResult += 'Sum ${result}';
+                              rollResult += ': ${result}';
                             }
                             _rollHistory.insert(0, rollResult);
                           });
@@ -180,43 +192,53 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Wrap(
+                      spacing: 8.0, // gap between adjacent items
+                      runSpacing: 4.0, // gap between lines
+                      alignment: WrapAlignment.spaceBetween,
                       children: [
-                        Row(
+                        Wrap(
+                          spacing: 8.0,
                           children: [
-                            Row(
-                              children: [
-                                Checkbox(
-                                  value: _withAdvantage,
-                                  onChanged: (bool? value) {
-                                    setState(() {
-                                      _withAdvantage = value ?? false;
-                                      if (_withAdvantage) {
-                                        _withDisadvantage = false;
-                                      }
-                                    });
-                                  },
-                                ),
-                                const Text('Advantage'),
-                              ],
+                            SizedBox(
+                              width: 140, // Fixed width for consistency
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Checkbox(
+                                    value: _withAdvantage,
+                                    onChanged: (bool? value) {
+                                      setState(() {
+                                        _withAdvantage = value ?? false;
+                                        if (_withAdvantage) {
+                                          _withDisadvantage = false;
+                                        }
+                                      });
+                                    },
+                                  ),
+                                  const Text('Advantage'),
+                                ],
+                              ),
                             ),
-                            const SizedBox(width: 8),
-                            Row(
-                              children: [
-                                Checkbox(
-                                  value: _withDisadvantage,
-                                  onChanged: (bool? value) {
-                                    setState(() {
-                                      _withDisadvantage = value ?? false;
-                                      if (_withDisadvantage) {
-                                        _withAdvantage = false;
-                                      }
-                                    });
-                                  },
-                                ),
-                                const Text('Disadvantage'),
-                              ],
+                            SizedBox(
+                              width: 140, // Fixed width for consistency
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Checkbox(
+                                    value: _withDisadvantage,
+                                    onChanged: (bool? value) {
+                                      setState(() {
+                                        _withDisadvantage = value ?? false;
+                                        if (_withDisadvantage) {
+                                          _withAdvantage = false;
+                                        }
+                                      });
+                                    },
+                                  ),
+                                  const Text('Disadvantage'),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -248,10 +270,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _rfController.startScanning,
-        child: const Icon(Icons.refresh),
-      ),
+      // Remove the floatingActionButton property from here
     );
   }
 

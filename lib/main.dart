@@ -8,6 +8,7 @@ import 'package:roll_feathers/pixel/ha.dart';
 import 'package:roll_feathers/pixel/pixel.dart';
 import 'package:roll_feathers/pixel/pixelConstants.dart';
 import 'package:roll_feathers/pixel/pixelMessages.dart';
+import 'package:roll_feathers/roll_feathers_controller.dart';
 
 void main() async {
   // Ensure Flutter is initialized
@@ -31,48 +32,24 @@ class BleScannerWidget extends StatefulWidget {
 }
 
 class _BleScannerWidgetState extends State<BleScannerWidget> {
-  final BleScanManager _scanManager = BleScanManager();
   bool _initialized = false;
   final Map<String, Color> _rollingColors = {};
-  final Map<String, int> _rollingDie = {};
-  Timer? _rollUpdateTimer;
-  bool _isRolling = false;
+  final RollFeathersController _rfController = RollFeathersController();
 
   @override
   void initState() {
     super.initState();
-    _initializeBle();
-    _rollingColors.clear();
-  }
-
-  Future<void> _initializeBle() async {
-    if (_initialized) return;
-    
     try {
-      var supported = await _scanManager.checkSupported();
-      if (!supported) {
-        throw Exception("BLE Not Supported!");
-      }
-
-      await _scanManager.connect();
-
-
+      _rfController.init();
       _initialized = true;
-      await _startScanning();
-    } catch (e) {
+      _rollingColors.clear();
+    } on BluetoothNotSupported catch (e) {
       _initialized = false;
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Initialization error: $e')),
         );
       }
-    }
-  }
-
-  Future<void> _startScanning() async {
-    print("_startScanning()");
-    try {
-      await _scanManager.scanForDevices();
 
     } catch (e) {
       if (mounted) {
@@ -81,8 +58,8 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
         );
       }
     }
-  }
 
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -90,7 +67,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
         title: const Text('BLE Scanner'),
       ),
       body: StreamBuilder<List<PixelDie>>(
-        stream: _scanManager.deviceStream,
+        stream: _rfController.getDeviceStream(),
         initialData: const [],
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -123,10 +100,9 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                   d.state.rollState == RollState.rolled.index ||
                       d.state.rollState == RollState.onFace.index);
 
-                  _rollingDie[die.device.remoteId.str] = die.state.currentFaceValue!;
-                  if (allDiceRolled && _isRolling) {
-                    _rollUpdateTimer?.cancel();
-                    _isRolling = false;
+                  _rfController.updateDieValue(die);
+                  if (allDiceRolled && _rfController.isRolling()) {
+                    _rfController.stopRolling();
                   }
 
                   setState(() {
@@ -135,13 +111,11 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                 } else if (rollStateMsg.rollState == RollState.rolling.index) {
                   _rollingColors[die.device.remoteId.toString()] =
                       Colors.orange;
-                  if (!_isRolling) {
-                    _isRolling = true;
-                    _rollingDie.clear();
-                    _rollUpdateTimer?.cancel();
-                    _rollUpdateTimer = Timer.periodic(
-                        const Duration(milliseconds: 100), (timer) {
-                      setState(() {});
+
+                  if (!_rfController.isRolling()) {
+                    _rfController.startRolling((timer) {
+                      setState(() {
+                      });
                     });
                   }
                   setState(() {
@@ -158,7 +132,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                 textColor: _rollingColors[die.device.remoteId.toString()],
                 title: Text(die.device.platformName.isEmpty
                   ? 'Unknown Device ${die.device.remoteId}'
-                  : '${die.device.platformName} ${die.state.batteryLevel} Sum ${_rollingDie.values.fold(0, (p, c) => p + c)} DisAdv ${_rollingDie.values.fold(21, min)} Adv ${_rollingDie.values.fold(0, max)}'),
+                  : '${die.device.platformName} ${die.state.batteryLevel} Sum ${_rfController.rollTotal()} DisAdv ${_rfController.rollMin()} Adv ${_rfController.rollMax()}'),
                 subtitle: Text('${RollState.values[die.state.rollState ?? RollState.unknown.index].name} ${die.state.currentFaceValue}'),
                 onTap: () {
                   var blinker = BlinkMessage();
@@ -172,7 +146,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
         },
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: _startScanning,
+        onPressed: _rfController.startScanning,
         child: const Icon(Icons.refresh),
       ),
     );
@@ -180,8 +154,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
 
   @override
   void dispose() {
-    _scanManager.dispose();
-    _rollUpdateTimer?.cancel();
+    _rfController.dispose();
     super.dispose();
   }
 }

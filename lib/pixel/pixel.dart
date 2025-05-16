@@ -71,8 +71,8 @@ class BleScanManager {
   }
 
   // Get currently discovered devices
-  List<BluetoothDevice> getDiscoveredDevices() {
-    return List.from(_discoveredDevices.values);
+  Map<String, PixelDie> getDiscoveredDevices() {
+    return _discoveredDevices;
   }
 
   // Stop scanning for devices

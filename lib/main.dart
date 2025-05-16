@@ -29,7 +29,9 @@ class BleScannerWidget extends StatefulWidget {
 class _BleScannerWidgetState extends State<BleScannerWidget> {
   final Map<String, Color> _rollingColors = {};
   final RollFeathersController _rfController = RollFeathersController();
-  final List<String> _rollHistory = []; // Add this line to store roll history
+  final List<String> _rollHistory = [];
+  bool _withAdvantage = false;    // Add this line
+  bool _withDisadvantage = false; // Add this line
 
   @override
   void initState() {
@@ -96,11 +98,24 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                         _rfController.updateDieValue(die);
                         if (allDiceRolled && _rfController.isRolling()) {
                           _rfController.stopRolling();
-                          // Add the roll result to history
+                          var rollType = RollType.sum;
+                          if (_withAdvantage) {
+                            rollType = RollType.advantage;
+                          } else if (_withDisadvantage) {
+                            rollType = RollType.disadvantage;
+                          }
+                          var result = _rfController.stopRollWithResult(rollType: rollType);
+                          // Add the roll result to history with advantage/disadvantage information
                           setState(() {
-                            _rollHistory.insert(
-                                0,
-                                'Roll: Sum ${_rfController.rollTotal()} (Adv: ${_rfController.rollMax()}, DisAdv: ${_rfController.rollMin()})');
+                            String rollResult = 'Roll: ';
+                            if (_withAdvantage) {
+                              rollResult += 'With Advantage: ${result}';
+                            } else if (_withDisadvantage) {
+                              rollResult += 'With Disadvantage: ${result}';
+                            } else {
+                              rollResult += 'Sum ${result}';
+                            }
+                            _rollHistory.insert(0, rollResult);
                           });
                         }
 
@@ -127,7 +142,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                       title: Text(
                         die.device.platformName.isEmpty
                             ? 'Unknown Device ${die.device.remoteId}'
-                            : '${die.device.platformName} ${die.state.batteryLevel} Sum ${_rfController.rollTotal()} DisAdv ${_rfController.rollMin()} Adv ${_rfController.rollMax()}',
+                            : die.device.platformName,
                       ),
                       subtitle: Text(
                         '${RollState.values[die.state.rollState ?? RollState.unknown.index].name} ${die.state.currentFaceValue}',
@@ -158,21 +173,61 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(8.0),
+                    child: Text(
+                      'Roll History',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Roll History',
-                          style: Theme.of(context).textTheme.titleLarge,
+                        Row(
+                          children: [
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: _withAdvantage,
+                                  onChanged: (bool? value) {
+                                    setState(() {
+                                      _withAdvantage = value ?? false;
+                                      if (_withAdvantage) {
+                                        _withDisadvantage = false;
+                                      }
+                                    });
+                                  },
+                                ),
+                                const Text('Advantage'),
+                              ],
+                            ),
+                            const SizedBox(width: 8),
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: _withDisadvantage,
+                                  onChanged: (bool? value) {
+                                    setState(() {
+                                      _withDisadvantage = value ?? false;
+                                      if (_withDisadvantage) {
+                                        _withAdvantage = false;
+                                      }
+                                    });
+                                  },
+                                ),
+                                const Text('Disadvantage'),
+                              ],
+                            ),
+                          ],
                         ),
-                        IconButton(
+                        TextButton.icon(
                           icon: const Icon(Icons.clear_all),
+                          label: const Text('Clear'),
                           onPressed: () {
                             setState(() {
                               _rollHistory.clear();
                             });
                           },
-                          tooltip: 'Clear roll history',
                         ),
                       ],
                     ),

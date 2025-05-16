@@ -16,11 +16,8 @@ class BluetoothNotSupported extends FlutterBluePlusException {
   );
 }
 
-enum RollType {
-  sum,
-  advantage,
-  disadvantage
-}
+enum RollType { sum, advantage, disadvantage }
+
 class RollFeathersController {
   final BleScanManager _scanManager = BleScanManager();
   bool _initialized = false;
@@ -87,31 +84,42 @@ class RollFeathersController {
   static const Color green = Color.fromARGB(255, 0, 255, 0);
   static const Color red = Color.fromARGB(255, 255, 0, 0);
   static const Color blue = Color.fromARGB(255, 0, 0, 255);
-  int stopRollWithResult({RollType rollType = RollType.sum, Color? advBlink = green, Color? disAdvBlink = red}) {
-    switch(rollType) {
+
+  int stopRollWithResult({
+    RollType rollType = RollType.sum,
+    Color? advBlink = green,
+    Color? disAdvBlink = red,
+    Map<String, Color>? totalColors,
+  }) {
+    switch (rollType) {
       case RollType.advantage:
-        var maxRoll = _rollingDie.entries.reduce((v, e) => v.value >= e.value ? v : e);
+        var maxRoll = _rollingDie.entries.reduce(
+          (v, e) => v.value >= e.value ? v : e,
+        );
         if (advBlink != null) {
           _scanManager.getDiscoveredDevices()[maxRoll.key]?.sendMessage(
-              BlinkMessage(blinkColor: advBlink));
+            BlinkMessage(blinkColor: advBlink),
+          );
         }
         return maxRoll.value;
       case RollType.disadvantage:
-        var minRoll = _rollingDie.entries.reduce((v, e) => v.value <= e.value ? v : e);
+        var minRoll = _rollingDie.entries.reduce(
+          (v, e) => v.value <= e.value ? v : e,
+        );
         if (disAdvBlink != null) {
           _scanManager.getDiscoveredDevices()[minRoll.key]?.sendMessage(
-              BlinkMessage(blinkColor: disAdvBlink));
+            BlinkMessage(blinkColor: disAdvBlink),
+          );
         }
         return minRoll.value;
       default:
-        var blueBlink = BlinkMessage(blinkColor: blue);
         for (var k in _rollingDie.keys) {
-          _scanManager.getDiscoveredDevices()[k]?.sendMessage(blueBlink);
+          var blinker = BlinkMessage(blinkColor: totalColors?[k] ?? blue);
+          _scanManager.getDiscoveredDevices()[k]?.sendMessage(blinker);
         }
         return rollTotal();
     }
   }
-  
 
   void updateDieValue(PixelDie die) {
     _rollingDie[die.device.remoteId.str] = die.state.currentFaceValue!;

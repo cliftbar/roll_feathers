@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:roll_feathers/pixel/ha.dart';
 import 'package:roll_feathers/pixel/pixel.dart';
@@ -30,7 +31,8 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
   final Map<String, Color> _rollingColors = {};
   final RollFeathersController _rfController = RollFeathersController();
   final List<String> _rollHistory = [];
-  bool _withAdvantage = false;    // Add this line
+  final Map<String, Color> _blinkColors = {}; // Add this new variable
+  bool _withAdvantage = false; // Add this line
   bool _withDisadvantage = false; // Add this line
 
   @override
@@ -116,16 +118,19 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                           } else if (_withDisadvantage) {
                             rollType = RollType.disadvantage;
                           }
-                          var result = _rfController.stopRollWithResult(rollType: rollType);
+                          var result = _rfController.stopRollWithResult(
+                            rollType: rollType,
+                            totalColors: _blinkColors,
+                          );
                           // Add the roll result to history with advantage/disadvantage information
                           setState(() {
                             String rollResult = 'Roll';
                             if (_withAdvantage) {
-                              rollResult += ' (Adv): ${result}';
+                              rollResult += ' (Adv): $result';
                             } else if (_withDisadvantage) {
-                              rollResult += ' (Dis): ${result}';
+                              rollResult += ' (Dis): $result';
                             } else {
-                              rollResult += ': ${result}';
+                              rollResult += ': $result';
                             }
                             _rollHistory.insert(0, rollResult);
                           });
@@ -149,8 +154,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                       setState(() {});
                     };
                     return ListTile(
-                      textColor:
-                          _rollingColors[die.device.remoteId.toString()],
+                      textColor: _rollingColors[die.device.remoteId.toString()],
                       title: Text(
                         die.device.platformName.isEmpty
                             ? 'Unknown Device ${die.device.remoteId}'
@@ -160,9 +164,57 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                         '${RollState.values[die.state.rollState ?? RollState.unknown.index].name} ${die.state.currentFaceValue}',
                       ),
                       onTap: () {
-                        var blinker = BlinkMessage();
-                        die.sendMessage(blinker);
-                        HomeAssistantController().blinkEntity(blinker);
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            Color currentColor =
+                                _blinkColors[die.device.remoteId.str] ??
+                                Colors.white;
+                            return AlertDialog(
+                              title: const Text('Pick a color'),
+                              content: SingleChildScrollView(
+                                child: ColorPicker(
+                                  pickerColor: currentColor,
+                                  onColorChanged: (Color color) {
+                                    currentColor = color;
+                                  },
+                                  pickerAreaHeightPercent: 0.8,
+                                ),
+                              ),
+                              actions: <Widget>[
+                                TextButton(
+                                  child: const Text('Cancel'),
+                                  onPressed: () {
+                                    Navigator.of(context).pop();
+                                  },
+                                ),
+                                TextButton(
+                                  child: const Text('Blink'),
+                                  onPressed: () {
+                                    print('blink $currentColor');
+                                    var blinker = BlinkMessage(
+                                      blinkColor: currentColor,
+                                    );
+                                    die.sendMessage(blinker);
+                                    HomeAssistantController().blinkEntity(
+                                      blinker,
+                                    );
+                                  },
+                                ),
+                                TextButton(
+                                  child: const Text('Save'),
+                                  onPressed: () {
+                                    setState(() {
+                                      _blinkColors[die.device.remoteId.str] =
+                                          currentColor;
+                                    });
+                                    Navigator.of(context).pop();
+                                  },
+                                ),
+                              ],
+                            );
+                          },
+                        );
                       },
                     );
                   },
@@ -175,10 +227,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
             child: Container(
               decoration: BoxDecoration(
                 border: Border(
-                  left: BorderSide(
-                    color: Colors.grey.shade300,
-                    width: 1,
-                  ),
+                  left: BorderSide(color: Colors.grey.shade300, width: 1),
                 ),
               ),
               child: Column(
@@ -258,9 +307,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                     child: ListView.builder(
                       itemCount: _rollHistory.length,
                       itemBuilder: (context, index) {
-                        return ListTile(
-                          title: Text(_rollHistory[index]),
-                        );
+                        return ListTile(title: Text(_rollHistory[index]));
                       },
                     ),
                   ),

@@ -249,10 +249,10 @@ class BlinkMessage extends TxMessage implements Blinker {
     buffer[1] = count;
     buffer[2] = duration & 0xFF;
     buffer[3] = (duration >> 8) & 0xFF;
-    buffer[4] = blinkColor.b.toInt();
-    buffer[5] = blinkColor.g.toInt();
-    buffer[6] = blinkColor.r.toInt();
-    buffer[7] = blinkColor.a.toInt();
+    buffer[4] = (blinkColor.b * 255).toInt();
+    buffer[5] = (blinkColor.g * 255).toInt();
+    buffer[6] = (blinkColor.r * 255).toInt();
+    buffer[7] = (blinkColor.a * 255).toInt();
     buffer[8] = faceMask & 0xFF;
     buffer[9] = (faceMask >> 8) & 0xFF;
     buffer[10] = (faceMask >> 16) & 0xFF;

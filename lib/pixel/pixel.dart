@@ -1,32 +1,39 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:roll_feathers/pixel/pixelConstants.dart';
-import 'package:roll_feathers/pixel/pixelMessages.dart';
+import 'package:roll_feathers/pixel/pixel_constants.dart';
+import 'package:roll_feathers/pixel/pixel_messages.dart';
 
 class BleScanManager {
   final Map<String, PixelDie> _discoveredDevices = {};
   final _deviceController = StreamController<List<PixelDie>>.broadcast();
 
   Stream<List<PixelDie>> get deviceStream => _deviceController.stream;
-  
+
   Future<bool> checkSupported() async {
     return FlutterBluePlus.isSupported;
   }
 
-  StreamSubscription<BluetoothAdapterState> listenToStates(Function(BluetoothAdapterState) callback) {
+  StreamSubscription<BluetoothAdapterState> listenToStates(
+    Function(BluetoothAdapterState) callback,
+  ) {
     return FlutterBluePlus.adapterState.listen(callback);
   }
 
   Future<void> connect() async {
-    await FlutterBluePlus.adapterState.firstWhere(
-            (state) => state == BluetoothAdapterState.on,
-        orElse: () => throw TimeoutException('Bluetooth did not turn on')
-    ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () =>
-        throw TimeoutException('Bluetooth connection timeout after 10 seconds')
-    );
+    await FlutterBluePlus.adapterState
+        .firstWhere(
+          (state) => state == BluetoothAdapterState.on,
+          orElse: () => throw TimeoutException('Bluetooth did not turn on'),
+        )
+        .timeout(
+          const Duration(seconds: 10),
+          onTimeout:
+              () =>
+                  throw TimeoutException(
+                    'Bluetooth connection timeout after 10 seconds',
+                  ),
+        );
   }
 
   Future<void> scan(Function(List<ScanResult>) foundResultHandler) async {
@@ -34,7 +41,7 @@ class BleScanManager {
     // Start scanning
     await FlutterBluePlus.startScan(
       timeout: Duration(seconds: 15),
-      withServices: [pixelsService],   // Filter by service UUID (optional)
+      withServices: [pixelsService], // Filter by service UUID (optional)
     );
     FlutterBluePlus.cancelWhenScanComplete(scanSub);
   }
@@ -53,13 +60,12 @@ class BleScanManager {
         var die = await PixelDie.fromDevice(dev);
         _discoveredDevices.putIfAbsent(dev.remoteId.str, () => die);
         _deviceController.add(List.of(_discoveredDevices.values));
-
       }
     });
     // Start scanning
     await FlutterBluePlus.startScan(
       timeout: Duration(seconds: 15),
-      withServices: [pixelsService],   // Filter by service UUID (optional)
+      withServices: [pixelsService], // Filter by service UUID (optional)
     );
     FlutterBluePlus.cancelWhenScanComplete(scanSub);
   }
@@ -68,7 +74,6 @@ class BleScanManager {
   List<BluetoothDevice> getDiscoveredDevices() {
     return List.from(_discoveredDevices.values);
   }
-
 
   // Stop scanning for devices
   Future<void> stopScan() async {
@@ -140,7 +145,7 @@ class DiceState {
     this.currentFaceValue,
     this.batteryLevel,
     this.batteryState,
-    this.lastRolled
+    this.lastRolled,
   });
 
   factory DiceState.fromJson(Map<String, dynamic> json) {
@@ -190,12 +195,14 @@ class PixelDie {
       await device.connect();
       await device.discoverServices();
 
-      var service = device.servicesList.firstWhere((bs) => bs.serviceUuid == pixelsService);
+      var service = device.servicesList.firstWhere(
+        (bs) => bs.serviceUuid == pixelsService,
+      );
       var writeChar = service.characteristics.firstWhere(
-              (c) => c.uuid == pixelWriteCharacteristic
+        (c) => c.uuid == pixelWriteCharacteristic,
       );
       var notifyChar = service.characteristics.firstWhere(
-              (c) => c.uuid == pixelNotifyCharacteristic
+        (c) => c.uuid == pixelNotifyCharacteristic,
       );
 
       await notifyChar.setNotifyValue(true);
@@ -244,7 +251,9 @@ class PixelDie {
       case MessageType.rollState:
         var msg = MessageRollState.parse(data);
         _updateStateRoll(msg);
-        print('Received msg RollState: ${RollState.values[msg.rollState]} ${json.encode(msg)}');
+        print(
+          'Received msg RollState: ${RollState.values[msg.rollState]} ${json.encode(msg)}',
+        );
         if (messageRxCallbacks.containsKey(MessageType.rollState)) {
           messageRxCallbacks[MessageType.rollState]!(msg);
         }
@@ -256,19 +265,19 @@ class PixelDie {
           messageRxCallbacks[MessageType.none]!(msg);
         }
     }
-    // 
+    //
   }
-  
+
   void _updateStateIAmADie(MessageIAmADie msg) {
     info ??= DiceInfo(
-        ledCount: msg.ledCount,
-        designAndColor: msg.designAndColor,
-        reserved: msg.reserved,
-        dataSetHash: msg.dataSetHash,
-        pixelId: msg.pixelId,
-        availableFlash: msg.availableFlash,
-        buildTimestamp: msg.buildTimestamp,
-      );
+      ledCount: msg.ledCount,
+      designAndColor: msg.designAndColor,
+      reserved: msg.reserved,
+      dataSetHash: msg.dataSetHash,
+      pixelId: msg.pixelId,
+      availableFlash: msg.availableFlash,
+      buildTimestamp: msg.buildTimestamp,
+    );
 
     state.rollState = msg.rollState;
     state.currentFaceIndex = msg.currentFaceIndex;
@@ -288,5 +297,4 @@ class PixelDie {
     state.currentFaceValue = msg.currentFaceValue;
     state.lastRolled = DateTime.now();
   }
-
 }

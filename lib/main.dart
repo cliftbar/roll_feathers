@@ -1,13 +1,10 @@
-import 'dart:async';
-import 'dart:math';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:roll_feathers/pixel/ha.dart';
 import 'package:roll_feathers/pixel/pixel.dart';
-import 'package:roll_feathers/pixel/pixelConstants.dart';
-import 'package:roll_feathers/pixel/pixelMessages.dart';
+import 'package:roll_feathers/pixel/pixel_constants.dart';
+import 'package:roll_feathers/pixel/pixel_messages.dart';
 import 'package:roll_feathers/roll_feathers_controller.dart';
 
 void main() async {
@@ -18,10 +15,8 @@ void main() async {
 
   // Initialize FlutterBluePlus
   FlutterBluePlus.setLogLevel(LogLevel.info, color: true);
-  
-  runApp(const MaterialApp(
-    home: BleScannerWidget(),
-  ));
+
+  runApp(const MaterialApp(home: BleScannerWidget()));
 }
 
 class BleScannerWidget extends StatefulWidget {
@@ -46,42 +41,35 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
     } on BluetoothNotSupported catch (e) {
       _initialized = false;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Initialization error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Initialization error: $e')));
       }
-
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Scanning error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Scanning error: $e')));
       }
     }
-
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('BLE Scanner'),
-      ),
+      appBar: AppBar(title: const Text('BLE Scanner')),
       body: StreamBuilder<List<PixelDie>>(
         stream: _rfController.getDeviceStream(),
         initialData: const [],
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(
-              child: Text('Error: ${snapshot.error}'),
-            );
+            return Center(child: Text('Error: ${snapshot.error}'));
           }
 
           final devices = snapshot.data ?? [];
 
           if (devices.isEmpty) {
-            return const Center(
-              child: Text('No devices found'),
-            );
+            return const Center(child: Text('No devices found'));
           }
 
           return ListView.builder(
@@ -96,9 +84,11 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                   _rollingColors[die.device.remoteId.toString()] = Colors.green;
 
                   // Check if all dice have finished rolling
-                  bool allDiceRolled = devices.every((d) =>
-                  d.state.rollState == RollState.rolled.index ||
-                      d.state.rollState == RollState.onFace.index);
+                  bool allDiceRolled = devices.every(
+                    (d) =>
+                        d.state.rollState == RollState.rolled.index ||
+                        d.state.rollState == RollState.onFace.index,
+                  );
 
                   _rfController.updateDieValue(die);
                   if (allDiceRolled && _rfController.isRolling()) {
@@ -114,8 +104,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
 
                   if (!_rfController.isRolling()) {
                     _rfController.startRolling((timer) {
-                      setState(() {
-                      });
+                      setState(() {});
                     });
                   }
                   setState(() {
@@ -130,10 +119,14 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
               };
               return ListTile(
                 textColor: _rollingColors[die.device.remoteId.toString()],
-                title: Text(die.device.platformName.isEmpty
-                  ? 'Unknown Device ${die.device.remoteId}'
-                  : '${die.device.platformName} ${die.state.batteryLevel} Sum ${_rfController.rollTotal()} DisAdv ${_rfController.rollMin()} Adv ${_rfController.rollMax()}'),
-                subtitle: Text('${RollState.values[die.state.rollState ?? RollState.unknown.index].name} ${die.state.currentFaceValue}'),
+                title: Text(
+                  die.device.platformName.isEmpty
+                      ? 'Unknown Device ${die.device.remoteId}'
+                      : '${die.device.platformName} ${die.state.batteryLevel} Sum ${_rfController.rollTotal()} DisAdv ${_rfController.rollMin()} Adv ${_rfController.rollMax()}',
+                ),
+                subtitle: Text(
+                  '${RollState.values[die.state.rollState ?? RollState.unknown.index].name} ${die.state.currentFaceValue}',
+                ),
                 onTap: () {
                   var blinker = BlinkMessage();
                   die.sendMessage(blinker);

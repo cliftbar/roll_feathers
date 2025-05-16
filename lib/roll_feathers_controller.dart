@@ -1,13 +1,16 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:ui';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:roll_feathers/pixel/pixel.dart';
 
 class BluetoothNotSupported extends FlutterBluePlusException {
-  BluetoothNotSupported(super.platform, super.function, super.code, super.description);
+  BluetoothNotSupported(
+    super.platform,
+    super.function,
+    super.code,
+    super.description,
+  );
 }
 
 class RollFeathersController {
@@ -19,8 +22,8 @@ class RollFeathersController {
 
   void init() {
     _initializeBle();
-
   }
+
   void dispose() {
     _scanManager.dispose();
     _rollUpdateTimer?.cancel();
@@ -31,7 +34,12 @@ class RollFeathersController {
 
     var supported = await _scanManager.checkSupported();
     if (!supported) {
-      throw BluetoothNotSupported(ErrorPlatform.fbp, "_initializeBle()", -1, "Bluetooth is not supported");
+      throw BluetoothNotSupported(
+        ErrorPlatform.fbp,
+        "_initializeBle()",
+        -1,
+        "Bluetooth is not supported",
+      );
     }
 
     await _scanManager.connect();
@@ -52,12 +60,15 @@ class RollFeathersController {
   bool isRolling() {
     return _isRolling;
   }
+
   void startRolling(Function(Timer) timerCallback) {
     _isRolling = true;
     _rollingDie.clear();
     _rollUpdateTimer?.cancel();
     _rollUpdateTimer = Timer.periodic(
-        const Duration(milliseconds: 100), timerCallback);
+      const Duration(milliseconds: 100),
+      timerCallback,
+    );
   }
 
   void stopRolling() {
@@ -72,14 +83,15 @@ class RollFeathersController {
   int rollMax() {
     return _rollingDie.values.fold(-1, max);
   }
+
   int rollMin() {
     if (_rollingDie.isEmpty) {
       return -1;
     }
     return _rollingDie.values.reduce(min);
   }
+
   int rollTotal() {
     return _rollingDie.values.fold(0, (p, c) => p + c);
   }
-
 }

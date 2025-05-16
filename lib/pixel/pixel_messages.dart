@@ -1,7 +1,5 @@
-
-import 'package:color/color.dart';
-
-import 'package:roll_feathers/pixel/pixelConstants.dart';
+import 'package:flutter/material.dart';
+import 'package:roll_feathers/pixel/pixel_constants.dart';
 
 abstract class Message {
   final int id;
@@ -19,6 +17,7 @@ abstract class Message {
 
 abstract class RxMessage extends Message {
   RxMessage({required this.buffer, required super.id});
+
   final List<int> buffer;
 }
 
@@ -26,11 +25,9 @@ abstract class TxMessage extends Message {
   TxMessage({required super.id});
 
   List<int> toBuffer();
-
 }
 
 class MessageWhoAreYou extends TxMessage {
-
   MessageWhoAreYou() : super(id: MessageType.whoAreYou.index);
 
   @override
@@ -203,35 +200,28 @@ class MessageIAmADie extends RxMessage {
 }
 
 class MessageNone extends RxMessage {
-
-  MessageNone({
-    required super.buffer,
-  }) : super(id: MessageType.iAmADie.index);
+  MessageNone({required super.buffer}) : super(id: MessageType.iAmADie.index);
 
   static MessageNone parse(List<int> data) {
-    return MessageNone(
-      buffer: data,
-    );
+    return MessageNone(buffer: data);
   }
 
   factory MessageNone.fromJson(Map<String, dynamic> json) {
-    return MessageNone(
-      buffer: json['buffer'],
-    );
+    return MessageNone(buffer: json['buffer']);
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'buffer': buffer,
-    };
+    return {'id': id, 'buffer': buffer};
   }
 }
 
 abstract class Blinker {
   int getCount();
+
   int getDuration();
+
   Color getBlinkColor();
+
   int getLoopCount();
 }
 
@@ -246,7 +236,7 @@ class BlinkMessage extends TxMessage implements Blinker {
   BlinkMessage({
     this.count = 1,
     this.duration = 500,
-    this.blinkColor = const Color.rgb(255, 255, 255),
+    this.blinkColor = Colors.white,
     this.faceMask = 0xFFFFFFFF,
     this.fade = 0,
     this.loopCount = 2,
@@ -259,10 +249,10 @@ class BlinkMessage extends TxMessage implements Blinker {
     buffer[1] = count;
     buffer[2] = duration & 0xFF;
     buffer[3] = (duration >> 8) & 0xFF;
-    buffer[4] = blinkColor.toRgbColor().b.toInt();
-    buffer[5] = blinkColor.toRgbColor().g.toInt();
-    buffer[6] = blinkColor.toRgbColor().r.toInt();
-    buffer[7] = 255;
+    buffer[4] = blinkColor.b.toInt();
+    buffer[5] = blinkColor.g.toInt();
+    buffer[6] = blinkColor.r.toInt();
+    buffer[7] = blinkColor.a.toInt();
     buffer[8] = faceMask & 0xFF;
     buffer[9] = (faceMask >> 8) & 0xFF;
     buffer[10] = (faceMask >> 16) & 0xFF;
@@ -292,4 +282,3 @@ class BlinkMessage extends TxMessage implements Blinker {
     return loopCount;
   }
 }
-

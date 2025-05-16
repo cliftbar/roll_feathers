@@ -22,6 +22,7 @@ enum DesignAndColor {
 
   const DesignAndColor(this.value);
 }
+
 enum RollState { unknown, rolled, handling, rolling, crooked, onFace }
 
 enum BatteryState {
@@ -35,7 +36,7 @@ enum BatteryState {
   trickleCharge,
   done,
   lowTemp,
-  highTemp
+  highTemp,
 }
 
 enum MessageType {
@@ -103,6 +104,5 @@ enum MessageType {
   temperature,
   enableCharging,
   disableCharging,
-  discharge;
+  discharge,
 }
-

@@ -2,32 +2,59 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:roll_feathers/pixel/ha.dart';
 import 'package:roll_feathers/pixel/pixel.dart';
 import 'package:roll_feathers/pixel/pixel_constants.dart';
 import 'package:roll_feathers/pixel/pixel_messages.dart';
 import 'package:roll_feathers/roll_feathers_controller.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+final String _themeKey = 'theme_mode';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: "local.env");
   FlutterBluePlus.setLogLevel(LogLevel.info, color: true);
-  runApp(const MyApp());
+  
+  // Load the theme preference before running the app
+  final prefs = await SharedPreferences.getInstance();
+  final themeIndex = prefs.getInt(_themeKey) ?? ThemeMode.dark.index;
+  final initialThemeMode = ThemeMode.values[themeIndex];
+  
+  runApp(MyApp(initialThemeMode: initialThemeMode));
 }
 
 class MyApp extends StatefulWidget {
-  const MyApp({super.key});
+  final ThemeMode initialThemeMode;
+  
+  const MyApp({
+    super.key,
+    required this.initialThemeMode,
+  });
 
   @override
   State<MyApp> createState() => _MyAppState();
 }
 
 class _MyAppState extends State<MyApp> {
-  ThemeMode _themeMode = ThemeMode.dark;
+  late ThemeMode _themeMode;
+
+  @override
+  void initState() {
+    super.initState();
+    // Use the preloaded theme mode
+    _themeMode = widget.initialThemeMode;
+  }
+
+  // Save theme preference
+  Future<void> _saveThemePreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_themeKey, _themeMode.index);
+  }
 
   void toggleTheme() {
     setState(() {
       _themeMode = _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+      _saveThemePreference(); // Save the preference when theme changes
     });
   }
 
@@ -378,17 +405,18 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
   }
 
 // Add this method to your _BleScannerWidgetState class
-  void _showHomeAssistantSettings(BuildContext context) {
+  void _showHomeAssistantSettings(BuildContext context) async {
+    var haSettings = await _rfController.getHaSettings();
   final urlController = TextEditingController(
-    text: _rfController.getHaSettings().url,
+    text: haSettings.url,
   );
   final tokenController = TextEditingController(
-    text: _rfController.getHaSettings().token,
+    text: haSettings.token,
   );
   final entityController = TextEditingController(
-    text: _rfController.getHaSettings().entity,
+    text: haSettings.entity,
   );
-  bool isEnabled = _rfController.getHaSettings().enabled;
+  bool isEnabled = haSettings.enabled;
 
   showDialog(
     context: context,

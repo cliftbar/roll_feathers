@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:home_assistant/home_assistant.dart';
 import 'package:roll_feathers/pixel/pixel_messages.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum LightServiceActions {
   on(action: "turn_on"),
@@ -23,43 +24,64 @@ class HaSettings {
 }
 
 class HomeAssistantController {
-  late HomeAssistant homeAssistant;
-  late String _haUrl;
-  late String _haToken;
+  late HomeAssistant _homeAssistant;
+
+  // late String _haUrl;
+  // late String _haToken;
   late String _haEntity;
   late bool _haEnabled;
 
-  HomeAssistantController() {
-    _haEnabled = bool.parse(dotenv.env['HA_ENABLED'] ?? "false");
-    _haUrl = dotenv.env['HA_URL'] ?? "";
-    _haToken = dotenv.env['HA_TOKEN'] ?? "";
-    _haEntity = dotenv.env['HA_ENTITY'] ?? "";
-    homeAssistant = HomeAssistant(baseUrl: _haUrl, bearerToken: _haToken);
+  HomeAssistantController(SharedPreferences prefs) {
+    // _haEnabled = bool.parse(dotenv.env['HA_ENABLED'] ?? "false");
+    // _haUrl = dotenv.env['HA_URL'] ?? "";
+    // _haToken = dotenv.env['HA_TOKEN'] ?? "";
+    // _haEntity = dotenv.env['HA_ENTITY'] ?? "";
+    _haEnabled = prefs.getBool("ha.enabled") ?? false;
+    _haEntity = prefs.getString("ha.entity") ?? "";
+    _homeAssistant = HomeAssistant(
+      baseUrl: prefs.getString("ha.url") ?? "",
+      bearerToken: prefs.getString("ha.token") ?? "",
+    );
   }
 
-  void updateSettings({bool enabled = false, String? url, String? token, String? entity}) {
+  static Future<HomeAssistantController> makeController() async {
+    final prefs = await SharedPreferences.getInstance();
+    return HomeAssistantController(prefs);
+  }
+
+  void updateSettings({bool enabled = false, String? url, String? token, String? entity}) async {
+    final prefs = await SharedPreferences.getInstance();
     if (url != null) {
-      _haUrl = url;
+      await prefs.setString("ha.url", url);
     }
     if (token != null) {
-      _haToken = token;
+      await prefs.setString("ha.token", token);
     }
     if (entity != null) {
+      await prefs.setString("ha.entity", entity);
       _haEntity = entity;
     }
+    await prefs.setBool("ha.enabled", enabled);
     _haEnabled = enabled;
-    homeAssistant = HomeAssistant(baseUrl: _haUrl, bearerToken: _haToken);
+    _homeAssistant = HomeAssistant(
+      baseUrl: prefs.getString("ha.url") ?? "",
+      bearerToken: prefs.getString("ha.token") ?? "",
+    );
+    print("ha settings updated");
   }
 
-  HaSettings getHaSettings() {
-    return HaSettings(_haEnabled, _haUrl, _haToken, _haEntity);
+  Future<HaSettings> getHaSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    prefs.getKeys().forEach((k) => print('$k ${prefs.get(k)}'));
+    return HaSettings(_haEnabled, prefs.getString("ha.url") ?? "", prefs.getString("ha.token") ?? "", _haEntity);
   }
+
   Future<void> blinkEntity(String entity, Blinker blink) async {
     Map<String, dynamic> revertPayload = {};
     var revertAction = LightServiceActions.on;
 
     try {
-      var currentState = await homeAssistant.fetchState(entity);
+      var currentState = await _homeAssistant.fetchState(entity);
       revertPayload = {"rgb_color": currentState.attributes.rgbColor};
     } catch (e) {
       print("error reading ha state $e");
@@ -70,12 +92,12 @@ class HomeAssistantController {
       "rgb_color": [blink.r255(), blink.g255(), blink.b255()],
     };
 
-    await homeAssistant.executeService(entity, LightServiceActions.on.action, additionalActions: blinkPayload);
+    await _homeAssistant.executeService(entity, LightServiceActions.on.action, additionalActions: blinkPayload);
     sleep(Duration(milliseconds: blink.getDuration()));
-    await homeAssistant.executeService(entity, LightServiceActions.off.action);
+    await _homeAssistant.executeService(entity, LightServiceActions.off.action);
 
     sleep(Duration(milliseconds: blink.getDuration()));
-    await homeAssistant.executeService(entity, revertAction.action, additionalActions: revertPayload);
+    await _homeAssistant.executeService(entity, revertAction.action, additionalActions: revertPayload);
 
     print("HA blink");
   }

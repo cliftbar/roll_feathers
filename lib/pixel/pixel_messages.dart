@@ -40,18 +40,11 @@ class MessageBatteryLevel extends RxMessage {
   final int batteryLevel;
   final int batteryState;
 
-  MessageBatteryLevel({
-    required super.buffer,
-    required this.batteryLevel,
-    required this.batteryState,
-  }) : super(id: MessageType.batteryLevel.index);
+  MessageBatteryLevel({required super.buffer, required this.batteryLevel, required this.batteryState})
+    : super(id: MessageType.batteryLevel.index);
 
   static MessageBatteryLevel parse(List<int> data) {
-    return MessageBatteryLevel(
-      buffer: data,
-      batteryLevel: data[1],
-      batteryState: data[2],
-    );
+    return MessageBatteryLevel(buffer: data, batteryLevel: data[1], batteryState: data[2]);
   }
 
   factory MessageBatteryLevel.fromJson(Map<String, dynamic> json) {
@@ -63,12 +56,7 @@ class MessageBatteryLevel extends RxMessage {
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'buffer': buffer,
-      'batteryLevel': batteryLevel,
-      'batteryState': batteryState,
-    };
+    return {'id': id, 'buffer': buffer, 'batteryLevel': batteryLevel, 'batteryState': batteryState};
   }
 }
 
@@ -85,12 +73,7 @@ class MessageRollState extends RxMessage {
   }) : super(id: MessageType.rollState.index);
 
   static MessageRollState parse(List<int> data) {
-    return MessageRollState(
-      buffer: data,
-      rollState: data[1],
-      currentFaceIndex: data[2],
-      currentFaceValue: data[2] + 1,
-    );
+    return MessageRollState(buffer: data, rollState: data[1], currentFaceIndex: data[2], currentFaceValue: data[2] + 1);
   }
 
   factory MessageRollState.fromJson(Map<String, dynamic> json) {

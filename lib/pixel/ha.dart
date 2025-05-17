@@ -1,8 +1,8 @@
 import 'dart:io';
 
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:home_assistant/home_assistant.dart';
 import 'package:roll_feathers/pixel/pixel_messages.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class HomeAssistantController {
   late final HomeAssistant homeAssistant;

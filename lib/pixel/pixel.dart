@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:roll_feathers/pixel/pixel_constants.dart';
 import 'package:roll_feathers/pixel/pixel_messages.dart';
@@ -14,9 +15,7 @@ class BleScanManager {
     return FlutterBluePlus.isSupported;
   }
 
-  StreamSubscription<BluetoothAdapterState> listenToStates(
-    Function(BluetoothAdapterState) callback,
-  ) {
+  StreamSubscription<BluetoothAdapterState> listenToStates(Function(BluetoothAdapterState) callback) {
     return FlutterBluePlus.adapterState.listen(callback);
   }
 
@@ -28,11 +27,7 @@ class BleScanManager {
         )
         .timeout(
           const Duration(seconds: 10),
-          onTimeout:
-              () =>
-                  throw TimeoutException(
-                    'Bluetooth connection timeout after 10 seconds',
-                  ),
+          onTimeout: () => throw TimeoutException('Bluetooth connection timeout after 10 seconds'),
         );
   }
 
@@ -179,11 +174,7 @@ class PixelDie {
   late DiceState state;
   Map<MessageType, Function(RxMessage)> messageRxCallbacks = {};
 
-  PixelDie({
-    required this.device,
-    required this.writeChar,
-    required this.notifyChar,
-  }) {
+  PixelDie({required this.device, required this.writeChar, required this.notifyChar}) {
     state = DiceState();
     notifyChar.onValueReceived.listen(_readNotify);
     // Send IAmADie request message (0x01)
@@ -195,23 +186,13 @@ class PixelDie {
       await device.connect();
       await device.discoverServices();
 
-      var service = device.servicesList.firstWhere(
-        (bs) => bs.serviceUuid == pixelsService,
-      );
-      var writeChar = service.characteristics.firstWhere(
-        (c) => c.uuid == pixelWriteCharacteristic,
-      );
-      var notifyChar = service.characteristics.firstWhere(
-        (c) => c.uuid == pixelNotifyCharacteristic,
-      );
+      var service = device.servicesList.firstWhere((bs) => bs.serviceUuid == pixelsService);
+      var writeChar = service.characteristics.firstWhere((c) => c.uuid == pixelWriteCharacteristic);
+      var notifyChar = service.characteristics.firstWhere((c) => c.uuid == pixelNotifyCharacteristic);
 
       await notifyChar.setNotifyValue(true);
 
-      return PixelDie(
-        device: device,
-        writeChar: writeChar,
-        notifyChar: notifyChar,
-      );
+      return PixelDie(device: device, writeChar: writeChar, notifyChar: notifyChar);
     } catch (e) {
       throw Exception('Failed to setup PixelDie: $e');
     }
@@ -251,9 +232,7 @@ class PixelDie {
       case MessageType.rollState:
         var msg = MessageRollState.parse(data);
         _updateStateRoll(msg);
-        print(
-          'Received msg RollState: ${RollState.values[msg.rollState]} ${json.encode(msg)}',
-        );
+        print('Received msg RollState: ${RollState.values[msg.rollState]} ${json.encode(msg)}');
         if (messageRxCallbacks.containsKey(MessageType.rollState)) {
           messageRxCallbacks[MessageType.rollState]!(msg);
         }

@@ -43,15 +43,11 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
       _rollingColors.clear();
     } on BluetoothNotSupported catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Initialization error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Initialization error: $e')));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Scanning error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Scanning error: $e')));
       }
     }
   }
@@ -94,14 +90,12 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                   itemCount: devices.length,
                   itemBuilder: (context, index) {
                     final die = devices[index];
-                    _rollingColors[die.device.remoteId.toString()] ??=
-                        Colors.black;
+                    _rollingColors[die.device.remoteId.toString()] ??= Colors.black;
                     die.messageRxCallbacks[MessageType.rollState] = (msg) {
                       MessageRollState rollStateMsg = msg as MessageRollState;
                       if (rollStateMsg.rollState == RollState.rolled.index ||
                           rollStateMsg.rollState == RollState.onFace.index) {
-                        _rollingColors[die.device.remoteId.toString()] =
-                            Colors.green;
+                        _rollingColors[die.device.remoteId.toString()] = Colors.green;
 
                         bool allDiceRolled = devices.every(
                           (d) =>
@@ -118,10 +112,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                           } else if (_withDisadvantage) {
                             rollType = RollType.disadvantage;
                           }
-                          var result = _rfController.stopRollWithResult(
-                            rollType: rollType,
-                            totalColors: _blinkColors,
-                          );
+                          var result = _rfController.stopRollWithResult(rollType: rollType, totalColors: _blinkColors);
                           // Add the roll result to history with advantage/disadvantage information
                           setState(() {
                             String rollResult = 'Roll';
@@ -137,10 +128,8 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                         }
 
                         setState(() {});
-                      } else if (rollStateMsg.rollState ==
-                          RollState.rolling.index) {
-                        _rollingColors[die.device.remoteId.toString()] =
-                            Colors.orange;
+                      } else if (rollStateMsg.rollState == RollState.rolling.index) {
+                        _rollingColors[die.device.remoteId.toString()] = Colors.orange;
 
                         if (!_rfController.isRolling()) {
                           _rfController.startRolling((timer) {
@@ -167,9 +156,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                         showDialog(
                           context: context,
                           builder: (BuildContext context) {
-                            Color currentColor =
-                                _blinkColors[die.device.remoteId.str] ??
-                                Colors.white;
+                            Color currentColor = _blinkColors[die.device.remoteId.str] ?? Colors.white;
                             return AlertDialog(
                               title: const Text('Pick a color'),
                               content: SingleChildScrollView(
@@ -192,21 +179,16 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                                   child: const Text('Blink'),
                                   onPressed: () {
                                     print('blink $currentColor');
-                                    var blinker = BlinkMessage(
-                                      blinkColor: currentColor,
-                                    );
+                                    var blinker = BlinkMessage(blinkColor: currentColor);
                                     die.sendMessage(blinker);
-                                    HomeAssistantController().blinkEntity(
-                                      blinker,
-                                    );
+                                    HomeAssistantController().blinkEntity(blinker);
                                   },
                                 ),
                                 TextButton(
                                   child: const Text('Save'),
                                   onPressed: () {
                                     setState(() {
-                                      _blinkColors[die.device.remoteId.str] =
-                                          currentColor;
+                                      _blinkColors[die.device.remoteId.str] = currentColor;
                                     });
                                     Navigator.of(context).pop();
                                   },
@@ -225,19 +207,12 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
           // Second column - roll history (taking half the width)
           Expanded(
             child: Container(
-              decoration: BoxDecoration(
-                border: Border(
-                  left: BorderSide(color: Colors.grey.shade300, width: 1),
-                ),
-              ),
+              decoration: BoxDecoration(border: Border(left: BorderSide(color: Colors.grey.shade300, width: 1))),
               child: Column(
                 children: [
                   Padding(
                     padding: const EdgeInsets.all(8.0),
-                    child: Text(
-                      'Roll History',
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
+                    child: Text('Roll History', style: Theme.of(context).textTheme.titleLarge),
                   ),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 8.0),

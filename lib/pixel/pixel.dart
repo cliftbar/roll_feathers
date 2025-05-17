@@ -9,6 +9,10 @@ class BleScanManager {
   final Map<String, PixelDie> _discoveredDevices = {};
   final _deviceController = StreamController<List<PixelDie>>.broadcast();
 
+  void updateDeviceDieEntity(PixelDie die, String entity) {
+    _discoveredDevices[die.device.remoteId.str]?.haEntityTargets.add(entity);
+  }
+
   Stream<List<PixelDie>> get deviceStream => _deviceController.stream;
 
   Future<bool> checkSupported() async {
@@ -172,6 +176,8 @@ class PixelDie {
   BluetoothCharacteristic notifyChar;
   DiceInfo? info;
   late DiceState state;
+  List<String> haEntityTargets = [];
+
   Map<MessageType, Function(RxMessage)> messageRxCallbacks = {};
 
   PixelDie({required this.device, required this.writeChar, required this.notifyChar}) {

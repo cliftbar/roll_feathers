@@ -54,9 +54,8 @@ class HomeAssistantController {
   HaSettings getHaSettings() {
     return HaSettings(_haEnabled, _haUrl, _haToken, _haEntity);
   }
-  Future<void> blinkEntity(Blinker blink) async {
+  Future<void> blinkEntity(String entity, Blinker blink) async {
     Map<String, dynamic> revertPayload = {};
-    var entity = _haEntity;
     var revertAction = LightServiceActions.on;
 
     try {

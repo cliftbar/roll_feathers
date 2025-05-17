@@ -198,17 +198,31 @@ class MessageNone extends RxMessage {
   }
 }
 
-abstract class Blinker {
+abstract class Blinker with Color255 {
   int getCount();
 
   int getDuration();
 
-  Color getBlinkColor();
-
   int getLoopCount();
 }
 
-class BlinkMessage extends TxMessage implements Blinker {
+mixin Color255 {
+  Color getColor();
+  int r255() {
+    return (getColor().r * 255).toInt();
+  }
+  int g255() {
+    return (getColor().g * 255).toInt();
+  }
+  int b255() {
+    return (getColor().b * 255).toInt();
+  }
+  int a255() {
+    return (getColor().a * 255).toInt();
+  }
+}
+
+class BlinkMessage extends TxMessage with Color255 implements Blinker {
   final int count;
   final int duration;
   final Color blinkColor;
@@ -232,10 +246,10 @@ class BlinkMessage extends TxMessage implements Blinker {
     buffer[1] = count;
     buffer[2] = duration & 0xFF;
     buffer[3] = (duration >> 8) & 0xFF;
-    buffer[4] = (blinkColor.b * 255).toInt();
-    buffer[5] = (blinkColor.g * 255).toInt();
-    buffer[6] = (blinkColor.r * 255).toInt();
-    buffer[7] = (blinkColor.a * 255).toInt();
+    buffer[4] = b255();
+    buffer[5] = g255();
+    buffer[6] = r255();
+    buffer[7] = a255();
     buffer[8] = faceMask & 0xFF;
     buffer[9] = (faceMask >> 8) & 0xFF;
     buffer[10] = (faceMask >> 16) & 0xFF;
@@ -246,7 +260,7 @@ class BlinkMessage extends TxMessage implements Blinker {
   }
 
   @override
-  Color getBlinkColor() {
+  Color getColor() {
     return blinkColor;
   }
 

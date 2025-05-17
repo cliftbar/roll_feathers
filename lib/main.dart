@@ -52,9 +52,39 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
     }
   }
 
+// First, add a drawer to the Scaffold
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            const DrawerHeader(
+              decoration: BoxDecoration(
+                color: Colors.blue,
+              ),
+              child: Text(
+                'Settings',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.home),
+              title: const Text('Home Assistant Settings'),
+              onTap: () {
+                // Close the drawer
+                Navigator.pop(context);
+                // Show the Home Assistant settings dialog
+                _showHomeAssistantSettings(context);
+              },
+            ),
+          ],
+        ),
+      ),
       appBar: AppBar(
         title: const Text('Roll Feathers'),
         actions: [
@@ -63,7 +93,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
             child: FloatingActionButton(
               onPressed: _rfController.startScanning,
               child: const Icon(Icons.refresh),
-              mini: true, // Makes the FAB smaller to fit in the AppBar
+              mini: true,
             ),
           ),
         ],
@@ -178,10 +208,8 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                                 TextButton(
                                   child: const Text('Blink'),
                                   onPressed: () {
+                                    _rfController.blink(currentColor, die, withHa: true);
                                     print('blink $currentColor');
-                                    var blinker = BlinkMessage(blinkColor: currentColor);
-                                    die.sendMessage(blinker);
-                                    HomeAssistantController().blinkEntity(blinker);
                                   },
                                 ),
                                 TextButton(
@@ -293,6 +321,79 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
         ],
       ),
       // Remove the floatingActionButton property from here
+    );
+  }
+
+// Add this method to your _BleScannerWidgetState class
+  void _showHomeAssistantSettings(BuildContext context) {
+    final urlController = TextEditingController(
+      text: _rfController.getHaSettings().url,
+    );
+    final tokenController = TextEditingController(
+      text: _rfController.getHaSettings().token,
+    );
+    final entityController = TextEditingController(
+      text: _rfController.getHaSettings().entity,
+    );
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Home Assistant Settings'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: urlController,
+                  decoration: const InputDecoration(
+                    labelText: 'Home Assistant URL',
+                    hintText: 'http://homeassistant.local:8123',
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: tokenController,
+                  decoration: const InputDecoration(
+                    labelText: 'Long-Lived Access Token',
+                  ),
+                  obscureText: true,
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: entityController,
+                  decoration: const InputDecoration(
+                    labelText: 'Light Entity ID',
+                    hintText: 'light.living_room',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text('Save'),
+              onPressed: () {
+                // Here you would implement the logic to save these settings
+                // and update the HomeAssistantController
+                _rfController.updateHaSettings(
+                  url: urlController.text,
+                  token: tokenController.text,
+                  entity: entityController.text,
+                );
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 

@@ -17,7 +17,7 @@ void main() async {
   // Initialize FlutterBluePlus
   FlutterBluePlus.setLogLevel(LogLevel.info, color: true);
 
-  runApp(const MaterialApp(home: BleScannerWidget()));
+  runApp(MaterialApp(home: BleScannerWidget(), theme: ThemeData.light(), darkTheme: ThemeData.dark(), themeMode: ThemeMode.dark,));
 }
 
 class BleScannerWidget extends StatefulWidget {
@@ -120,7 +120,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                   itemCount: devices.length,
                   itemBuilder: (context, index) {
                     final die = devices[index];
-                    _rollingColors[die.device.remoteId.toString()] ??= Colors.black;
+                    _rollingColors[die.device.remoteId.toString()] ??= Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black26;
                     die.messageRxCallbacks[MessageType.rollState] = (msg) {
                       MessageRollState rollStateMsg = msg as MessageRollState;
                       if (rollStateMsg.rollState == RollState.rolled.index ||

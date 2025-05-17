@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:roll_feathers/pixel/ha.dart';
 import 'package:roll_feathers/pixel/pixel.dart';
 import 'package:roll_feathers/pixel/pixel_messages.dart';
 
@@ -19,6 +20,7 @@ class RollFeathersController {
   final Map<String, int> _rollingDie = {};
   Timer? _rollUpdateTimer;
   bool _isRolling = false;
+  final HomeAssistantController _homeAssistantController = HomeAssistantController();
 
   void init() {
     _initializeBle();
@@ -81,20 +83,24 @@ class RollFeathersController {
     switch (rollType) {
       case RollType.advantage:
         var maxRoll = _rollingDie.entries.reduce((v, e) => v.value >= e.value ? v : e);
-        if (advBlink != null) {
-          _scanManager.getDiscoveredDevices()[maxRoll.key]?.sendMessage(BlinkMessage(blinkColor: advBlink));
+        var maxDie = _scanManager.getDiscoveredDevices()[maxRoll.key];
+        if (advBlink != null && maxDie != null) {
+          blink(advBlink, maxDie);
         }
         return maxRoll.value;
       case RollType.disadvantage:
         var minRoll = _rollingDie.entries.reduce((v, e) => v.value <= e.value ? v : e);
-        if (disAdvBlink != null) {
-          _scanManager.getDiscoveredDevices()[minRoll.key]?.sendMessage(BlinkMessage(blinkColor: disAdvBlink));
+        var minDie = _scanManager.getDiscoveredDevices()[minRoll.key];
+        if (disAdvBlink != null && minDie != null) {
+          blink(disAdvBlink, minDie);
         }
         return minRoll.value;
       default:
         for (var k in _rollingDie.keys) {
-          var blinker = BlinkMessage(blinkColor: totalColors?[k] ?? blue);
-          _scanManager.getDiscoveredDevices()[k]?.sendMessage(blinker);
+          var d = _scanManager.getDiscoveredDevices()[k];
+          if (d != null) {
+            blink(totalColors?[k] ?? blue, d, withHa: true);
+          }
         }
         return rollTotal();
     }
@@ -118,4 +124,21 @@ class RollFeathersController {
   int rollTotal() {
     return _rollingDie.values.fold(0, (p, c) => p + c);
   }
+
+  void blink(Color blinkColor, PixelDie die, {bool withHa = false}) {
+    var blinker = BlinkMessage(blinkColor: blinkColor);
+    die.sendMessage(blinker);
+    if (withHa) {
+      _homeAssistantController.blinkEntity(blinker);
+    }
+  }
+
+  void updateHaSettings({String? url, String? token, String? entity}) {
+    _homeAssistantController.updateSettings(url: url, token: token, entity: entity);
+  }
+
+  HaSettings getHaSettings() {
+    return _homeAssistantController.getHaSettings();
+  }
 }
+

@@ -9,19 +9,47 @@ import 'package:roll_feathers/pixel/pixel_messages.dart';
 import 'package:roll_feathers/roll_feathers_controller.dart';
 
 void main() async {
-  // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
-
   await dotenv.load(fileName: "local.env");
-
-  // Initialize FlutterBluePlus
   FlutterBluePlus.setLogLevel(LogLevel.info, color: true);
-
-  runApp(MaterialApp(home: BleScannerWidget(), theme: ThemeData.light(), darkTheme: ThemeData.dark(), themeMode: ThemeMode.dark,));
+  runApp(const MyApp());
 }
 
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  ThemeMode _themeMode = ThemeMode.dark;
+
+  void toggleTheme() {
+    setState(() {
+      _themeMode = _themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      home: BleScannerWidget(toggleTheme: toggleTheme, themeMode: _themeMode),
+      theme: ThemeData.light(),
+      darkTheme: ThemeData.dark(),
+      themeMode: _themeMode,
+    );
+  }
+}
 class BleScannerWidget extends StatefulWidget {
-  const BleScannerWidget({super.key});
+  final Function toggleTheme;
+  final ThemeMode themeMode;
+
+  const BleScannerWidget({
+    super.key, 
+    required this.toggleTheme,
+    required this.themeMode,
+  });
 
   @override
   State<BleScannerWidget> createState() => _BleScannerWidgetState();
@@ -73,12 +101,18 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
               ),
             ),
             ListTile(
+              leading: Icon(widget.themeMode == ThemeMode.light ? Icons.dark_mode : Icons.light_mode),
+              title: Text(widget.themeMode == ThemeMode.light ? 'Dark Mode' : 'Light Mode'),
+              onTap: () {
+                widget.toggleTheme();
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.home),
               title: const Text('Home Assistant Settings'),
               onTap: () {
-                // Close the drawer
                 Navigator.pop(context);
-                // Show the Home Assistant settings dialog
                 _showHomeAssistantSettings(context);
               },
             ),
@@ -115,17 +149,17 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                 if (devices.isEmpty) {
                   return const Center(child: Text('No devices found'));
                 }
-
                 return ListView.builder(
                   itemCount: devices.length,
                   itemBuilder: (context, index) {
                     final die = devices[index];
-                    _rollingColors[die.device.remoteId.toString()] ??= Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black26;
+                    print( Theme.of(context).textTheme.labelMedium?.color);
+                    // _rollingColors[die.device.remoteId.toString()] ??= Theme.of(context).textTheme.labelMedium?.color ?? Colors.pink;
                     die.messageRxCallbacks[MessageType.rollState] = (msg) {
                       MessageRollState rollStateMsg = msg as MessageRollState;
                       if (rollStateMsg.rollState == RollState.rolled.index ||
                           rollStateMsg.rollState == RollState.onFace.index) {
-                        _rollingColors[die.device.remoteId.toString()] = Colors.green;
+                        // _rollingColors[die.device.remoteId.toString()] = Colors.green;
 
                         bool allDiceRolled = devices.every(
                           (d) =>
@@ -159,7 +193,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
 
                         setState(() {});
                       } else if (rollStateMsg.rollState == RollState.rolling.index) {
-                        _rollingColors[die.device.remoteId.toString()] = Colors.orange;
+                        // _rollingColors[die.device.remoteId.toString()] = Colors.orange;
 
                         if (!_rfController.isRolling()) {
                           _rfController.startRolling((timer) {
@@ -173,7 +207,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                       setState(() {});
                     };
                     return ListTile(
-                      textColor: _rollingColors[die.device.remoteId.toString()],
+                      textColor: _getRollingTextColor(die, context),
                       title: Text(
                         die.device.platformName.isEmpty
                             ? 'Unknown Device ${die.device.remoteId}'
@@ -396,6 +430,19 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
       },
     );
   }
+
+  Color _getRollingTextColor(PixelDie die, BuildContext context) {
+    switch(RollState.values[die.state.rollState ?? 0]) {
+      case RollState.rolling:
+      case RollState.handling:
+        return Colors.orange;
+      case RollState.onFace:
+      case RollState.rolled:
+      default:
+        return Theme.of(context).textTheme.bodyMedium?.color! ?? Colors.pink;
+    }
+  }
+
 
   @override
   void dispose() {

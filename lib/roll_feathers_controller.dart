@@ -99,7 +99,7 @@ class RollFeathersController {
         for (var k in _rollingDie.keys) {
           var d = _scanManager.getDiscoveredDevices()[k];
           if (d != null) {
-            blink(totalColors?[k] ?? blue, d, withHa: true);
+            blink(totalColors?[k] ?? blue, d);
           }
         }
         return rollTotal();
@@ -125,16 +125,16 @@ class RollFeathersController {
     return _rollingDie.values.fold(0, (p, c) => p + c);
   }
 
-  void blink(Color blinkColor, PixelDie die, {bool withHa = false}) {
+  void blink(Color blinkColor, PixelDie die) {
     var blinker = BlinkMessage(blinkColor: blinkColor);
     die.sendMessage(blinker);
-    if (withHa) {
+    if (_homeAssistantController.getHaSettings().enabled) {
       _homeAssistantController.blinkEntity(blinker);
     }
   }
 
-  void updateHaSettings({String? url, String? token, String? entity}) {
-    _homeAssistantController.updateSettings(url: url, token: token, entity: entity);
+  void updateHaSettings({bool enabled = false, String? url, String? token, String? entity}) {
+    _homeAssistantController.updateSettings(enabled: enabled, url: url, token: token, entity: entity);
   }
 
   HaSettings getHaSettings() {

@@ -20,9 +20,10 @@ class RollFeathersController {
   final Map<String, int> _rollingDie = {};
   Timer? _rollUpdateTimer;
   bool _isRolling = false;
-  final HomeAssistantController _homeAssistantController = HomeAssistantController();
+  late final HomeAssistantController _homeAssistantController;
 
   void init() {
+    HomeAssistantController.makeController().then((hac) => _homeAssistantController = hac);
     _initializeBle();
   }
 
@@ -130,11 +131,12 @@ class RollFeathersController {
     return _rollingDie.values.fold(0, (p, c) => p + c);
   }
 
-  void blink(Color blinkColor, PixelDie die) {
+  void blink(Color blinkColor, PixelDie die) async {
     var blinker = BlinkMessage(blinkColor: blinkColor);
     die.sendMessage(blinker);
-    if (_homeAssistantController.getHaSettings().enabled) {
-      var blinkEntity = _homeAssistantController.getHaSettings().entity;
+    var haSettings = await _homeAssistantController.getHaSettings();
+    if (haSettings.enabled) {
+      var blinkEntity = haSettings.entity;
       if (die.haEntityTargets.isNotEmpty && die.haEntityTargets.first.isNotEmpty) {
         blinkEntity = die.haEntityTargets.first;
       }
@@ -142,11 +144,11 @@ class RollFeathersController {
     }
   }
 
-  void updateHaSettings({bool enabled = false, String? url, String? token, String? entity}) {
+  void updateHaSettings({bool enabled = false, String? url, String? token, String? entity}) async {
     _homeAssistantController.updateSettings(enabled: enabled, url: url, token: token, entity: entity);
   }
 
-  HaSettings getHaSettings() {
+  Future<HaSettings> getHaSettings() async {
     return _homeAssistantController.getHaSettings();
   }
 }

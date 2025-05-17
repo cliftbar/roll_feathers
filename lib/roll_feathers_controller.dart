@@ -8,12 +8,7 @@ import 'package:roll_feathers/pixel/pixel.dart';
 import 'package:roll_feathers/pixel/pixel_messages.dart';
 
 class BluetoothNotSupported extends FlutterBluePlusException {
-  BluetoothNotSupported(
-    super.platform,
-    super.function,
-    super.code,
-    super.description,
-  );
+  BluetoothNotSupported(super.platform, super.function, super.code, super.description);
 }
 
 enum RollType { sum, advantage, disadvantage }
@@ -39,12 +34,7 @@ class RollFeathersController {
 
     var supported = await _scanManager.checkSupported();
     if (!supported) {
-      throw BluetoothNotSupported(
-        ErrorPlatform.fbp,
-        "_initializeBle()",
-        -1,
-        "Bluetooth is not supported",
-      );
+      throw BluetoothNotSupported(ErrorPlatform.fbp, "_initializeBle()", -1, "Bluetooth is not supported");
     }
 
     await _scanManager.connect();
@@ -70,10 +60,7 @@ class RollFeathersController {
     _isRolling = true;
     _rollingDie.clear();
     _rollUpdateTimer?.cancel();
-    _rollUpdateTimer = Timer.periodic(
-      const Duration(milliseconds: 100),
-      timerCallback,
-    );
+    _rollUpdateTimer = Timer.periodic(const Duration(milliseconds: 100), timerCallback);
   }
 
   void stopRolling() {
@@ -93,23 +80,15 @@ class RollFeathersController {
   }) {
     switch (rollType) {
       case RollType.advantage:
-        var maxRoll = _rollingDie.entries.reduce(
-          (v, e) => v.value >= e.value ? v : e,
-        );
+        var maxRoll = _rollingDie.entries.reduce((v, e) => v.value >= e.value ? v : e);
         if (advBlink != null) {
-          _scanManager.getDiscoveredDevices()[maxRoll.key]?.sendMessage(
-            BlinkMessage(blinkColor: advBlink),
-          );
+          _scanManager.getDiscoveredDevices()[maxRoll.key]?.sendMessage(BlinkMessage(blinkColor: advBlink));
         }
         return maxRoll.value;
       case RollType.disadvantage:
-        var minRoll = _rollingDie.entries.reduce(
-          (v, e) => v.value <= e.value ? v : e,
-        );
+        var minRoll = _rollingDie.entries.reduce((v, e) => v.value <= e.value ? v : e);
         if (disAdvBlink != null) {
-          _scanManager.getDiscoveredDevices()[minRoll.key]?.sendMessage(
-            BlinkMessage(blinkColor: disAdvBlink),
-          );
+          _scanManager.getDiscoveredDevices()[minRoll.key]?.sendMessage(BlinkMessage(blinkColor: disAdvBlink));
         }
         return minRoll.value;
       default:

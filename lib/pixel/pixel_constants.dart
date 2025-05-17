@@ -25,19 +25,7 @@ enum DesignAndColor {
 
 enum RollState { unknown, rolled, handling, rolling, crooked, onFace }
 
-enum BatteryState {
-  unknown,
-  ok,
-  low,
-  transition,
-  badCharging,
-  error,
-  charging,
-  trickleCharge,
-  done,
-  lowTemp,
-  highTemp,
-}
+enum BatteryState { unknown, ok, low, transition, badCharging, error, charging, trickleCharge, done, lowTemp, highTemp }
 
 enum MessageType {
   none,

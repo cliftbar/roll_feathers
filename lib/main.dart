@@ -221,15 +221,32 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                           context: context,
                           builder: (BuildContext context) {
                             Color currentColor = _blinkColors[die.device.remoteId.str] ?? Colors.white;
+                            final entityController = TextEditingController(text: die.haEntityTargets.firstOrNull ?? ""); // Add controller for entity field
+                            
                             return AlertDialog(
-                              title: const Text('Pick a color'),
+                              title: const Text('Die Settings'),
                               content: SingleChildScrollView(
-                                child: ColorPicker(
-                                  pickerColor: currentColor,
-                                  onColorChanged: (Color color) {
-                                    currentColor = color;
-                                  },
-                                  pickerAreaHeightPercent: 0.8,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text('Pick a color'),
+                                    ColorPicker(
+                                      pickerColor: currentColor,
+                                      onColorChanged: (Color color) {
+                                        currentColor = color;
+                                      },
+                                      pickerAreaHeightPercent: 0.8,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    TextField(
+                                      controller: entityController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Home Assistant Entity',
+                                        hintText: 'light.bedroom',
+                                        helperText: 'Leave empty to use default entity',
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
                               actions: <Widget>[
@@ -251,6 +268,8 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                                   onPressed: () {
                                     setState(() {
                                       _blinkColors[die.device.remoteId.str] = currentColor;
+                                      _rfController.addDieEntity(die, entityController.text);
+                                      // die.haEntityTargets.add(entityController.text);
                                     });
                                     Navigator.of(context).pop();
                                   },

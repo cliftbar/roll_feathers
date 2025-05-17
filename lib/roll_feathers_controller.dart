@@ -110,6 +110,11 @@ class RollFeathersController {
     _rollingDie[die.device.remoteId.str] = die.state.currentFaceValue!;
   }
 
+  void addDieEntity(PixelDie die, String entity) {
+    die.haEntityTargets = [entity];
+    _scanManager.updateDeviceDieEntity(die, entity);
+  }
+
   int rollMax() {
     return _rollingDie.values.fold(-1, max);
   }
@@ -129,7 +134,11 @@ class RollFeathersController {
     var blinker = BlinkMessage(blinkColor: blinkColor);
     die.sendMessage(blinker);
     if (_homeAssistantController.getHaSettings().enabled) {
-      _homeAssistantController.blinkEntity(blinker);
+      var blinkEntity = _homeAssistantController.getHaSettings().entity;
+      if (die.haEntityTargets.isNotEmpty && die.haEntityTargets.first.isNotEmpty) {
+        blinkEntity = die.haEntityTargets.first;
+      }
+      _homeAssistantController.blinkEntity(blinkEntity, blinker);
     }
   }
 

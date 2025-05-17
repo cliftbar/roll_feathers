@@ -242,7 +242,7 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
                                 TextButton(
                                   child: const Text('Blink'),
                                   onPressed: () {
-                                    _rfController.blink(currentColor, die, withHa: true);
+                                    _rfController.blink(currentColor, die);
                                     print('blink $currentColor');
                                   },
                                 ),
@@ -360,76 +360,93 @@ class _BleScannerWidgetState extends State<BleScannerWidget> {
 
 // Add this method to your _BleScannerWidgetState class
   void _showHomeAssistantSettings(BuildContext context) {
-    final urlController = TextEditingController(
-      text: _rfController.getHaSettings().url,
-    );
-    final tokenController = TextEditingController(
-      text: _rfController.getHaSettings().token,
-    );
-    final entityController = TextEditingController(
-      text: _rfController.getHaSettings().entity,
-    );
+  final urlController = TextEditingController(
+    text: _rfController.getHaSettings().url,
+  );
+  final tokenController = TextEditingController(
+    text: _rfController.getHaSettings().token,
+  );
+  final entityController = TextEditingController(
+    text: _rfController.getHaSettings().entity,
+  );
+  bool isEnabled = _rfController.getHaSettings().enabled;
 
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Home Assistant Settings'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: urlController,
-                  decoration: const InputDecoration(
-                    labelText: 'Home Assistant URL',
-                    hintText: 'http://homeassistant.local:8123',
+  showDialog(
+    context: context,
+    builder: (BuildContext context) {
+      return StatefulBuilder(  // Use StatefulBuilder to manage toggle state
+        builder: (context, setState) {
+          return AlertDialog(
+            title: const Text('Home Assistant Settings'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SwitchListTile(
+                    title: const Text('Enable Home Assistant'),
+                    value: isEnabled,
+                    onChanged: (bool value) {
+                      setState(() {
+                        isEnabled = value;
+                      });
+                    },
                   ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: tokenController,
-                  decoration: const InputDecoration(
-                    labelText: 'Long-Lived Access Token',
+                  const Divider(),
+                  TextField(
+                    controller: urlController,
+                    enabled: isEnabled,
+                    decoration: const InputDecoration(
+                      labelText: 'Home Assistant URL',
+                      hintText: 'http://homeassistant.local:8123',
+                    ),
                   ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: entityController,
-                  decoration: const InputDecoration(
-                    labelText: 'Light Entity ID',
-                    hintText: 'light.living_room',
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: tokenController,
+                    enabled: isEnabled,
+                    decoration: const InputDecoration(
+                      labelText: 'Long-Lived Access Token',
+                    ),
+                    obscureText: true,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: entityController,
+                    enabled: isEnabled,
+                    decoration: const InputDecoration(
+                      labelText: 'Light Entity ID',
+                      hintText: 'light.living_room',
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('Save'),
-              onPressed: () {
-                // Here you would implement the logic to save these settings
-                // and update the HomeAssistantController
-                _rfController.updateHaSettings(
-                  url: urlController.text,
-                  token: tokenController.text,
-                  entity: entityController.text,
-                );
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
+            actions: [
+              TextButton(
+                child: const Text('Cancel'),
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+              TextButton(
+                child: const Text('Save'),
+                onPressed: () {
+                  _rfController.updateHaSettings(
+                    enabled: isEnabled,
+                    url: urlController.text,
+                    token: tokenController.text,
+                    entity: entityController.text,
+                  );
+                  Navigator.of(context).pop();
+                },
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+}
 
   Color _getRollingTextColor(PixelDie die, BuildContext context) {
     switch(RollState.values[die.state.rollState ?? 0]) {

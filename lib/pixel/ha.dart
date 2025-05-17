@@ -14,11 +14,12 @@ enum LightServiceActions {
 }
 
 class HaSettings {
+  bool enabled;
   String url;
   String token;
   String entity;
 
-  HaSettings(this.url, this.token, this.entity);
+  HaSettings(this.enabled, this.url, this.token, this.entity);
 }
 
 class HomeAssistantController {
@@ -26,15 +27,17 @@ class HomeAssistantController {
   late String _haUrl;
   late String _haToken;
   late String _haEntity;
+  late bool _haEnabled;
 
   HomeAssistantController() {
+    _haEnabled = bool.parse(dotenv.env['HA_ENABLED'] ?? "false");
     _haUrl = dotenv.env['HA_URL'] ?? "";
     _haToken = dotenv.env['HA_TOKEN'] ?? "";
     _haEntity = dotenv.env['HA_ENTITY'] ?? "";
     homeAssistant = HomeAssistant(baseUrl: _haUrl, bearerToken: _haToken);
   }
 
-  void updateSettings({String? url, String? token, String? entity}) {
+  void updateSettings({bool enabled = false, String? url, String? token, String? entity}) {
     if (url != null) {
       _haUrl = url;
     }
@@ -44,11 +47,12 @@ class HomeAssistantController {
     if (entity != null) {
       _haEntity = entity;
     }
+    _haEnabled = enabled;
     homeAssistant = HomeAssistant(baseUrl: _haUrl, bearerToken: _haToken);
   }
 
   HaSettings getHaSettings() {
-    return HaSettings(_haUrl, _haToken, _haEntity);
+    return HaSettings(_haEnabled, _haUrl, _haToken, _haEntity);
   }
   Future<void> blinkEntity(Blinker blink) async {
     Map<String, dynamic> revertPayload = {};

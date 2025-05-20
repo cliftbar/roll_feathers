@@ -82,7 +82,10 @@ class HomeAssistantController {
 
     try {
       var currentState = await _homeAssistant.fetchState(entity);
-      revertPayload = {"rgb_color": currentState.attributes.rgbColor};
+      revertPayload = {
+        "rgb_color": currentState.attributes.rgbColor,
+        "brightness": currentState.attributes.brightness
+      };
     } catch (e) {
       print("error reading ha state $e");
       revertAction = LightServiceActions.off;
@@ -90,6 +93,7 @@ class HomeAssistantController {
 
     Map<String, dynamic> blinkPayload = {
       "rgb_color": [blink.r255(), blink.g255(), blink.b255()],
+      "brightness": blink.a255()
     };
 
     await _homeAssistant.executeService(entity, LightServiceActions.on.action, additionalActions: blinkPayload);

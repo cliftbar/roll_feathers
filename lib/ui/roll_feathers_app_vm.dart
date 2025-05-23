@@ -4,34 +4,33 @@ import 'package:async/async.dart';
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/repositories/app_repository.dart';
 
-class RollFeathersViewModel extends ChangeNotifier {
-  RollFeathersViewModel._(this._appRepository) {
-    _subscription = _appRepository.observeThemeMode().listen((mode) {
+class RollFeathersAppVM extends ChangeNotifier {
+  final AppRepository _appRepository;
+  StreamSubscription<ThemeMode>? _themeSubscription;
+
+  late ThemeMode _themeMode;
+
+  RollFeathersAppVM._(this._appRepository) {
+    _themeSubscription = _appRepository.observeThemeMode().listen((mode) {
       _themeMode = mode;
       notifyListeners();
     });
   }
 
-  static Future<RollFeathersViewModel> create(AppRepository appRepo) async {
-    var ret = RollFeathersViewModel._(appRepo);
+  ThemeMode get themeMode => _themeMode;
+
+  static Future<RollFeathersAppVM> create(AppRepository appRepo) async {
+    var ret = RollFeathersAppVM._(appRepo);
 
     await ret._load();
 
     return ret;
-}
-
-  final AppRepository _appRepository;
-  StreamSubscription<ThemeMode>? _subscription;
-
-  late ThemeMode _themeMode;
-
-  ThemeMode get themeMode => _themeMode;
+  }
 
   Future<Result<void>> _load() async {
     final result = await _appRepository.getThemeMode();
     if (result.isValue && result.asValue != null) {
       _themeMode = result.asValue!.value;
-
     } else {
       // handle error
       print(result.asError?.error);
@@ -42,7 +41,7 @@ class RollFeathersViewModel extends ChangeNotifier {
 
   @override
   void dispose() {
-    _subscription?.cancel();
+    _themeSubscription?.cancel();
     super.dispose();
   }
 }

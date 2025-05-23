@@ -8,8 +8,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   FlutterBluePlus.setLogLevel(LogLevel.info, color: true);
 
-  // Load the theme preference before running the app
-  //RollFeatherApp(appRepo: AppRepository(AppService()))
+  // create the app factory to ensure instantiation
   RollFeatherApp app = await RollFeatherApp.create(AppRepository(AppService()));
 
   runApp(app);

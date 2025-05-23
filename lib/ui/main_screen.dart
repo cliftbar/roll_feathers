@@ -1,13 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:roll_feathers/%20controllers/roll_feathers_controller.dart';
 import 'package:roll_feathers/pixel/pixel.dart';
 import 'package:roll_feathers/pixel/pixel_constants.dart';
 import 'package:roll_feathers/pixel/pixel_messages.dart';
-import 'package:roll_feathers/%20controllers/roll_feathers_controller.dart';
+import 'package:roll_feathers/repositories/app_repository.dart';
+import 'package:roll_feathers/repositories/home_assistant_repository.dart';
 import 'package:roll_feathers/ui/main_screen_vm.dart';
 
 class MainScreenWidget extends StatefulWidget {
-  const MainScreenWidget({super.key, required this.viewModel});
+  const MainScreenWidget._(this.viewModel);
+
+  static Future<MainScreenWidget> create(AppRepository appRepo, HaRepository haRepo) async {
+    var vm = MainScreenViewModel(appRepo, haRepo);
+
+    var widget = MainScreenWidget._(vm);
+
+    return widget;
+  }
+
   final MainScreenViewModel viewModel;
 
   @override
@@ -51,22 +62,31 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
               decoration: BoxDecoration(color: Colors.blue),
               child: Text('Settings', style: TextStyle(color: Colors.white, fontSize: 24)),
             ),
-            ListenableBuilder(listenable: widget.viewModel, builder: (context, _) {
-              return ListTile(
-                leading: Icon(widget.viewModel.themeMode == ThemeMode.light ? Icons.dark_mode : Icons.light_mode),
-                title: Text(widget.viewModel.themeMode == ThemeMode.light ? 'Dark Mode' : 'Light Mode'),
-                onTap: () {
-                  widget.viewModel.toggleTheme.execute();
-                  Navigator.pop(context);
-                },
-              );
-            }),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text('Home Assistant Settings'),
-              onTap: () {
-                Navigator.pop(context);
-                _showHomeAssistantSettings(context);
+            // Why does this get notified, when the view model is the main screen view model?
+            ListenableBuilder(
+              listenable: widget.viewModel,
+              builder: (context, _) {
+                return ListTile(
+                  leading: Icon(widget.viewModel.themeMode == ThemeMode.light ? Icons.dark_mode : Icons.light_mode),
+                  title: Text(widget.viewModel.themeMode == ThemeMode.light ? 'Dark Mode' : 'Light Mode'),
+                  onTap: () {
+                    widget.viewModel.toggleTheme.execute();
+                    Navigator.pop(context);
+                  },
+                );
+              },
+            ),
+            ListenableBuilder(
+              listenable: widget.viewModel,
+              builder: (context, _) {
+                return ListTile(
+                  leading: const Icon(Icons.home),
+                  title: const Text('Home Assistant Settings'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showHomeAssistantSettings(context, widget.viewModel);
+                  },
+                );
               },
             ),
           ],
@@ -214,6 +234,7 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
                                 TextButton(
                                   child: const Text('Blink'),
                                   onPressed: () {
+                                    widget.viewModel.blink.execute(currentColor, die);
                                     _rfController.blink(currentColor, die);
                                     print('blink $currentColor');
                                   },
@@ -332,12 +353,13 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
     );
   }
 
-  void _showHomeAssistantSettings(BuildContext context) async {
-    var haSettings = await _rfController.getHaSettings();
-    final urlController = TextEditingController(text: haSettings.url);
-    final tokenController = TextEditingController(text: haSettings.token);
-    final entityController = TextEditingController(text: haSettings.entity);
-    bool isEnabled = haSettings.enabled;
+  void _showHomeAssistantSettings(BuildContext context, MainScreenViewModel vm) async {
+    // var haSettings = await _rfController.getHaSettings();
+    var haConfig = vm.getHaConfig;
+    final urlController = TextEditingController(text: haConfig.url);
+    final tokenController = TextEditingController(text: haConfig.token);
+    final entityController = TextEditingController(text: haConfig.entity);
+    bool isEnabled = haConfig.enabled;
 
     showDialog(
       context: context,
@@ -395,12 +417,7 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
                 TextButton(
                   child: const Text('Save'),
                   onPressed: () {
-                    _rfController.updateHaSettings(
-                      enabled: isEnabled,
-                      url: urlController.text,
-                      token: tokenController.text,
-                      entity: entityController.text,
-                    );
+                    vm.setHaConfig.execute(isEnabled, urlController.text, tokenController.text, entityController.text);
                     Navigator.of(context).pop();
                   },
                 ),

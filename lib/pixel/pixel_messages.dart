@@ -208,15 +208,19 @@ abstract class Blinker with Color255 {
 
 mixin Color255 {
   Color getColor();
+
   int r255() {
     return (getColor().r * 255).toInt();
   }
+
   int g255() {
     return (getColor().g * 255).toInt();
   }
+
   int b255() {
     return (getColor().b * 255).toInt();
   }
+
   int a255() {
     return (getColor().a * 255).toInt();
   }

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:async/async.dart';
 import 'package:flutter/material.dart';
-
 import 'package:roll_feathers/services/app_service.dart';
 
 class AppRepository {

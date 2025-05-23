@@ -29,7 +29,7 @@ class MainScreenViewModel extends ChangeNotifier {
     blink = Command2(_blink);
     setHaConfig = Command4(_setHaConfig);
 
-    // why is this here, but we're still getting theme notifys?
+    // why is this here, but we're still getting theme notify?
     _haConfigSubscription = _haRepository.subscribeHaSettings().listen((conf) {
       _haConfig = conf;
       notifyListeners();

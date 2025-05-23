@@ -99,8 +99,8 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
             padding: const EdgeInsets.only(right: 8.0),
             child: FloatingActionButton(
               onPressed: _rfController.startScanning,
-              child: const Icon(Icons.refresh),
               mini: true,
+              child: const Icon(Icons.refresh),
             ),
           ),
         ],

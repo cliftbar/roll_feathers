@@ -4,18 +4,19 @@ import 'package:roll_feathers/pixel/pixel.dart';
 import 'package:roll_feathers/pixel/pixel_constants.dart';
 import 'package:roll_feathers/pixel/pixel_messages.dart';
 import 'package:roll_feathers/%20controllers/roll_feathers_controller.dart';
+import 'package:roll_feathers/ui/main_screen_vm.dart';
 
-class RollFeatherMainScreenWidget extends StatefulWidget {
-  final Function toggleTheme;
-  final ThemeMode themeMode;
+import '../repositories/app_repository.dart';
 
-  const RollFeatherMainScreenWidget({super.key, required this.toggleTheme, required this.themeMode});
+class MainScreenWidget extends StatefulWidget {
+  const MainScreenWidget({super.key, required this.viewModel});
+  final MainScreenViewModel viewModel;
 
   @override
-  State<RollFeatherMainScreenWidget> createState() => _RollFeatherMainScreenWidgetState();
+  State<MainScreenWidget> createState() => _MainScreenWidgetState();
 }
 
-class _RollFeatherMainScreenWidgetState extends State<RollFeatherMainScreenWidget> {
+class _MainScreenWidgetState extends State<MainScreenWidget> {
   final Map<String, Color> _rollingColors = {};
   final RollFeathersController _rfController = RollFeathersController();
   final List<String> _rollHistory = [];
@@ -52,14 +53,16 @@ class _RollFeatherMainScreenWidgetState extends State<RollFeatherMainScreenWidge
               decoration: BoxDecoration(color: Colors.blue),
               child: Text('Settings', style: TextStyle(color: Colors.white, fontSize: 24)),
             ),
-            ListTile(
-              leading: Icon(widget.themeMode == ThemeMode.light ? Icons.dark_mode : Icons.light_mode),
-              title: Text(widget.themeMode == ThemeMode.light ? 'Dark Mode' : 'Light Mode'),
-              onTap: () {
-                widget.toggleTheme();
-                Navigator.pop(context);
-              },
-            ),
+            ListenableBuilder(listenable: widget.viewModel, builder: (context, _) {
+              return ListTile(
+                leading: Icon(widget.viewModel.themeMode == ThemeMode.light ? Icons.dark_mode : Icons.light_mode),
+                title: Text(widget.viewModel.themeMode == ThemeMode.light ? 'Dark Mode' : 'Light Mode'),
+                onTap: () {
+                  widget.viewModel.toggleTheme.execute();
+                  Navigator.pop(context);
+                },
+              );
+            }),
             ListTile(
               leading: const Icon(Icons.home),
               title: const Text('Home Assistant Settings'),

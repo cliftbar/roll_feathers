@@ -2,10 +2,7 @@ import 'dart:async';
 
 import 'package:async/async.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:roll_feathers/repositories/app_repository.dart';
-
-import '../util/command.dart';
 
 class RollFeathersViewModel extends ChangeNotifier {
   RollFeathersViewModel._(this._appRepository) {

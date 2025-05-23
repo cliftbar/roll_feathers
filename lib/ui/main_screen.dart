@@ -6,8 +6,6 @@ import 'package:roll_feathers/pixel/pixel_messages.dart';
 import 'package:roll_feathers/%20controllers/roll_feathers_controller.dart';
 import 'package:roll_feathers/ui/main_screen_vm.dart';
 
-import '../repositories/app_repository.dart';
-
 class MainScreenWidget extends StatefulWidget {
   const MainScreenWidget({super.key, required this.viewModel});
   final MainScreenViewModel viewModel;

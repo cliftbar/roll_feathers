@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:roll_feathers/config.dart';
 import 'package:roll_feathers/repositories/app_repository.dart';
 import 'package:roll_feathers/ui/main_screen.dart';
 import 'package:roll_feathers/ui/main_screen_vm.dart';
 import 'package:roll_feathers/ui/roll_feathers_vm.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 // Handles theming
 // launches main screen

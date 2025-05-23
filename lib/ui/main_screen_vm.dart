@@ -1,9 +1,8 @@
 import 'package:async/async.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:roll_feathers/repositories/app_repository.dart';
 
-import '../util/command.dart';
+import 'package:roll_feathers/util/command.dart';
 
 class MainScreenViewModel extends ChangeNotifier {
   final AppRepository _appRepository;

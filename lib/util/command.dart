@@ -46,6 +46,7 @@ import 'package:flutter/foundation.dart';
 typedef CommandAction0<T> = Future<Result<T>> Function();
 typedef CommandAction1<T, A> = Future<Result<T>> Function(A);
 typedef CommandAction2<T, A, B> = Future<Result<T>> Function(A, B);
+typedef CommandAction3<T, A, B, C> = Future<Result<T>> Function(A, B, C);
 typedef CommandAction4<T, A, B, C, D> = Future<Result<T>> Function(A, B, C, D);
 
 /// Facilitates interaction with a ViewModel.
@@ -143,6 +144,17 @@ class Command2<T, A, B> extends Command<T> {
   /// Executes the action with the argument.
   Future<void> execute(A arg1, B arg2) async {
     await _execute(() => _action(arg1, arg2));
+  }
+}
+
+class Command3<T, A, B, C> extends Command<T> {
+  Command3(this._action);
+
+  final CommandAction3<T, A, B, C> _action;
+
+  /// Executes the action with the argument.
+  Future<void> execute(A arg1, B arg2, C arg3) async {
+    await _execute(() => _action(arg1, arg2, arg3));
   }
 }
 

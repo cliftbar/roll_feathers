@@ -1,4 +1,10 @@
+import 'dart:ui';
+
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+
+const Color green = Color.fromARGB(255, 0, 255, 0);
+const Color red = Color.fromARGB(255, 255, 0, 0);
+const Color blue = Color.fromARGB(255, 0, 0, 255);
 
 Guid pixelsService = Guid("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
 const String information = "180a";

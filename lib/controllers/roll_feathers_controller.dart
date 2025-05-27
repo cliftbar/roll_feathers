@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:roll_feathers/pixel/pixel.dart';
 import 'package:roll_feathers/pixel/pixel_messages.dart';
+import 'package:roll_feathers/repositories/home_assistant_repository.dart';
 
 class BluetoothNotSupported extends FlutterBluePlusException {
   BluetoothNotSupported(super.platform, super.function, super.code, super.description);
@@ -14,11 +15,14 @@ class BluetoothNotSupported extends FlutterBluePlusException {
 enum RollType { sum, advantage, disadvantage }
 
 class RollFeathersController {
-  final BleScanManager _scanManager = BleScanManager();
+  final BleScanManager _scanManager;
+  final HaRepository _haRepository;
   bool _initialized = false;
   final Map<String, int> _rollingDie = {};
   Timer? _rollUpdateTimer;
   bool _isRolling = false;
+
+  RollFeathersController(this._scanManager, this._haRepository);
 
   void init() {
     _initializeBle();
@@ -130,6 +134,8 @@ class RollFeathersController {
 
   void blink(Color blinkColor, PixelDie die) async {
     var blinker = BlinkMessage(blinkColor: blinkColor);
+
+    _haRepository.blinkEntity(blink: blinker, entity: die.haEntityTargets.firstOrNull);
     die.sendMessage(blinker);
   }
 }

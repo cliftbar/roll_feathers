@@ -2,10 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:logging/logging.dart';
 import 'package:roll_feathers/pixel/pixel_constants.dart';
 import 'package:roll_feathers/pixel/pixel_messages.dart';
 
 class BleScanManager {
+  final log = Logger("BleScanManager");
+
   final Map<String, PixelDie> _discoveredDevices = {};
   final _deviceController = StreamController<List<PixelDie>>.broadcast();
 
@@ -53,7 +56,7 @@ class BleScanManager {
           if (state == BluetoothConnectionState.disconnected) {
             _discoveredDevices.remove(dev.remoteId.str);
             _deviceController.add(List.of(_discoveredDevices.values));
-            print("${dev.remoteId.str} disconnected");
+            log.info("${dev.remoteId.str} disconnected");
           }
         });
         var die = await PixelDie.fromDevice(dev);
@@ -171,6 +174,7 @@ class DiceState {
 }
 
 class PixelDie {
+  final log = Logger("PixelDie");
   BluetoothDevice device;
   BluetoothCharacteristic writeChar;
   BluetoothCharacteristic notifyChar;
@@ -178,7 +182,7 @@ class PixelDie {
   late DiceState state;
   List<String> haEntityTargets = [];
 
-  Map<MessageType, Function(RxMessage)> messageRxCallbacks = {};
+  Map<MessageType, Map<String, Function(RxMessage)>> messageRxCallbacks = {};
 
   PixelDie({required this.device, required this.writeChar, required this.notifyChar}) {
     state = DiceState();
@@ -222,35 +226,47 @@ class PixelDie {
       case MessageType.iAmADie:
         var msg = MessageIAmADie.parse(data);
         _updateStateIAmADie(msg);
-        print('Received msg IAmADie: ${json.encode(msg)}');
+        log.fine('Received msg IAmADie: ${json.encode(msg)}');
         if (messageRxCallbacks.containsKey(MessageType.iAmADie)) {
-          messageRxCallbacks[MessageType.iAmADie]!(msg);
+          for (Function(RxMessage) func in (messageRxCallbacks[MessageType.iAmADie]?.values ?? [])) {
+            func(msg);
+          }
         }
         break;
       case MessageType.batteryLevel:
         var msg = MessageBatteryLevel.parse(data);
         _updateStateBattery(msg);
-        print('Received msg BatteryLevel: ${json.encode(msg)}');
+        log.fine('Received msg BatteryLevel: ${json.encode(msg)}');
         if (messageRxCallbacks.containsKey(MessageType.batteryLevel)) {
-          messageRxCallbacks[MessageType.batteryLevel]!(msg);
+          for (Function(RxMessage) func in (messageRxCallbacks[MessageType.batteryLevel]?.values ?? [])) {
+            func(msg);
+          }
         }
         break;
       case MessageType.rollState:
         var msg = MessageRollState.parse(data);
         _updateStateRoll(msg);
-        print('Received msg RollState: ${RollState.values[msg.rollState]} ${json.encode(msg)}');
+        log.fine('Received msg RollState: ${RollState.values[msg.rollState]} ${json.encode(msg)}');
         if (messageRxCallbacks.containsKey(MessageType.rollState)) {
-          messageRxCallbacks[MessageType.rollState]!(msg);
+          for (Function(RxMessage) func in (messageRxCallbacks[MessageType.rollState]?.values ?? [])) {
+            func(msg);
+          }
         }
         break;
       default:
         var msg = MessageNone.parse(data);
-        print('Received data: ${msg.buffer}');
+        log.fine('Received data: ${msg.buffer}');
         if (messageRxCallbacks.containsKey(MessageType.none)) {
-          messageRxCallbacks[MessageType.none]!(msg);
+          for (Function(RxMessage) func in (messageRxCallbacks[MessageType.none]?.values ?? [])) {
+            func(msg);
+          }
         }
     }
     //
+  }
+
+  void addMessageCallback(MessageType messageType, String callbackKey, Function(RxMessage) callback) {
+    messageRxCallbacks.putIfAbsent(messageType, () => {})[callbackKey] = callback;
   }
 
   void _updateStateIAmADie(MessageIAmADie msg) {
@@ -282,4 +298,10 @@ class PixelDie {
     state.currentFaceValue = msg.currentFaceValue;
     state.lastRolled = DateTime.now();
   }
+
+  int getFaceValueOrElse({int orElse = -1}) {
+    return state.currentFaceValue ?? orElse;
+  }
+
+  String get deviceId => device.remoteId.str;
 }

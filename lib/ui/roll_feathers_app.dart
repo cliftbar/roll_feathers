@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/repositories/app_repository.dart';
 import 'package:roll_feathers/repositories/home_assistant_repository.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
@@ -8,23 +9,21 @@ import 'package:roll_feathers/ui/roll_feathers_app_vm.dart';
 
 // Main Application
 class RollFeatherApp extends StatefulWidget {
-  final AppRepository appRepo;
-  final HaRepository haRepo;
   final RollFeathersAppVM viewModel;
 
   // Children
   final MainScreenWidget _mainScreenWidget;
 
-  const RollFeatherApp._(this.appRepo, this.viewModel, this.haRepo, this._mainScreenWidget);
+  const RollFeatherApp._(this.viewModel, this._mainScreenWidget);
 
-  static Future<RollFeatherApp> create(AppRepository appRepo) async {
-    var haService = await HaService.create();
-    var haRepo = HaRepository(HaConfigService(), haService);
-    var view = await RollFeathersAppVM.create(appRepo);
+  static Future<RollFeatherApp> create(DiWrapper di) async {
 
-    var mainScreen = await MainScreenWidget.create(appRepo, haRepo);
 
-    var app = RollFeatherApp._(appRepo, view, haRepo, mainScreen);
+    var view = await RollFeathersAppVM.create(di);
+
+    var mainScreen = await MainScreenWidget.create(di);
+
+    var app = RollFeatherApp._(view, mainScreen);
 
     return app;
   }

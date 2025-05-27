@@ -1,19 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:roll_feathers/controllers/roll_feathers_controller.dart';
+import 'package:roll_feathers/di/di.dart';
+import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/pixel/pixel.dart';
 import 'package:roll_feathers/pixel/pixel_constants.dart';
-import 'package:roll_feathers/pixel/pixel_messages.dart';
-import 'package:roll_feathers/repositories/app_repository.dart';
-import 'package:roll_feathers/repositories/home_assistant_repository.dart';
 import 'package:roll_feathers/ui/main_screen_vm.dart';
 
 class MainScreenWidget extends StatefulWidget {
   const MainScreenWidget._(this.viewModel);
 
-  static Future<MainScreenWidget> create(AppRepository appRepo, HaRepository haRepo) async {
-    var vm = MainScreenViewModel(appRepo, haRepo);
-
+  static Future<MainScreenWidget> create(DiWrapper di) async {
+    var vm = MainScreenViewModel(di);
     var widget = MainScreenWidget._(vm);
 
     return widget;
@@ -26,28 +24,12 @@ class MainScreenWidget extends StatefulWidget {
 }
 
 class _MainScreenWidgetState extends State<MainScreenWidget> {
-  final Map<String, Color> _rollingColors = {};
-  final RollFeathersController _rfController = RollFeathersController();
-  final List<String> _rollHistory = [];
-  final Map<String, Color> _blinkColors = {}; // Add this new variable
   bool _withAdvantage = false; // Add this line
   bool _withDisadvantage = false; // Add this line
 
   @override
   void initState() {
     super.initState();
-    try {
-      _rfController.init();
-      _rollingColors.clear();
-    } on BluetoothNotSupported catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Initialization error: $e')));
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Scanning error: $e')));
-      }
-    }
   }
 
   // First, add a drawer to the Scaffold
@@ -98,7 +80,9 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: FloatingActionButton(
-              onPressed: _rfController.startScanning,
+              onPressed: () {
+                widget.viewModel.startBleScan.execute();
+              },
               mini: true,
               child: const Icon(Icons.refresh),
             ),
@@ -109,148 +93,101 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
         children: [
           // First column - existing StreamBuilder (taking half the width)
           Expanded(
-            child: StreamBuilder<List<PixelDie>>(
-              stream: _rfController.getDeviceStream(),
-              initialData: const [],
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
+            // TODO: Does this need to be listenable?  does the stream already handle updates?
+            child: ListenableBuilder(
+              listenable: widget.viewModel,
+              builder: (context, _) {
+                return StreamBuilder<List<PixelDie>>(
+                  stream: widget.viewModel.getDeviceStream(),
+                  initialData: const [],
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
 
-                final devices = snapshot.data ?? [];
+                    final devices = snapshot.data ?? [];
 
-                if (devices.isEmpty) {
-                  return const Center(child: Text('No devices found'));
-                }
-                return ListView.builder(
-                  itemCount: devices.length,
-                  itemBuilder: (context, index) {
-                    final die = devices[index];
-                    print(Theme.of(context).textTheme.labelMedium?.color);
-                    // _rollingColors[die.device.remoteId.toString()] ??= Theme.of(context).textTheme.labelMedium?.color ?? Colors.pink;
-                    die.messageRxCallbacks[MessageType.rollState] = (msg) {
-                      MessageRollState rollStateMsg = msg as MessageRollState;
-                      if (rollStateMsg.rollState == RollState.rolled.index ||
-                          rollStateMsg.rollState == RollState.onFace.index) {
-                        // _rollingColors[die.device.remoteId.toString()] = Colors.green;
+                    if (devices.isEmpty) {
+                      return const Center(child: Text('No devices found'));
+                    }
+                    return ListView.builder(
+                      itemCount: devices.length,
+                      itemBuilder: (context, index) {
+                        final die = devices[index];
 
-                        bool allDiceRolled = devices.every(
-                          (d) =>
-                              d.state.rollState == RollState.rolled.index ||
-                              d.state.rollState == RollState.onFace.index,
-                        );
+                        return ListTile(
+                          textColor: _getRollingTextColor(die, context),
+                          title: Text(
+                            die.device.platformName.isEmpty
+                                ? 'Unknown Device ${die.device.remoteId}'
+                                : die.device.platformName,
+                          ),
+                          subtitle: Text(
+                            '${RollState.values[die.state.rollState ?? RollState.unknown.index].name} ${die.state.currentFaceValue}',
+                          ),
+                          onTap: () {
+                            showDialog(
+                              context: context,
+                              builder: (BuildContext context) {
+                                Color currentColor =
+                                    widget.viewModel.blinkColors[die.device.remoteId.str] ?? Colors.white;
+                                final entityController = TextEditingController(
+                                  text: die.haEntityTargets.firstOrNull ?? "",
+                                ); // Add controller for entity field
 
-                        _rfController.updateDieValue(die);
-                        if (allDiceRolled && _rfController.isRolling()) {
-                          _rfController.stopRolling();
-                          var rollType = RollType.sum;
-                          if (_withAdvantage) {
-                            rollType = RollType.advantage;
-                          } else if (_withDisadvantage) {
-                            rollType = RollType.disadvantage;
-                          }
-                          var result = _rfController.stopRollWithResult(rollType: rollType, totalColors: _blinkColors);
-                          // Add the roll result to history with advantage/disadvantage information
-                          setState(() {
-                            String rollResult = 'Roll';
-                            if (_withAdvantage) {
-                              rollResult += ' (Adv): $result';
-                            } else if (_withDisadvantage) {
-                              rollResult += ' (Dis): $result';
-                            } else {
-                              rollResult += ': $result';
-                            }
-                            _rollHistory.insert(0, rollResult);
-                          });
-                        }
-
-                        setState(() {});
-                      } else if (rollStateMsg.rollState == RollState.rolling.index) {
-                        // _rollingColors[die.device.remoteId.toString()] = Colors.orange;
-
-                        if (!_rfController.isRolling()) {
-                          _rfController.startRolling((timer) {
-                            setState(() {});
-                          });
-                        }
-                        setState(() {});
-                      }
-                    };
-                    die.messageRxCallbacks[MessageType.iAmADie] = (msg) {
-                      setState(() {});
-                    };
-                    return ListTile(
-                      textColor: _getRollingTextColor(die, context),
-                      title: Text(
-                        die.device.platformName.isEmpty
-                            ? 'Unknown Device ${die.device.remoteId}'
-                            : die.device.platformName,
-                      ),
-                      subtitle: Text(
-                        '${RollState.values[die.state.rollState ?? RollState.unknown.index].name} ${die.state.currentFaceValue}',
-                      ),
-                      onTap: () {
-                        showDialog(
-                          context: context,
-                          builder: (BuildContext context) {
-                            Color currentColor = _blinkColors[die.device.remoteId.str] ?? Colors.white;
-                            final entityController = TextEditingController(
-                              text: die.haEntityTargets.firstOrNull ?? "",
-                            ); // Add controller for entity field
-
-                            return AlertDialog(
-                              title: const Text('Die Settings'),
-                              content: SingleChildScrollView(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Text('Pick a color'),
-                                    ColorPicker(
-                                      pickerColor: currentColor,
-                                      onColorChanged: (Color color) {
-                                        currentColor = color;
-                                      },
-                                      pickerAreaHeightPercent: 0.8,
+                                return AlertDialog(
+                                  title: const Text('Die Settings'),
+                                  content: SingleChildScrollView(
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Text('Pick a color'),
+                                        ColorPicker(
+                                          pickerColor: currentColor,
+                                          onColorChanged: (Color color) {
+                                            currentColor = color;
+                                          },
+                                          pickerAreaHeightPercent: 0.8,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        TextField(
+                                          controller: entityController,
+                                          decoration: const InputDecoration(
+                                            labelText: 'Home Assistant Entity',
+                                            hintText: 'light.bedroom',
+                                            helperText: 'Leave empty to use default entity',
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                    const SizedBox(height: 16),
-                                    TextField(
-                                      controller: entityController,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Home Assistant Entity',
-                                        hintText: 'light.bedroom',
-                                        helperText: 'Leave empty to use default entity',
-                                      ),
+                                  ),
+                                  actions: <Widget>[
+                                    TextButton(
+                                      child: const Text('Cancel'),
+                                      onPressed: () {
+                                        Navigator.of(context).pop();
+                                      },
+                                    ),
+                                    TextButton(
+                                      child: const Text('Blink'),
+                                      onPressed: () {
+                                        widget.viewModel.blink.execute(currentColor, die, entityController.text);
+                                      },
+                                    ),
+                                    TextButton(
+                                      child: const Text('Save'),
+                                      onPressed: () {
+                                        widget.viewModel.updateDieSettings.execute(
+                                          die,
+                                          currentColor,
+                                          entityController.text,
+                                        );
+                                        Navigator.of(context).pop();
+                                      },
                                     ),
                                   ],
-                                ),
-                              ),
-                              actions: <Widget>[
-                                TextButton(
-                                  child: const Text('Cancel'),
-                                  onPressed: () {
-                                    Navigator.of(context).pop();
-                                  },
-                                ),
-                                TextButton(
-                                  child: const Text('Blink'),
-                                  onPressed: () {
-                                    widget.viewModel.blink.execute(currentColor, die);
-                                    _rfController.blink(currentColor, die);
-                                    print('blink $currentColor');
-                                  },
-                                ),
-                                TextButton(
-                                  child: const Text('Save'),
-                                  onPressed: () {
-                                    setState(() {
-                                      _blinkColors[die.device.remoteId.str] = currentColor;
-                                      _rfController.addDieEntity(die, entityController.text);
-                                      // die.haEntityTargets.add(entityController.text);
-                                    });
-                                    Navigator.of(context).pop();
-                                  },
-                                ),
-                              ],
+                                );
+                              },
                             );
                           },
                         );
@@ -260,8 +197,7 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
                 );
               },
             ),
-          ),
-          // Second column - roll history (taking half the width)
+          ), // Second column - roll history (taking half the width)
           Expanded(
             child: Container(
               decoration: BoxDecoration(border: Border(left: BorderSide(color: Colors.grey.shade300, width: 1))),
@@ -282,7 +218,8 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
                           spacing: 8.0,
                           children: [
                             SizedBox(
-                              width: 140, // Fixed width for consistency
+                              width: 140,
+                              // Fixed width for consistency
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -294,6 +231,7 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
                                         if (_withAdvantage) {
                                           _withDisadvantage = false;
                                         }
+                                        _setRollType();
                                       });
                                     },
                                   ),
@@ -314,6 +252,7 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
                                         if (_withDisadvantage) {
                                           _withAdvantage = false;
                                         }
+                                        _setRollType();
                                       });
                                     },
                                   ),
@@ -327,19 +266,31 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
                           icon: const Icon(Icons.clear_all),
                           label: const Text('Clear'),
                           onPressed: () {
-                            setState(() {
-                              _rollHistory.clear();
-                            });
+                            widget.viewModel.clearRollResultHistory.execute();
                           },
                         ),
                       ],
                     ),
                   ),
                   Expanded(
-                    child: ListView.builder(
-                      itemCount: _rollHistory.length,
-                      itemBuilder: (context, index) {
-                        return ListTile(title: Text(_rollHistory[index]));
+                    child: ListenableBuilder(
+                      listenable: widget.viewModel,
+                      builder: (context, _) {
+                        return StreamBuilder(
+                          stream: widget.viewModel.getResultsStream(),
+                          builder: (context, snapshot) {
+                            var rollResults = snapshot.data ?? [];
+                            if (rollResults.isEmpty) {
+                              return const Center(child: Text('Make some rolls!'));
+                            }
+                            return ListView.builder(
+                              itemCount: rollResults.length,
+                              itemBuilder: (context, index) {
+                                return ListTile(title: Text(_makeRollText(rollResults[index])));
+                              },
+                            );
+                          },
+                        );
                       },
                     ),
                   ),
@@ -353,9 +304,35 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
     );
   }
 
+  // Helpers
+  void _setRollType() {
+    if (_withAdvantage) {
+      widget.viewModel.setRollType.execute(RollType.advantage);
+    } else if (_withDisadvantage) {
+      widget.viewModel.setRollType.execute(RollType.disadvantage);
+    } else {
+      widget.viewModel.setRollType.execute(RollType.sum);
+    }
+  }
+
+  String _makeRollText(RollResult roll) {
+    String rollResult = 'Roll';
+    switch (roll.rollType) {
+      case RollType.advantage:
+        rollResult += ' (Adv): ${roll.rollResult}';
+        break;
+      case RollType.disadvantage:
+        rollResult += ' (Dis): ${roll.rollResult}';
+        break;
+      default:
+        rollResult += '(Sum): ${roll.rollResult}';
+    }
+
+    return rollResult;
+  }
+
   void _showHomeAssistantSettings(BuildContext context, MainScreenViewModel vm) async {
-    // var haSettings = await _rfController.getHaSettings();
-    var haConfig = vm.getHaConfig;
+    var haConfig = vm.getHaConfig();
     final urlController = TextEditingController(text: haConfig.url);
     final tokenController = TextEditingController(text: haConfig.token);
     final entityController = TextEditingController(text: haConfig.entity);
@@ -402,7 +379,7 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
                     TextField(
                       controller: entityController,
                       enabled: isEnabled,
-                      decoration: const InputDecoration(labelText: 'Light Entity ID', hintText: 'light.living_room'),
+                      decoration: const InputDecoration(labelText: 'Light Entity ID', hintText: 'light.game_room'),
                     ),
                   ],
                 ),
@@ -437,13 +414,15 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
       case RollState.onFace:
       case RollState.rolled:
       default:
-        return Theme.of(context).textTheme.bodyMedium?.color! ?? Colors.pink;
+        return widget.viewModel.blinkColors[die.deviceId] ??
+            Theme.of(context).textTheme.bodyMedium?.color! ??
+            (widget.viewModel.themeMode == ThemeMode.dark ? Colors.white : Colors.black);
     }
   }
 
   @override
   void dispose() {
-    _rfController.dispose();
+    widget.viewModel.dispose();
     super.dispose();
   }
 }

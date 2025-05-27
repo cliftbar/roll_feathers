@@ -2,52 +2,83 @@ import 'dart:async';
 
 import 'package:async/async.dart';
 import 'package:flutter/material.dart';
+import 'package:roll_feathers/controllers/roll_feathers_controller.dart';
+import 'package:roll_feathers/di/di.dart';
+import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/pixel/pixel.dart';
 import 'package:roll_feathers/pixel/pixel_messages.dart';
-import 'package:roll_feathers/repositories/app_repository.dart';
-import 'package:roll_feathers/repositories/home_assistant_repository.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/util/command.dart';
+import 'package:roll_feathers/util/strings.dart';
 
 class MainScreenViewModel extends ChangeNotifier {
-  final AppRepository _appRepository;
-  final HaRepository _haRepository;
-
-  late HaConfig _haConfig;
-  ThemeMode themeMode = ThemeMode.system;
-
+  // init
+  final DiWrapper _diWrapper;
   late Command0 load;
-  late Command0 toggleTheme;
-  late Command2<void, Color, PixelDie> blink;
-  late Command4<void, bool, String, String, String> setHaConfig;
 
+  // theme
+  ThemeMode themeMode = ThemeMode.system;
+  late Command0 toggleTheme;
+
+  // ble
+  late Command0 startBleScan;
+
+  // ha config proxy
+  late HaConfig _haConfig;
+  late Command4<void, bool, String, String, String> setHaConfig;
   late StreamSubscription<HaConfig> _haConfigSubscription;
 
-  MainScreenViewModel(this._appRepository, this._haRepository) {
-    load = Command0(_load)..execute();
-    toggleTheme = Command0(_toggleTheme);
-    blink = Command2(_blink);
-    setHaConfig = Command4(_setHaConfig);
+  // rolling
+  late Command0 clearRollResultHistory;
+  late Command1<void, RollType> setRollType;
+  late StreamSubscription<List<RollResult>> _rollResultsSubscription;
+  late StreamSubscription<RollStatus> _rollStatusSubscription;
 
-    // why is this here, but we're still getting theme notify?
-    _haConfigSubscription = _haRepository.subscribeHaSettings().listen((conf) {
+  // die control settings
+  late Command3<void, Color, PixelDie, String?> blink;
+  late Command3<void, PixelDie, Color, String> updateDieSettings;
+
+  MainScreenViewModel(this._diWrapper) {
+    // init
+    load = Command0(_load)..execute();
+
+    // theme
+    toggleTheme = Command0(_toggleTheme);
+
+    // ble
+    startBleScan = Command0(_startBleScan);
+
+    // ha config proxy
+    setHaConfig = Command4(_setHaConfig);
+    _haConfigSubscription = _diWrapper.haRepository.subscribeHaSettings().listen((conf) {
       _haConfig = conf;
       notifyListeners();
     });
+
+    // rolling
+    clearRollResultHistory = Command0(_clearRollResultHistory);
+    setRollType = Command1(_setRollType);
+    _rollResultsSubscription = _diWrapper.rollDomain.subscribeRollResults().listen((rollResult) {
+      notifyListeners();
+    });
+
+    _rollStatusSubscription = _diWrapper.rollDomain.subscribeRollStatus().listen((rollResult) {
+      notifyListeners();
+    });
+
+    // die control settings
+    blink = Command3(_blink);
+    updateDieSettings = Command3(_updateDieSettings);
   }
 
-  ThemeMode get getThemeMode => themeMode;
-
-  HaConfig get getHaConfig => _haConfig;
-
-  /// Load the current theme setting from the repository
+  // init
   Future<Result<void>> _load() async {
     try {
-      final result = await _appRepository.getThemeMode();
+      final result = await _diWrapper.appRepository.getThemeMode();
       if (result.isValue && result.asValue != null) {
         themeMode = result.asValue!.value;
       }
-      _haConfig = await _haRepository.getHaConfig();
+      _haConfig = await _diWrapper.haRepository.getHaConfig();
       return result;
     } on Exception catch (e) {
       return Result.error(e);
@@ -56,11 +87,12 @@ class MainScreenViewModel extends ChangeNotifier {
     }
   }
 
-  /// Toggle the theme setting
+  // theme
+  ThemeMode getThemeMode() => themeMode;
   Future<Result<void>> _toggleTheme() async {
     try {
       themeMode = themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
-      return await _appRepository.setThemeMode(themeMode);
+      return await _diWrapper.appRepository.setThemeMode(themeMode);
     } on Exception catch (e) {
       return Result.error(e);
     } finally {
@@ -68,23 +100,68 @@ class MainScreenViewModel extends ChangeNotifier {
     }
   }
 
-  Future<Result<void>> _blink(Color blinkColor, PixelDie die) async {
-    var blinker = BlinkMessage(blinkColor: blinkColor);
-    String? entity = die.haEntityTargets.firstOrNull;
-    _haRepository.blinkEntity(entity: entity, blink: blinker);
-
+  // ble
+  Future<Result<void>> _startBleScan() async {
+    await _diWrapper.bleScanManager.scanForDevices();
     return Result.value(null);
   }
 
+  // ha config proxy
+  HaConfig getHaConfig() => _haConfig;
   Future<Result<void>> _setHaConfig(bool enabled, String url, String token, String entity) async {
-    _haRepository.updateSettings(enabled: enabled, url: url, token: token, entity: entity);
+    _diWrapper.haRepository.updateSettings(enabled: enabled, url: url, token: token, entity: entity);
 
     return Result.value(null);
   }
 
+  // rolling
+  Stream<List<RollResult>> getResultsStream() {
+    return _diWrapper.rollDomain.subscribeRollResults();
+  }
+
+  Future<Result<void>> _clearRollResultHistory() async {
+    _diWrapper.rollDomain.clearRollResults();
+    return Result.value(null);
+  }
+
+  Future<Result<void>> _setRollType(RollType rollType) async {
+    _diWrapper.rollDomain.rollType = rollType;
+    return Result.value(null);
+  }
+
+  RollType getRollType() {
+    return _diWrapper.rollDomain.rollType;
+  }
+
+  // die control settings
+  Map<String, Color> get blinkColors => _diWrapper.rollDomain.blinkColors;
+  Future<Result<void>> _blink(Color blinkColor, PixelDie die, String? entityOverride) async {
+    var blinker = BlinkMessage(blinkColor: blinkColor);
+    String entity = presentOrElse(entityOverride, die.haEntityTargets.firstOrNull ?? "");
+    _diWrapper.haRepository.blinkEntity(entity: entity, blink: blinker);
+
+    _diWrapper.rfController.blink(blinkColor, die);
+
+    return Result.value(null);
+  }
+
+  // TODO: Refactor needed?  I'm not sure how the UI is getting notified about this?
+  Stream<List<PixelDie>> getDeviceStream() {
+    return _diWrapper.rfController.getDeviceStream();
+  }
+
+  Future<Result<void>> _updateDieSettings(PixelDie die, Color blinkColor, String entity) async {
+    _diWrapper.rollDomain.blinkColors[die.device.remoteId.str] = blinkColor;
+    die.haEntityTargets = [entity];
+    return Result.value(null);
+  }
+
+  // Cleanup
   @override
   void dispose() {
     _haConfigSubscription.cancel();
+    _rollResultsSubscription.cancel();
+    _rollStatusSubscription.cancel();
     super.dispose();
   }
 }

@@ -159,4 +159,8 @@ class MainScreenViewModel extends ChangeNotifier {
     _rollStatusSubscription.cancel();
     super.dispose();
   }
+
+  List<String> getIpAddress() {
+    return _diWrapper.apiDomain.getIpAddress();
+  }
 }

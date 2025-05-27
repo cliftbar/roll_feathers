@@ -14,6 +14,10 @@ class RollResult {
   RollResult({required this.rollType, required this.rollResult}) {
     rollTime = DateTime.now();
   }
+
+  Map<String, dynamic> toJson() {
+    return {'rollType': rollType.name, 'rollResult': rollResult, 'rollTime': rollTime.toIso8601String()};
+  }
 }
 
 enum RollType { sum, advantage, disadvantage }
@@ -115,7 +119,7 @@ class RollDomain {
         for (var die in _rollingDie.values) {
           _rollFeathersController.blink(blinkColors[die.deviceId] ?? blue, die);
         }
-        rollRet = rollTotal();
+        rollRet = _rollTotal();
     }
     var result = RollResult(rollType: rollType, rollResult: rollRet);
     _rollHistory.insert(0, result);
@@ -124,7 +128,7 @@ class RollDomain {
     return result.rollResult;
   }
 
-  int rollTotal() {
+  int _rollTotal() {
     return _rollingDie.values.map((d) => d.getFaceValueOrElse(orElse: 0)).fold(0, (p, c) => p + c);
   }
 

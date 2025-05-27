@@ -1,3 +1,4 @@
+import 'package:roll_feathers/domains/api_domain.dart';
 import 'package:roll_feathers/domains/pixel_die_domain.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/pixel/pixel_constants.dart';
@@ -19,6 +20,7 @@ class DiWrapper {
   final BleRepository bleRepository;
   final PixelDieDomain rfController;
   final RollDomain rollDomain;
+  final ApiDomain apiDomain;
 
   static Future<DiWrapper> initDi() async {
     var haService = await HaService.create();
@@ -36,6 +38,8 @@ class DiWrapper {
 
     var rollDomain = await RollDomain.create(rfController);
 
+    var apiDomain = await ApiDomain.create(rollDomain: rollDomain);
+
     return DiWrapper._(
       haService,
       appService,
@@ -45,6 +49,7 @@ class DiWrapper {
       rfController,
       bleRepo,
       rollDomain,
+      apiDomain,
     );
   }
 
@@ -57,5 +62,6 @@ class DiWrapper {
     this.rfController,
     this.bleRepository,
     this.rollDomain,
+    this.apiDomain,
   );
 }

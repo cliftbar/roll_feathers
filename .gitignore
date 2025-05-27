@@ -47,3 +47,5 @@ app.*.map.json
 # added
 !.keep
 *.env
+
+*.private.env.json

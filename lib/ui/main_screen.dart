@@ -39,9 +39,12 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            const DrawerHeader(
+            DrawerHeader(
               decoration: BoxDecoration(color: Colors.blue),
-              child: Text('Settings', style: TextStyle(color: Colors.white, fontSize: 24)),
+              child: Text(
+                'Settings\n${widget.viewModel.getIpAddress().join("\n")}',
+                style: TextStyle(color: Colors.white, fontSize: 24),
+              ),
             ),
             // Why does this get notified, when the view model is the main screen view model?
             ListenableBuilder(

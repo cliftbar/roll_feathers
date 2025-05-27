@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-import 'package:roll_feathers/controllers/roll_feathers_controller.dart';
 import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/pixel/pixel.dart';
@@ -97,15 +96,15 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
             child: ListenableBuilder(
               listenable: widget.viewModel,
               builder: (context, _) {
-                return StreamBuilder<List<PixelDie>>(
+                return StreamBuilder<Map<String, PixelDie>>(
                   stream: widget.viewModel.getDeviceStream(),
-                  initialData: const [],
+                  initialData: const {},
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return Center(child: Text('Error: ${snapshot.error}'));
                     }
 
-                    final devices = snapshot.data ?? [];
+                    final List<PixelDie> devices = snapshot.data?.values.toList() ?? [];
 
                     if (devices.isEmpty) {
                       return const Center(child: Text('No devices found'));
@@ -144,6 +143,8 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
                                         const Text('Pick a color'),
                                         ColorPicker(
                                           pickerColor: currentColor,
+                                          hexInputBar: true,
+                                          paletteType: PaletteType.hueWheel,
                                           onColorChanged: (Color color) {
                                             currentColor = color;
                                           },
@@ -414,7 +415,7 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
       case RollState.onFace:
       case RollState.rolled:
       default:
-        return widget.viewModel.blinkColors[die.deviceId] ??
+        return widget.viewModel.blinkColors[die.deviceId]?.withAlpha(255) ??
             Theme.of(context).textTheme.bodyMedium?.color! ??
             (widget.viewModel.themeMode == ThemeMode.dark ? Colors.white : Colors.black);
     }

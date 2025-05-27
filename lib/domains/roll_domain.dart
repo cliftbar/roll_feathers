@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:roll_feathers/controllers/roll_feathers_controller.dart';
+import 'package:roll_feathers/domains/pixel_die_domain.dart';
 import 'package:roll_feathers/pixel/pixel.dart';
 import 'package:roll_feathers/pixel/pixel_constants.dart';
 import 'package:roll_feathers/pixel/pixel_messages.dart';
@@ -16,6 +16,8 @@ class RollResult {
   }
 }
 
+enum RollType { sum, advantage, disadvantage }
+
 enum RollStatus { rollStarted, rolling, rollEnded }
 
 class RollDomain {
@@ -29,8 +31,8 @@ class RollDomain {
   final Map<String, PixelDie> _rollingDie = {};
   RollType rollType = RollType.sum;
 
-  final RollFeathersController _rollFeathersController;
-  late StreamSubscription<List<PixelDie>> _deviceStreamListener;
+  final PixelDieDomain _rollFeathersController;
+  late StreamSubscription<Map<String, PixelDie>> _deviceStreamListener;
   final Map<String, Color> blinkColors = {};
 
   Timer? _rollUpdateTimer;
@@ -42,7 +44,7 @@ class RollDomain {
   Stream<List<RollResult>> subscribeRollResults() => _rollResultStream.stream;
   Stream<RollStatus> subscribeRollStatus() => _rollStatusStream.stream;
 
-  static Future<RollDomain> create(RollFeathersController rfController) async {
+  static Future<RollDomain> create(PixelDieDomain rfController) async {
     return RollDomain._(rfController);
   }
 
@@ -127,14 +129,14 @@ class RollDomain {
   }
 
   // attach listeners to die
-  void rollStreamListener(List<PixelDie> data) {
-    for (var die in data) {
+  void rollStreamListener(Map<String, PixelDie> data) {
+    for (var die in data.values) {
       die.addMessageCallback(MessageType.rollState, "$this.hashCode", (msg) {
         MessageRollState rollStateMsg = msg as MessageRollState;
         if (rollStateMsg.rollState == RollState.rolled.index || rollStateMsg.rollState == RollState.onFace.index) {
           // _rollingColors[die.device.remoteId.toString()] = Colors.green;
 
-          bool allDiceRolled = areDieRolling(data);
+          bool allDiceRolled = areDieRolling(data.values.toList());
           _rollingDie[die.device.remoteId.str] = die;
 
           if (allDiceRolled && _isRolling) {

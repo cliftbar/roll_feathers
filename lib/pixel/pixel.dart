@@ -6,89 +6,6 @@ import 'package:logging/logging.dart';
 import 'package:roll_feathers/pixel/pixel_constants.dart';
 import 'package:roll_feathers/pixel/pixel_messages.dart';
 
-class BleScanManager {
-  final log = Logger("BleScanManager");
-
-  final Map<String, PixelDie> _discoveredDevices = {};
-  final _deviceController = StreamController<List<PixelDie>>.broadcast();
-
-  void updateDeviceDieEntity(PixelDie die, String entity) {
-    _discoveredDevices[die.device.remoteId.str]?.haEntityTargets.add(entity);
-  }
-
-  Stream<List<PixelDie>> get deviceStream => _deviceController.stream;
-
-  Future<bool> checkSupported() async {
-    return FlutterBluePlus.isSupported;
-  }
-
-  StreamSubscription<BluetoothAdapterState> listenToStates(Function(BluetoothAdapterState) callback) {
-    return FlutterBluePlus.adapterState.listen(callback);
-  }
-
-  Future<void> connect() async {
-    await FlutterBluePlus.adapterState
-        .firstWhere(
-          (state) => state == BluetoothAdapterState.on,
-          orElse: () => throw TimeoutException('Bluetooth did not turn on'),
-        )
-        .timeout(
-          const Duration(seconds: 10),
-          onTimeout: () => throw TimeoutException('Bluetooth connection timeout after 10 seconds'),
-        );
-  }
-
-  Future<void> scan(Function(List<ScanResult>) foundResultHandler) async {
-    var scanSub = FlutterBluePlus.onScanResults.listen(foundResultHandler);
-    // Start scanning
-    await FlutterBluePlus.startScan(
-      timeout: Duration(seconds: 15),
-      withServices: [pixelsService], // Filter by service UUID (optional)
-    );
-    FlutterBluePlus.cancelWhenScanComplete(scanSub);
-  }
-
-  Future<void> scanForDevices() async {
-    var scanSub = FlutterBluePlus.onScanResults.listen((srs) async {
-      for (var sr in srs) {
-        var dev = sr.device;
-        dev.connectionState.listen((state) {
-          if (state == BluetoothConnectionState.disconnected) {
-            _discoveredDevices.remove(dev.remoteId.str);
-            _deviceController.add(List.of(_discoveredDevices.values));
-            log.info("${dev.remoteId.str} disconnected");
-          }
-        });
-        var die = await PixelDie.fromDevice(dev);
-        _discoveredDevices.putIfAbsent(dev.remoteId.str, () => die);
-        _deviceController.add(List.of(_discoveredDevices.values));
-      }
-    });
-    // Start scanning
-    await FlutterBluePlus.startScan(
-      timeout: Duration(seconds: 15),
-      withServices: [pixelsService], // Filter by service UUID (optional)
-    );
-    FlutterBluePlus.cancelWhenScanComplete(scanSub);
-  }
-
-  // Get currently discovered devices
-  Map<String, PixelDie> getDiscoveredDevices() {
-    return _discoveredDevices;
-  }
-
-  // Stop scanning for devices
-  Future<void> stopScan() async {
-    await FlutterBluePlus.stopScan();
-  }
-
-  // Clean up resources
-  void dispose() {
-    stopScan();
-    _deviceController.close();
-  }
-}
-
 class DiceInfo {
   final int ledCount;
   final int designAndColor;
@@ -184,7 +101,7 @@ class PixelDie {
 
   Map<MessageType, Map<String, Function(RxMessage)>> messageRxCallbacks = {};
 
-  PixelDie({required this.device, required this.writeChar, required this.notifyChar}) {
+  PixelDie._({required this.device, required this.writeChar, required this.notifyChar}) {
     state = DiceState();
     notifyChar.onValueReceived.listen(_readNotify);
     // Send IAmADie request message (0x01)
@@ -193,7 +110,6 @@ class PixelDie {
 
   static Future<PixelDie> fromDevice(BluetoothDevice device) async {
     try {
-      await device.connect();
       await device.discoverServices();
 
       var service = device.servicesList.firstWhere((bs) => bs.serviceUuid == pixelsService);
@@ -202,7 +118,9 @@ class PixelDie {
 
       await notifyChar.setNotifyValue(true);
 
-      return PixelDie(device: device, writeChar: writeChar, notifyChar: notifyChar);
+      var die = PixelDie._(device: device, writeChar: writeChar, notifyChar: notifyChar);
+      await die._sendMessageBuffer(MessageWhoAreYou().toBuffer());
+      return die;
     } catch (e) {
       throw Exception('Failed to setup PixelDie: $e');
     }

@@ -2,14 +2,12 @@ import 'dart:async';
 
 import 'package:async/async.dart';
 import 'package:flutter/material.dart';
-import 'package:roll_feathers/controllers/roll_feathers_controller.dart';
 import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/pixel/pixel.dart';
-import 'package:roll_feathers/pixel/pixel_messages.dart';
+import 'package:roll_feathers/pixel/pixel_constants.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/util/command.dart';
-import 'package:roll_feathers/util/strings.dart';
 
 class MainScreenViewModel extends ChangeNotifier {
   // init
@@ -102,7 +100,7 @@ class MainScreenViewModel extends ChangeNotifier {
 
   // ble
   Future<Result<void>> _startBleScan() async {
-    await _diWrapper.bleScanManager.scanForDevices();
+    await _diWrapper.bleRepository.scan(services: [pixelsService]);
     return Result.value(null);
   }
 
@@ -136,23 +134,20 @@ class MainScreenViewModel extends ChangeNotifier {
   // die control settings
   Map<String, Color> get blinkColors => _diWrapper.rollDomain.blinkColors;
   Future<Result<void>> _blink(Color blinkColor, PixelDie die, String? entityOverride) async {
-    var blinker = BlinkMessage(blinkColor: blinkColor);
-    String entity = presentOrElse(entityOverride, die.haEntityTargets.firstOrNull ?? "");
-    _diWrapper.haRepository.blinkEntity(entity: entity, blink: blinker);
-
     _diWrapper.rfController.blink(blinkColor, die);
 
     return Result.value(null);
   }
 
   // TODO: Refactor needed?  I'm not sure how the UI is getting notified about this?
-  Stream<List<PixelDie>> getDeviceStream() {
+  Stream<Map<String, PixelDie>> getDeviceStream() {
     return _diWrapper.rfController.getDeviceStream();
   }
 
   Future<Result<void>> _updateDieSettings(PixelDie die, Color blinkColor, String entity) async {
     _diWrapper.rollDomain.blinkColors[die.device.remoteId.str] = blinkColor;
     die.haEntityTargets = [entity];
+    notifyListeners();
     return Result.value(null);
   }
 

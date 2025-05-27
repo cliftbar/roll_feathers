@@ -1,7 +1,8 @@
-import 'package:roll_feathers/controllers/roll_feathers_controller.dart';
+import 'package:roll_feathers/domains/pixel_die_domain.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
-import 'package:roll_feathers/pixel/pixel.dart';
+import 'package:roll_feathers/pixel/pixel_constants.dart';
 import 'package:roll_feathers/repositories/app_repository.dart';
+import 'package:roll_feathers/repositories/ble_repository.dart';
 import 'package:roll_feathers/repositories/home_assistant_repository.dart';
 import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
@@ -15,8 +16,8 @@ class DiWrapper {
   final HaRepository haRepository;
   final AppRepository appRepository;
 
-  final BleScanManager bleScanManager;
-  final RollFeathersController rfController;
+  final BleRepository bleRepository;
+  final PixelDieDomain rfController;
   final RollDomain rollDomain;
 
   static Future<DiWrapper> initDi() async {
@@ -27,9 +28,11 @@ class DiWrapper {
     var appService = AppService();
     var appRepo = AppRepository(appService);
 
-    var bleManager = BleScanManager();
-    var rfController = RollFeathersController(bleManager, haRepository);
-    rfController.init();
+    var bleRepo = BleRepository();
+    await bleRepo.init(services: [pixelsService]);
+    bleRepo.scan(services: [pixelsService]);
+
+    var rfController = PixelDieDomain(bleRepo, haRepository);
 
     var rollDomain = await RollDomain.create(rfController);
 
@@ -40,7 +43,7 @@ class DiWrapper {
       haRepository,
       appRepo,
       rfController,
-      bleManager,
+      bleRepo,
       rollDomain,
     );
   }
@@ -52,7 +55,7 @@ class DiWrapper {
     this.haRepository,
     this.appRepository,
     this.rfController,
-    this.bleScanManager,
+    this.bleRepository,
     this.rollDomain,
   );
 }

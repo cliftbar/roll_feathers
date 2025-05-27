@@ -210,15 +210,15 @@ mixin Color255 {
   Color getColor();
 
   int r255() {
-    return (getColor().r * 255).toInt();
+    return (getColor().r * getColor().a * 255).toInt();
   }
 
   int g255() {
-    return (getColor().g * 255).toInt();
+    return (getColor().g * getColor().a * 255).toInt();
   }
 
   int b255() {
-    return (getColor().b * 255).toInt();
+    return (getColor().b * getColor().a * 255).toInt();
   }
 
   int a255() {

@@ -1,14 +1,18 @@
 # Roll Feathers
 
-Companion app for [Pixel Dice](https://github.com/GameWithPixels)
-- Track Rolls
-- Roll with Advantage & Disadvantage
-- Blink Dice
-- Home Assistant Light integration for Blinks
+Companion app for [Pixel Dice](https://github.com/GameWithPixels).
 
-## Cross Platform
-- Android
-- iOS
-- MacOs
-- Windows
-- Linux
+## Features
+- Track multiple dice
+- Track roll history
+- Roll with Advantage & Disadvantage
+- Blink Dice on roll
+- Home Assistant Light integration for Blinks
+- API to get rolls
+
+- cross platform
+  - Android
+  - iOS
+  - MacOs
+  - Windows
+  - Linux

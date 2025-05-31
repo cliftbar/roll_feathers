@@ -2,9 +2,8 @@ import 'dart:async';
 
 import 'package:async/async.dart';
 import 'package:flutter/material.dart';
-import 'package:roll_feathers/repositories/app_repository.dart';
 
-import '../di/di.dart';
+import 'package:roll_feathers/di/di.dart';
 
 class RollFeathersAppVM extends ChangeNotifier {
   final DiWrapper _diWrapper;

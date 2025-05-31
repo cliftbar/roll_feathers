@@ -4,12 +4,13 @@ import 'package:async/async.dart';
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
-import 'package:roll_feathers/pixel/pixel.dart';
-import 'package:roll_feathers/pixel/pixel_constants.dart';
+import 'package:roll_feathers/dice_sdks/pixels.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/util/command.dart';
 
-class MainScreenViewModel extends ChangeNotifier {
+import 'package:roll_feathers/dice_sdks/generic_die.dart';
+
+class PixelDiceScreenViewModel extends ChangeNotifier {
   // init
   final DiWrapper _diWrapper;
   late Command0 load;
@@ -33,10 +34,10 @@ class MainScreenViewModel extends ChangeNotifier {
   late StreamSubscription<RollStatus> _rollStatusSubscription;
 
   // die control settings
-  late Command3<void, Color, PixelDie, String?> blink;
-  late Command3<void, PixelDie, Color, String> updateDieSettings;
+  late Command3<void, Color, GenericBleDie, String?> blink;
+  late Command3<void, GenericBleDie, Color, String> updateDieSettings;
 
-  MainScreenViewModel(this._diWrapper) {
+  PixelDiceScreenViewModel(this._diWrapper) {
     // init
     load = Command0(_load)..execute();
 
@@ -133,18 +134,18 @@ class MainScreenViewModel extends ChangeNotifier {
 
   // die control settings
   Map<String, Color> get blinkColors => _diWrapper.rollDomain.blinkColors;
-  Future<Result<void>> _blink(Color blinkColor, PixelDie die, String? entityOverride) async {
+  Future<Result<void>> _blink(Color blinkColor, GenericBleDie die, String? entityOverride) async {
     _diWrapper.rfController.blink(blinkColor, die);
 
     return Result.value(null);
   }
 
   // TODO: Refactor needed?  I'm not sure how the UI is getting notified about this?
-  Stream<Map<String, PixelDie>> getDeviceStream() {
+  Stream<Map<String, GenericBleDie>> getDeviceStream() {
     return _diWrapper.rfController.getDeviceStream();
   }
 
-  Future<Result<void>> _updateDieSettings(PixelDie die, Color blinkColor, String entity) async {
+  Future<Result<void>> _updateDieSettings(GenericBleDie die, Color blinkColor, String entity) async {
     _diWrapper.rollDomain.blinkColors[die.device.remoteId.str] = blinkColor;
     die.haEntityTargets = [entity];
     notifyListeners();

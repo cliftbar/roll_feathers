@@ -1,13 +1,18 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:roll_feathers/domains/api_domain.dart';
 import 'package:roll_feathers/domains/pixel_die_domain.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
-import 'package:roll_feathers/pixel/pixel_constants.dart';
+import 'package:roll_feathers/dice_sdks/pixels.dart';
 import 'package:roll_feathers/repositories/app_repository.dart';
 import 'package:roll_feathers/repositories/ble_repository.dart';
 import 'package:roll_feathers/repositories/home_assistant_repository.dart';
 import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/services/home_assistant/ha_service.dart';
+
+import 'package:roll_feathers/dice_sdks/godice_ai.dart';
 
 class DiWrapper {
   final HaService haService;
@@ -31,14 +36,18 @@ class DiWrapper {
     var appRepo = AppRepository(appService);
 
     var bleRepo = BleRepository();
-    await bleRepo.init(services: [pixelsService]);
-    bleRepo.scan(services: [pixelsService]);
+    // Run ble init and scan in background
+    bleRepo.init().whenComplete(() => bleRepo.scan(services: [pixelsService, GoDice.SERVICE_UUID]));
 
     var rfController = PixelDieDomain(bleRepo, haRepository);
 
     var rollDomain = await RollDomain.create(rfController);
-
-    var apiDomain = await ApiDomain.create(rollDomain: rollDomain);
+    late ApiDomain apiDomain;
+    if (kIsWeb) {
+      apiDomain = EmptyApiDomain();
+    } else {
+      apiDomain = await ApiDomainServer.create(rollDomain: rollDomain);
+    }
 
     return DiWrapper._(
       haService,

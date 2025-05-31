@@ -11,12 +11,13 @@ class BleRepository {
   final log = Logger("BleRepository");
 
   final Map<String, fbp.BluetoothDevice> _discoveredBleDevices = {};
+  Map<String, fbp.BluetoothDevice> get discoveredBleDevices => _discoveredBleDevices;
   final _bleDeviceSubscription = StreamController<Map<String, fbp.BluetoothDevice>>.broadcast();
   bool initialized = false;
 
   Stream<Map<String, fbp.BluetoothDevice>> subscribeBleDevices() => _bleDeviceSubscription.stream;
 
-  Future<void> init({List<fbp.Guid>? services}) async {
+  Future<void> init() async {
     bool supported = await isSupported();
     if (!supported) {
       throw BluetoothNotSupported(fbp.ErrorPlatform.fbp, "_initializeBle()", -1, "Bluetooth is not supported");

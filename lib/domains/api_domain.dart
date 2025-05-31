@@ -6,19 +6,37 @@ import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_routing/shelf_routing.dart';
 
-class ApiDomain {
+abstract class ApiDomain {
+  List<String> getIpAddress();
+}
+
+class EmptyApiDomain extends ApiDomain {
+  @override
+  List<String> getIpAddress() {
+    // TODO: implement getIpAddress
+    return [];
+  }
+
+}
+
+class ApiDomainServer extends ApiDomain {
   final HttpServer _apiServer;
   final RollDomain _rollDomain;
   final List<NetworkInterface> _networkInterfaces;
 
-  ApiDomain._(this._apiServer, this._rollDomain, this._networkInterfaces);
+  ApiDomainServer._(this._apiServer, this._rollDomain, this._networkInterfaces);
 
   static Future<ApiDomain> create({required RollDomain rollDomain}) async {
-    var ifaces = await NetworkInterface.list(
-      includeLoopback: false,
-      includeLinkLocal: false,
-      type: InternetAddressType.IPv4,
-    );
+    List<NetworkInterface> iFaces = [];
+    try {
+      iFaces = await NetworkInterface.list(
+        includeLoopback: false,
+        includeLinkLocal: false,
+        type: InternetAddressType.IPv4,
+      );
+    } on Exception catch (e) {
+      print("iface exception: $e");
+    }
     var router = Router();
 
     router.get("/api/last-roll", (Request request) {
@@ -34,9 +52,10 @@ class ApiDomain {
     final app = const Pipeline().addMiddleware(logRequests()).addHandler(router.call);
 
     var server = await shelf_io.serve(app, InternetAddress.anyIPv4, 8080);
-    return ApiDomain._(server, rollDomain, ifaces);
+    return ApiDomainServer._(server, rollDomain, iFaces);
   }
 
+  @override
   List<String> getIpAddress() {
     return _networkInterfaces.map((e) => e.addresses[0].address).toList();
   }

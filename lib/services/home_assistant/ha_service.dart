@@ -1,8 +1,9 @@
 import 'dart:io';
 
 import 'package:home_assistant/home_assistant.dart';
-import 'package:roll_feathers/pixel/pixel_messages.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
+
+import 'package:roll_feathers/dice_sdks/generic_die.dart';
 
 enum LightServiceActions {
   on(action: "turn_on"),

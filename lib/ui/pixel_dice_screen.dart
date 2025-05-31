@@ -2,27 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
-import 'package:roll_feathers/pixel/pixel.dart';
-import 'package:roll_feathers/pixel/pixel_constants.dart';
-import 'package:roll_feathers/ui/main_screen_vm.dart';
+import 'package:roll_feathers/dice_sdks/pixels.dart';
+import 'package:roll_feathers/ui/pixel_dice_screen_vm.dart';
 
-class MainScreenWidget extends StatefulWidget {
-  const MainScreenWidget._(this.viewModel);
+import 'package:roll_feathers/dice_sdks/generic_die.dart';
+import 'app_settings_screen.dart';
 
-  static Future<MainScreenWidget> create(DiWrapper di) async {
-    var vm = MainScreenViewModel(di);
-    var widget = MainScreenWidget._(vm);
+class PixelDiceScreenWidget extends StatefulWidget {
+  const PixelDiceScreenWidget._(this.viewModel);
+
+  static Future<PixelDiceScreenWidget> create(DiWrapper di) async {
+    var vm = PixelDiceScreenViewModel(di);
+    var widget = PixelDiceScreenWidget._(vm);
 
     return widget;
   }
 
-  final MainScreenViewModel viewModel;
+  final PixelDiceScreenViewModel viewModel;
 
   @override
-  State<MainScreenWidget> createState() => _MainScreenWidgetState();
+  State<PixelDiceScreenWidget> createState() => _PixelDiceScreenWidgetState();
 }
 
-class _MainScreenWidgetState extends State<MainScreenWidget> {
+class _PixelDiceScreenWidgetState extends State<PixelDiceScreenWidget> {
   bool _withAdvantage = false; // Add this line
   bool _withDisadvantage = false; // Add this line
 
@@ -46,32 +48,57 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
                 style: TextStyle(color: Colors.white, fontSize: 24),
               ),
             ),
+            AppSettingsWidget(),
             // Why does this get notified, when the view model is the main screen view model?
-            ListenableBuilder(
-              listenable: widget.viewModel,
-              builder: (context, _) {
-                return ListTile(
-                  leading: Icon(widget.viewModel.themeMode == ThemeMode.light ? Icons.dark_mode : Icons.light_mode),
-                  title: Text(widget.viewModel.themeMode == ThemeMode.light ? 'Dark Mode' : 'Light Mode'),
-                  onTap: () {
-                    widget.viewModel.toggleTheme.execute();
-                    Navigator.pop(context);
-                  },
-                );
-              },
-            ),
-            ListenableBuilder(
-              listenable: widget.viewModel,
-              builder: (context, _) {
-                return ListTile(
-                  leading: const Icon(Icons.home),
-                  title: const Text('Home Assistant Settings'),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showHomeAssistantSettings(context, widget.viewModel);
-                  },
-                );
-              },
+            Card(
+              margin: const EdgeInsets.all(16.0),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Pixel Dice Settings',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Theme toggle
+                    ListenableBuilder(
+                      listenable: widget.viewModel,
+                      builder: (context, _) {
+                        return ListTile(
+                          leading: Icon(widget.viewModel.themeMode == ThemeMode.light ? Icons.dark_mode : Icons.light_mode),
+                          title: Text(widget.viewModel.themeMode == ThemeMode.light ? 'Dark Mode' : 'Light Mode'),
+                          onTap: () {
+                            widget.viewModel.toggleTheme.execute();
+                            Navigator.pop(context);
+                          },
+                        );
+                      },
+                    ),
+
+                    // Home Assistant Settings
+                    ListenableBuilder(
+                      listenable: widget.viewModel,
+                      builder: (context, _) {
+                        return ListTile(
+                          leading: const Icon(Icons.home),
+                          title: const Text('Home Assistant Settings'),
+                          onTap: () {
+                            Navigator.pop(context);
+                            _showHomeAssistantSettings(context, widget.viewModel);
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -99,7 +126,7 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
             child: ListenableBuilder(
               listenable: widget.viewModel,
               builder: (context, _) {
-                return StreamBuilder<Map<String, PixelDie>>(
+                return StreamBuilder<Map<String, GenericBleDie>>(
                   stream: widget.viewModel.getDeviceStream(),
                   initialData: const {},
                   builder: (context, snapshot) {
@@ -107,7 +134,7 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
                       return Center(child: Text('Error: ${snapshot.error}'));
                     }
 
-                    final List<PixelDie> devices = snapshot.data?.values.toList() ?? [];
+                    final List<GenericBleDie> devices = snapshot.data?.values.toList() ?? [];
 
                     if (devices.isEmpty) {
                       return const Center(child: Text('No devices found'));
@@ -120,12 +147,12 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
                         return ListTile(
                           textColor: _getRollingTextColor(die, context),
                           title: Text(
-                            die.device.platformName.isEmpty
+                            die.friendlyName.isEmpty
                                 ? 'Unknown Device ${die.device.remoteId}'
-                                : die.device.platformName,
+                                : die.friendlyName,
                           ),
                           subtitle: Text(
-                            '${RollState.values[die.state.rollState ?? RollState.unknown.index].name} ${die.state.currentFaceValue}',
+                            '${die.state.batteryLevel}% ${PixelRollState.values[die.state.rollState ?? PixelRollState.unknown.index].name} ${die.state.currentFaceValue}',
                           ),
                           onTap: () {
                             showDialog(
@@ -335,7 +362,7 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
     return rollResult;
   }
 
-  void _showHomeAssistantSettings(BuildContext context, MainScreenViewModel vm) async {
+  void _showHomeAssistantSettings(BuildContext context, PixelDiceScreenViewModel vm) async {
     var haConfig = vm.getHaConfig();
     final urlController = TextEditingController(text: haConfig.url);
     final tokenController = TextEditingController(text: haConfig.token);
@@ -410,13 +437,13 @@ class _MainScreenWidgetState extends State<MainScreenWidget> {
     );
   }
 
-  Color _getRollingTextColor(PixelDie die, BuildContext context) {
-    switch (RollState.values[die.state.rollState ?? 0]) {
-      case RollState.rolling:
-      case RollState.handling:
+  Color _getRollingTextColor(GenericBleDie die, BuildContext context) {
+    switch (PixelRollState.values[die.state.rollState ?? 0]) {
+      case PixelRollState.rolling:
+      case PixelRollState.handling:
         return Colors.orange;
-      case RollState.onFace:
-      case RollState.rolled:
+      case PixelRollState.onFace:
+      case PixelRollState.rolled:
       default:
         return widget.viewModel.blinkColors[die.deviceId]?.withAlpha(255) ??
             Theme.of(context).textTheme.bodyMedium?.color! ??

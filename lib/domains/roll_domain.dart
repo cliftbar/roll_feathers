@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/domains/pixel_die_domain.dart';
-import 'package:roll_feathers/pixel/pixel.dart';
-import 'package:roll_feathers/pixel/pixel_constants.dart';
-import 'package:roll_feathers/pixel/pixel_messages.dart';
+import 'package:roll_feathers/dice_sdks/pixels.dart';
+
+import 'package:roll_feathers/dice_sdks/generic_die.dart';
 
 class RollResult {
   final RollType rollType;
@@ -32,11 +32,11 @@ class RollDomain {
 
   List<RollResult> get rollHistory => _rollHistory;
   bool _isRolling = false;
-  final Map<String, PixelDie> _rollingDie = {};
+  final Map<String, GenericBleDie> _rollingDie = {};
   RollType rollType = RollType.sum;
 
   final PixelDieDomain _rollFeathersController;
-  late StreamSubscription<Map<String, PixelDie>> _deviceStreamListener;
+  late StreamSubscription<Map<String, GenericBleDie>> _deviceStreamListener;
   final Map<String, Color> blinkColors = {};
 
   Timer? _rollUpdateTimer;
@@ -53,20 +53,20 @@ class RollDomain {
   }
 
   Color getRollingTextColor(PixelDie die, Color defaultColor) {
-    switch (RollState.values[die.state.rollState ?? 0]) {
-      case RollState.rolling:
-      case RollState.handling:
+    switch (PixelRollState.values[die.state.rollState ?? 0]) {
+      case PixelRollState.rolling:
+      case PixelRollState.handling:
         return Colors.orange;
-      case RollState.onFace:
-      case RollState.rolled:
+      case PixelRollState.onFace:
+      case PixelRollState.rolled:
       default:
         return defaultColor;
     }
   }
 
-  bool areDieRolling(List<PixelDie> allDie) {
+  bool areDieRolling(List<GenericBleDie> allDie) {
     return allDie.every(
-      (d) => d.state.rollState == RollState.rolled.index || d.state.rollState == RollState.onFace.index,
+      (d) => d.state.rollState == PixelRollState.rolled.index || d.state.rollState == PixelRollState.onFace.index,
     );
   }
 
@@ -133,11 +133,11 @@ class RollDomain {
   }
 
   // attach listeners to die
-  void rollStreamListener(Map<String, PixelDie> data) {
+  void rollStreamListener(Map<String, GenericBleDie> data) {
     for (var die in data.values) {
-      die.addMessageCallback(MessageType.rollState, "$this.hashCode", (msg) {
+      die.addMessageCallback(PixelMessageType.rollState.index, "$this.hashCode", (msg) {
         MessageRollState rollStateMsg = msg as MessageRollState;
-        if (rollStateMsg.rollState == RollState.rolled.index || rollStateMsg.rollState == RollState.onFace.index) {
+        if (rollStateMsg.rollState == PixelRollState.rolled.index || rollStateMsg.rollState == PixelRollState.onFace.index) {
           // _rollingColors[die.device.remoteId.toString()] = Colors.green;
 
           bool allDiceRolled = areDieRolling(data.values.toList());
@@ -148,7 +148,7 @@ class RollDomain {
             _stopRolling();
             _stopRollWithResult(rollType: rollType, totalColors: blinkColors);
           }
-        } else if (rollStateMsg.rollState == RollState.rolling.index) {
+        } else if (rollStateMsg.rollState == PixelRollState.rolling.index) {
           // die has started rolling, initiate roll if its not already going
           if (!_isRolling) {
             _startRolling();

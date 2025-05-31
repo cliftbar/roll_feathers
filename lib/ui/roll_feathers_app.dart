@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/di/di.dart';
-import 'package:roll_feathers/repositories/app_repository.dart';
-import 'package:roll_feathers/repositories/home_assistant_repository.dart';
-import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
-import 'package:roll_feathers/services/home_assistant/ha_service.dart';
-import 'package:roll_feathers/ui/main_screen.dart';
+import 'package:roll_feathers/ui/pixel_dice_screen.dart';
 import 'package:roll_feathers/ui/roll_feathers_app_vm.dart';
 
 // Main Application
@@ -12,16 +8,14 @@ class RollFeatherApp extends StatefulWidget {
   final RollFeathersAppVM viewModel;
 
   // Children
-  final MainScreenWidget _mainScreenWidget;
+  final PixelDiceScreenWidget _mainScreenWidget;
 
   const RollFeatherApp._(this.viewModel, this._mainScreenWidget);
 
   static Future<RollFeatherApp> create(DiWrapper di) async {
-
-
     var view = await RollFeathersAppVM.create(di);
 
-    var mainScreen = await MainScreenWidget.create(di);
+    var mainScreen = await PixelDiceScreenWidget.create(di);
 
     var app = RollFeatherApp._(view, mainScreen);
 

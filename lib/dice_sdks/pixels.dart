@@ -1,38 +1,159 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
-import 'package:roll_feathers/pixel/pixel_constants.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
-abstract class Message {
-  final int id;
+import 'generic_die.dart';
 
-  Message({required this.id});
+const Color green = Color.fromARGB(255, 0, 255, 0);
+const Color red = Color.fromARGB(255, 255, 0, 0);
+const Color blue = Color.fromARGB(255, 0, 0, 255);
 
-  static int _bytesToInt(List<int> bytes) {
-    var result = 0;
-    for (var i = 0; i < bytes.length; i++) {
-      result |= bytes[i] << (8 * i);
-    }
-    return result;
+Guid pixelsService = Guid("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
+const String information = "180a";
+const String nordicsDFU = "fe59";
+Guid pixelNotifyCharacteristic = Guid("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
+Guid pixelWriteCharacteristic = Guid("6e400002-b5a3-f393-e0a9-e50e24dcca9e");
+
+enum PixelDieType { unknown, d4, d6, d8, d10, d00, d12, d20, d6Pipped, d6Fudge }
+
+enum PixelDesignAndColor {
+  unknown(0),
+  onyxBlack(1),
+  hematiteGrey(2),
+  midnightGalaxy(3),
+  auroraSky(4),
+  clear(5),
+  whiteAurora(6),
+  custom(255);
+
+  final int value;
+
+  const PixelDesignAndColor(this.value);
+}
+
+enum PixelRollState { unknown, rolled, handling, rolling, crooked, onFace }
+
+enum PixelMessageType {
+  none,
+  whoAreYou,
+  iAmADie,
+  rollState,
+  telemetry,
+  bulkSetup,
+  bulkSetupAck,
+  bulkData,
+  bulkDataAck,
+  transferAnimationSet,
+  transferAnimationSetAck,
+  transferAnimationSetFinished,
+  transferSettings,
+  transferSettingsAck,
+  transferSettingsFinished,
+  transferTestAnimationSet,
+  transferTestAnimationSetAck,
+  transferTestAnimationSetFinished,
+  debugLog,
+  playAnimation,
+  playAnimationEvent,
+  stopAnimation,
+  remoteAction,
+  requestRollState,
+  requestAnimationSet,
+  requestSettings,
+  requestTelemetry,
+  programDefaultAnimationSet,
+  programDefaultAnimationSetFinished,
+  blink,
+  blinkAck,
+  requestDefaultAnimationSetColor,
+  defaultAnimationSetColor,
+  requestBatteryLevel,
+  batteryLevel,
+  requestRssi,
+  rssi,
+  calibrate,
+  calibrateFace,
+  notifyUser,
+  notifyUserAck,
+  testHardware,
+  testLEDLoopback,
+  ledLoopback,
+  setTopLevelState,
+  programDefaultParameters,
+  programDefaultParametersFinished,
+  setDesignAndColor,
+  setDesignAndColorAck,
+  setCurrentBehavior,
+  setCurrentBehaviorAck,
+  setName,
+  setNameAck,
+  sleep,
+  exitValidation,
+  transferInstantAnimationSet,
+  transferInstantAnimationSetAck,
+  transferInstantAnimationSetFinished,
+  playInstantAnimation,
+  stopAllAnimations,
+  requestTemperature,
+  temperature,
+  enableCharging,
+  disableCharging,
+  discharge,
+}
+
+class PixelDiceInfo {
+  final int ledCount;
+  final int designAndColor;
+  final int reserved;
+  final int dataSetHash;
+  final int pixelId;
+  final int availableFlash;
+  final int buildTimestamp;
+
+  PixelDiceInfo({
+    required this.ledCount,
+    required this.designAndColor,
+    required this.reserved,
+    required this.dataSetHash,
+    required this.pixelId,
+    required this.availableFlash,
+    required this.buildTimestamp,
+  });
+
+  factory PixelDiceInfo.fromJson(Map<String, dynamic> json) {
+    return PixelDiceInfo(
+      ledCount: json['ledCount'] as int,
+      designAndColor: json['designAndColor'] as int,
+      reserved: json['reserved'] as int,
+      dataSetHash: json['dataSetHash'] as int,
+      pixelId: json['pixelId'] as int,
+      availableFlash: json['availableFlash'] as int,
+      buildTimestamp: json['buildTimestamp'] as int,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'ledCount': ledCount,
+      'designAndColor': designAndColor,
+      'reserved': reserved,
+      'dataSetHash': dataSetHash,
+      'pixelId': pixelId,
+      'availableFlash': availableFlash,
+      'buildTimestamp': buildTimestamp,
+    };
   }
 }
 
-abstract class RxMessage extends Message {
-  RxMessage({required this.buffer, required super.id});
-
-  final List<int> buffer;
-}
-
-abstract class TxMessage extends Message {
-  TxMessage({required super.id});
-
-  List<int> toBuffer();
-}
+// Messages
 
 class MessageWhoAreYou extends TxMessage {
-  MessageWhoAreYou() : super(id: MessageType.whoAreYou.index);
+  MessageWhoAreYou() : super(id: PixelMessageType.whoAreYou.index);
 
   @override
   List<int> toBuffer() {
-    return [MessageType.whoAreYou.index];
+    return [PixelMessageType.whoAreYou.index];
   }
 }
 
@@ -41,7 +162,7 @@ class MessageBatteryLevel extends RxMessage {
   final int batteryState;
 
   MessageBatteryLevel({required super.buffer, required this.batteryLevel, required this.batteryState})
-    : super(id: MessageType.batteryLevel.index);
+      : super(id: PixelMessageType.batteryLevel.index);
 
   static MessageBatteryLevel parse(List<int> data) {
     return MessageBatteryLevel(buffer: data, batteryLevel: data[1], batteryState: data[2]);
@@ -70,7 +191,7 @@ class MessageRollState extends RxMessage {
     required this.rollState,
     required this.currentFaceIndex,
     required this.currentFaceValue,
-  }) : super(id: MessageType.rollState.index);
+  }) : super(id: PixelMessageType.rollState.index);
 
   static MessageRollState parse(List<int> data) {
     return MessageRollState(buffer: data, rollState: data[1], currentFaceIndex: data[2], currentFaceValue: data[2] + 1);
@@ -124,7 +245,7 @@ class MessageIAmADie extends RxMessage {
     required this.currentFaceValue,
     required this.batteryLevel,
     required this.batteryState,
-  }) : super(id: MessageType.iAmADie.index);
+  }) : super(id: PixelMessageType.iAmADie.index);
 
   static MessageIAmADie parse(List<int> data) {
     return MessageIAmADie(
@@ -132,10 +253,10 @@ class MessageIAmADie extends RxMessage {
       ledCount: data[1],
       designAndColor: data[2],
       reserved: data[3],
-      dataSetHash: Message._bytesToInt(data.sublist(4, 8)),
-      pixelId: Message._bytesToInt(data.sublist(8, 12)),
-      availableFlash: Message._bytesToInt(data.sublist(12, 14)),
-      buildTimestamp: Message._bytesToInt(data.sublist(14, 18)),
+      dataSetHash: Message.bytesToIntList(data.sublist(4, 8)),
+      pixelId: Message.bytesToIntList(data.sublist(8, 12)),
+      availableFlash: Message.bytesToIntList(data.sublist(12, 14)),
+      buildTimestamp: Message.bytesToIntList(data.sublist(14, 18)),
       rollState: data[18],
       currentFaceIndex: data[19],
       currentFaceValue: data[19] + 1,
@@ -183,7 +304,7 @@ class MessageIAmADie extends RxMessage {
 }
 
 class MessageNone extends RxMessage {
-  MessageNone({required super.buffer}) : super(id: MessageType.iAmADie.index);
+  MessageNone({required super.buffer}) : super(id: PixelMessageType.none.index);
 
   static MessageNone parse(List<int> data) {
     return MessageNone(buffer: data);
@@ -195,34 +316,6 @@ class MessageNone extends RxMessage {
 
   Map<String, dynamic> toJson() {
     return {'id': id, 'buffer': buffer};
-  }
-}
-
-abstract class Blinker with Color255 {
-  int getCount();
-
-  int getDuration();
-
-  int getLoopCount();
-}
-
-mixin Color255 {
-  Color getColor();
-
-  int r255() {
-    return (getColor().r * getColor().a * 255).toInt();
-  }
-
-  int g255() {
-    return (getColor().g * getColor().a * 255).toInt();
-  }
-
-  int b255() {
-    return (getColor().b * getColor().a * 255).toInt();
-  }
-
-  int a255() {
-    return (getColor().a * 255).toInt();
   }
 }
 
@@ -241,12 +334,12 @@ class BlinkMessage extends TxMessage with Color255 implements Blinker {
     this.faceMask = 0xFFFFFFFF,
     this.fade = 0,
     this.loopCount = 2,
-  }) : super(id: MessageType.blink.index);
+  }) : super(id: PixelMessageType.blink.index);
 
   @override
   List<int> toBuffer() {
     var buffer = List<int>.filled(14, 0);
-    buffer[0] = MessageType.blink.index;
+    buffer[0] = PixelMessageType.blink.index;
     buffer[1] = count;
     buffer[2] = duration & 0xFF;
     buffer[3] = (duration >> 8) & 0xFF;

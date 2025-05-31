@@ -1,9 +1,10 @@
 import 'dart:async';
 
-import 'package:roll_feathers/pixel/pixel_messages.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/services/home_assistant/ha_service.dart';
 import 'package:roll_feathers/util/strings.dart';
+
+import 'package:roll_feathers/dice_sdks/generic_die.dart';
 
 class HaRepository {
   final HaConfigService _haConfigService;

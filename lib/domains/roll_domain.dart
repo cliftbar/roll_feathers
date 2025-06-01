@@ -43,11 +43,14 @@ class RollDomain {
   RollType rollType = RollType.sum;
 
   final PixelDieDomain _rollFeathersController;
+  late StreamSubscription<Map<String, GenericBleDie>> _deviceStreamListener; // used for notifications, better way?
   final Map<String, Color> blinkColors = {};
 
   Timer? _rollUpdateTimer;
 
-  RollDomain._(this._rollFeathersController);
+  RollDomain._(this._rollFeathersController) {
+    _deviceStreamListener = _rollFeathersController.getDeviceStream().listen(rollStreamListener);
+  }
 
   Stream<List<RollResult>> subscribeRollResults() => _rollResultStream.stream;
   Stream<RollStatus> subscribeRollStatus() => _rollStatusStream.stream;

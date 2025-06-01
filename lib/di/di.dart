@@ -25,9 +25,14 @@ class DiWrapper {
   final ApiDomain apiDomain;
 
   static Future<DiWrapper> initDi() async {
+    late HaRepository haRepository;
     var haService = await HaService.create();
     var haConfigService = HaConfigService();
-    var haRepository = HaRepository(haConfigService, haService);
+    if (kIsWeb) {
+      haRepository = HaRepositoryEmpty();
+    } else {
+      haRepository = HaRepositoryImpl(haConfigService, haService);
+    }
 
     var appService = AppService();
     var appRepo = AppRepository(appService);

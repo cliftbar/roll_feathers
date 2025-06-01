@@ -81,7 +81,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                       builder: (context, _) {
                         return ListTile(
                           leading: const Icon(Icons.home),
-                          title: const Text('Home Assistant Settings'),
+                          title: Text('Home Assistant Settings'),
                           onTap: () {
                             Navigator.pop(context);
                             _showHomeAssistantSettings(context, widget.viewModel);
@@ -389,6 +389,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
     final tokenController = TextEditingController(text: haConfig.token);
     final entityController = TextEditingController(text: haConfig.entity);
     bool isEnabled = haConfig.enabled;
+    bool webDisabled = kIsWeb && !isEnabled;
 
     showDialog(
       context: context,
@@ -397,7 +398,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
           // Use StatefulBuilder to manage toggle state
           builder: (context, setState) {
             return AlertDialog(
-              title: const Text('Home Assistant Settings'),
+              title: Text('Home Assistant Settings${webDisabled ? "\nDisabled On Web " : ""}'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -405,11 +406,14 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                     SwitchListTile(
                       title: const Text('Enable Home Assistant'),
                       value: isEnabled,
-                      onChanged: (bool value) {
-                        setState(() {
-                          isEnabled = value;
-                        });
-                      },
+                      onChanged:
+                          webDisabled
+                              ? null
+                              : (bool value) {
+                                setState(() {
+                                  isEnabled = value;
+                                });
+                              },
                     ),
                     const Divider(),
                     TextField(

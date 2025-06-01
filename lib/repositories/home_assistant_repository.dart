@@ -6,21 +6,56 @@ import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/services/home_assistant/ha_service.dart';
 import 'package:roll_feathers/util/strings.dart';
 
-class HaRepository {
+abstract class HaRepository {
+  Stream<HaConfig> subscribeHaSettings();
+
+  Future<HaConfig> getHaConfig();
+
+  Future<void> updateSettings({bool enabled = false, String url = "", String token = "", String entity = ""});
+
+  Future<void> blinkEntity({required Blinker blink, String? entity, bool force = false});
+
+  bool get enabled;
+}
+
+class HaRepositoryEmpty extends HaRepository {
+  final bool _enabled = true;
+  @override
+  Stream<HaConfig> subscribeHaSettings() => Stream.empty();
+  @override
+  Future<HaConfig> getHaConfig() async {
+    return HaConfig(enabled: false, url: "", token: "", entity: "");
+  }
+
+  @override
+  Future<void> updateSettings({bool enabled = false, String url = "", String token = "", String entity = ""}) async {}
+  @override
+  Future<void> blinkEntity({required Blinker blink, String? entity, bool force = false}) async {}
+
+  @override
+  // TODO: implement enabled
+  bool get enabled => _enabled;
+}
+
+class HaRepositoryImpl extends HaRepository {
   final _log = Logger("HaRepository");
   final HaConfigService _haConfigService;
   final HaService _haService;
+  final bool _enabled = true;
 
   final _settingsStream = StreamController<HaConfig>.broadcast();
 
-  HaRepository(this._haConfigService, this._haService);
+  HaRepositoryImpl(this._haConfigService, this._haService);
 
+  @override
   Stream<HaConfig> subscribeHaSettings() => _settingsStream.stream;
 
+  @override
   Future<HaConfig> getHaConfig() async {
     return _haConfigService.getConfig();
   }
 
+  @override
   Future<void> updateSettings({bool enabled = false, String url = "", String token = "", String entity = ""}) async {
     var conf = HaConfig(enabled: enabled, url: url, token: token, entity: entity);
     await _haConfigService.setConfig(conf);
@@ -30,6 +65,7 @@ class HaRepository {
     _log.info("ha settings updated");
   }
 
+  @override
   Future<void> blinkEntity({required Blinker blink, String? entity, bool force = false}) async {
     var conf = await _haConfigService.getConfig();
     bool enabled = conf.enabled;
@@ -37,4 +73,8 @@ class HaRepository {
       await _haService.blinkEntity(presentOrElse(entity, conf.entity), blink);
     }
   }
+
+  @override
+  // TODO: implement enabled
+  bool get enabled => _enabled;
 }

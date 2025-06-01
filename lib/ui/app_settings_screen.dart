@@ -14,9 +14,11 @@ class AppSettingsWidget extends StatelessWidget {
     this.isBluetoothEnabled = false,
     this.onOpenBluetoothSettings, // do this more correctly
     required this.ips,
+    required this.bleEnabled,
   });
 
   final List<String> ips;
+  final bool bleEnabled;
 
   /// Callback when Bluetooth is toggled
   final Function(bool)? onBluetoothToggled;
@@ -61,6 +63,17 @@ class AppSettingsWidget extends StatelessWidget {
             //     // Theme selection logic would be handled by the ViewModel
             //   },
             // ),
+            ListTile(
+              title: Text(
+                'Bluetooth: ${bleEnabled ? "enabled" : "disabled${kIsWeb ? "\nBLE only supported in Chrome" : ""}"}',
+              ),
+              // trailing: Text(bleEnabled ? "enabled" : kIsWeb ? "BLE only supported on Chrome" : "disabled"),
+              leading: bleEnabled ? const Icon(Icons.bluetooth) : const Icon(Icons.bluetooth_disabled),
+              enabled: bleEnabled,
+              onTap: () {
+                // About screen navigation would be handled by the ViewModel
+              },
+            ),
             ListTile(
               title: const Text('IPs'),
               trailing: Text(ips.join("\n")),

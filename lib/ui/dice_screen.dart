@@ -43,12 +43,9 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
           children: [
             DrawerHeader(
               decoration: BoxDecoration(color: Colors.blue),
-              child: Text(
-                'Settings',
-                style: TextStyle(color: Colors.white, fontSize: 24),
-              ),
+              child: Text('Settings', style: TextStyle(color: Colors.white, fontSize: 24)),
             ),
-            AppSettingsWidget(ips: widget.viewModel.getIpAddress()),
+            AppSettingsWidget(ips: widget.viewModel.getIpAddress(), bleEnabled: widget.viewModel.bleIsEnabled()),
             // Why does this get notified, when the view model is the main screen view model?
             Card(
               margin: const EdgeInsets.all(16.0),
@@ -105,11 +102,16 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
             child: FloatingActionButton.extended(
-              onPressed: () {
-                widget.viewModel.startBleScan.execute();
-              },
-              label: Text(kIsWeb ? "Pair Die" : "Scan Die"),
-              icon: kIsWeb ? const Icon(Icons.bluetooth) : const Icon(Icons.refresh),
+              onPressed:
+                  widget.viewModel.bleIsEnabled()
+                      ? () {
+                        widget.viewModel.startBleScan.execute();
+                      }
+                      : null,
+              backgroundColor: widget.viewModel.bleIsEnabled() ? null : Theme.of(context).disabledColor,
+              label: widget.viewModel.bleIsEnabled() ? Text(kIsWeb ? "Pair Die" : "Scan Dice") : Text("ble disabled"),
+              icon:
+                  widget.viewModel.bleIsEnabled() ? const Icon(Icons.bluetooth) : const Icon(Icons.bluetooth_disabled),
             ),
           ),
         ],

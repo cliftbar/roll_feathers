@@ -163,4 +163,8 @@ class DiceScreenViewModel extends ChangeNotifier {
   List<String> getIpAddress() {
     return _diWrapper.apiDomain.getIpAddress();
   }
+
+  bool bleIsEnabled() {
+    return _diWrapper.bleRepository.supported && _diWrapper.bleRepository.initialized;
+  }
 }

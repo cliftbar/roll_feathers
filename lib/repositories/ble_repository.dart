@@ -14,13 +14,14 @@ class BleRepository {
   Map<String, fbp.BluetoothDevice> get discoveredBleDevices => _discoveredBleDevices;
   final _bleDeviceSubscription = StreamController<Map<String, fbp.BluetoothDevice>>.broadcast();
   bool initialized = false;
+  bool supported = false;
 
   Stream<Map<String, fbp.BluetoothDevice>> subscribeBleDevices() => _bleDeviceSubscription.stream;
 
   Future<void> init() async {
-    bool supported = await isSupported();
+    supported = await isSupported();
     if (!supported) {
-      throw BluetoothNotSupported(fbp.ErrorPlatform.fbp, "_initializeBle()", -1, "Bluetooth is not supported");
+      _log.severe("Bluetooth is not supported");
     }
 
     await connect();
@@ -29,10 +30,13 @@ class BleRepository {
   }
 
   Future<bool> isSupported() async {
-    return fbp.FlutterBluePlus.isSupported;
+    return await fbp.FlutterBluePlus.isSupported;
   }
 
   Future<void> connect({Duration timeout = const Duration(seconds: 3)}) async {
+    if (!supported) {
+      return;
+    }
     await fbp.FlutterBluePlus.adapterState
         .firstWhere(
           (state) => state == fbp.BluetoothAdapterState.on,
@@ -43,6 +47,9 @@ class BleRepository {
   }
 
   Future<void> scan({List<fbp.Guid>? services, Duration? timeout = const Duration(seconds: 5)}) async {
+    if (!supported) {
+      return;
+    }
     _log.info("ble scan start");
     var scanSub = fbp.FlutterBluePlus.onScanResults.listen((srs) async {
       for (var sr in srs) {

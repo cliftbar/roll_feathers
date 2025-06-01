@@ -20,6 +20,8 @@ class DiceScreenViewModel extends ChangeNotifier {
 
   // ble
   late Command0 startBleScan;
+  bool _bleEnabled = false;
+  late StreamSubscription<bool> _bleEnabledSubscription;
 
   // ha config proxy
   late HaConfig _haConfig;
@@ -45,6 +47,10 @@ class DiceScreenViewModel extends ChangeNotifier {
 
     // ble
     startBleScan = Command0(_startBleScan);
+    _bleEnabledSubscription = _diWrapper.bleRepository.subscribeBleEnabled().listen((enabled) {
+      _bleEnabled = enabled;
+      notifyListeners();
+    });
 
     // ha config proxy
     setHaConfig = Command4(_setHaConfig);
@@ -157,6 +163,7 @@ class DiceScreenViewModel extends ChangeNotifier {
     _haConfigSubscription.cancel();
     _rollResultsSubscription.cancel();
     _rollStatusSubscription.cancel();
+    _bleEnabledSubscription.cancel();
     super.dispose();
   }
 
@@ -165,6 +172,6 @@ class DiceScreenViewModel extends ChangeNotifier {
   }
 
   bool bleIsEnabled() {
-    return _diWrapper.bleRepository.supported && _diWrapper.bleRepository.initialized;
+    return _bleEnabled;
   }
 }

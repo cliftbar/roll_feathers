@@ -5,6 +5,8 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import 'dice_screen_vm.dart';
+
 /// A widget that displays application-level settings including Bluetooth settings.
 /// This widget can be included in screens that need to display app settings.
 class AppSettingsWidget extends StatelessWidget {
@@ -14,11 +16,11 @@ class AppSettingsWidget extends StatelessWidget {
     this.isBluetoothEnabled = false,
     this.onOpenBluetoothSettings, // do this more correctly
     required this.ips,
-    required this.bleEnabled,
+    required this.parentVm,
   });
 
   final List<String> ips;
-  final bool bleEnabled;
+  final DiceScreenViewModel parentVm;
 
   /// Callback when Bluetooth is toggled
   final Function(bool)? onBluetoothToggled;
@@ -63,17 +65,24 @@ class AppSettingsWidget extends StatelessWidget {
             //     // Theme selection logic would be handled by the ViewModel
             //   },
             // ),
-            ListTile(
-              title: Text(
-                'Bluetooth: ${bleEnabled ? "enabled" : "disabled${kIsWeb ? "\nBLE only supported in Chrome" : ""}"}',
-              ),
-              // trailing: Text(bleEnabled ? "enabled" : kIsWeb ? "BLE only supported on Chrome" : "disabled"),
-              leading: bleEnabled ? const Icon(Icons.bluetooth) : const Icon(Icons.bluetooth_disabled),
-              enabled: bleEnabled,
-              onTap: () {
-                // About screen navigation would be handled by the ViewModel
+            ListenableBuilder(
+              listenable: parentVm,
+              builder: (context, _) {
+                return ListTile(
+                  title: Text(
+                    'Bluetooth: ${parentVm.bleIsEnabled() ? kIsWeb ? "supported" : "enabled" : "disabled${kIsWeb ? "\nBLE only supported in Chrome" : ""}"}',
+                    // 'Bluetooth: ${parentVm.bleIsEnabled() ? "enabled" : "disabled${kIsWeb ? "\nBLE only supported in Chrome" : ""}"}',
+                  ),
+                  // trailing: Text(bleEnabled ? "enabled" : kIsWeb ? "BLE only supported on Chrome" : "disabled"),
+                  leading: parentVm.bleIsEnabled() ? const Icon(Icons.bluetooth) : const Icon(Icons.bluetooth_disabled),
+                  enabled: parentVm.bleIsEnabled(),
+                  onTap: () {
+                    // About screen navigation would be handled by the ViewModel
+                  },
+                );
               },
             ),
+
             ListTile(
               title: const Text('IPs'),
               trailing: Text(ips.join("\n")),

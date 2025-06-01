@@ -13,10 +13,12 @@ class BleRepository {
   final Map<String, fbp.BluetoothDevice> _discoveredBleDevices = {};
   Map<String, fbp.BluetoothDevice> get discoveredBleDevices => _discoveredBleDevices;
   final _bleDeviceSubscription = StreamController<Map<String, fbp.BluetoothDevice>>.broadcast();
+  final _bleEnabledSubscription = StreamController<bool>.broadcast();
   bool initialized = false;
   bool supported = false;
 
   Stream<Map<String, fbp.BluetoothDevice>> subscribeBleDevices() => _bleDeviceSubscription.stream;
+  Stream<bool> subscribeBleEnabled() => _bleEnabledSubscription.stream;
 
   Future<void> init() async {
     supported = await isSupported();
@@ -24,7 +26,9 @@ class BleRepository {
       _log.severe("Bluetooth is not supported");
     }
 
-    await connect();
+    await _connect();
+
+    _bleEnabledSubscription.add(initialized && supported);
 
     _log.info("ble_repo initialized");
   }
@@ -33,7 +37,7 @@ class BleRepository {
     return await fbp.FlutterBluePlus.isSupported;
   }
 
-  Future<void> connect({Duration timeout = const Duration(seconds: 3)}) async {
+  Future<void> _connect({Duration timeout = const Duration(seconds: 3)}) async {
     if (!supported) {
       return;
     }
@@ -42,8 +46,8 @@ class BleRepository {
           (state) => state == fbp.BluetoothAdapterState.on,
           orElse: () => throw TimeoutException('Bluetooth did not turn on'),
         )
+        .then((isOn) => {initialized = isOn == fbp.BluetoothAdapterState.on})
         .timeout(timeout, onTimeout: () => throw TimeoutException('Bluetooth connection timeout after 10 seconds'));
-    initialized = true;
   }
 
   Future<void> scan({List<fbp.Guid>? services, Duration? timeout = const Duration(seconds: 5)}) async {
@@ -83,5 +87,6 @@ class BleRepository {
   void dispose() {
     stopScan();
     _bleDeviceSubscription.close();
+    _bleEnabledSubscription.close();
   }
 }

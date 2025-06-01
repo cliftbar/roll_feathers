@@ -9,7 +9,7 @@ void main() async {
   Logger.root.level = Level.INFO;
 
   WidgetsFlutterBinding.ensureInitialized();
-  FlutterBluePlus.setLogLevel(LogLevel.info, color: true);
+  FlutterBluePlus.setLogLevel(LogLevel.debug, color: true);
 
   DiWrapper di = await DiWrapper.initDi();
 

@@ -47,6 +47,7 @@ dependencies:
   shelf: ^1.4.2
   shelf_router: ^1.1.4
   shelf_routing: ^0.1.0
+  collection: ^1.19.1
 
 dev_dependencies:
   flutter_test:

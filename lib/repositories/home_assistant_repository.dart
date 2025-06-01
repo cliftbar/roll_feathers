@@ -1,12 +1,13 @@
 import 'dart:async';
 
+import 'package:logging/logging.dart';
+import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/services/home_assistant/ha_service.dart';
 import 'package:roll_feathers/util/strings.dart';
 
-import 'package:roll_feathers/dice_sdks/generic_die.dart';
-
 class HaRepository {
+  final _log = Logger("HaRepository");
   final HaConfigService _haConfigService;
   final HaService _haService;
 
@@ -26,7 +27,7 @@ class HaRepository {
     await _haService.init();
     var newConf = await _haConfigService.getConfig();
     _settingsStream.add(newConf);
-    print("ha settings updated");
+    _log.info("ha settings updated");
   }
 
   Future<void> blinkEntity({required Blinker blink, String? entity, bool force = false}) async {

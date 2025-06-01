@@ -8,7 +8,7 @@ class BluetoothNotSupported extends fbp.FlutterBluePlusException {
 }
 
 class BleRepository {
-  final log = Logger("BleRepository");
+  final _log = Logger("BleRepository");
 
   final Map<String, fbp.BluetoothDevice> _discoveredBleDevices = {};
   Map<String, fbp.BluetoothDevice> get discoveredBleDevices => _discoveredBleDevices;
@@ -25,7 +25,7 @@ class BleRepository {
 
     await connect();
 
-    print("ble_repo initialized");
+    _log.info("ble_repo initialized");
   }
 
   Future<bool> isSupported() async {
@@ -42,8 +42,8 @@ class BleRepository {
     initialized = true;
   }
 
-  Future<void> scan({List<fbp.Guid>? services, Duration? timeout = const Duration(seconds: 15)}) async {
-    print("ble scan start");
+  Future<void> scan({List<fbp.Guid>? services, Duration? timeout = const Duration(seconds: 5)}) async {
+    _log.info("ble scan start");
     var scanSub = fbp.FlutterBluePlus.onScanResults.listen((srs) async {
       for (var sr in srs) {
         await sr.device.connect();
@@ -59,14 +59,13 @@ class BleRepository {
       _bleDeviceSubscription.add(_discoveredBleDevices);
     });
 
+    fbp.FlutterBluePlus.cancelWhenScanComplete(scanSub);
+
     // Start scanning
     await fbp.FlutterBluePlus.startScan(
       timeout: timeout,
       withServices: services ?? [], // Filter by service UUID (optional)
     );
-
-    fbp.FlutterBluePlus.cancelWhenScanComplete(scanSub);
-    print("ble scan complete");
   }
 
   // Stop scanning for devices

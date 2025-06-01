@@ -3,14 +3,13 @@ import 'dart:async';
 import 'package:async/async.dart';
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/di/di.dart';
-import 'package:roll_feathers/domains/roll_domain.dart';
+import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/dice_sdks/pixels.dart';
+import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/util/command.dart';
 
-import 'package:roll_feathers/dice_sdks/generic_die.dart';
-
-class PixelDiceScreenViewModel extends ChangeNotifier {
+class DiceScreenViewModel extends ChangeNotifier {
   // init
   final DiWrapper _diWrapper;
   late Command0 load;
@@ -37,7 +36,7 @@ class PixelDiceScreenViewModel extends ChangeNotifier {
   late Command3<void, Color, GenericBleDie, String?> blink;
   late Command3<void, GenericBleDie, Color, String> updateDieSettings;
 
-  PixelDiceScreenViewModel(this._diWrapper) {
+  DiceScreenViewModel(this._diWrapper) {
     // init
     load = Command0(_load)..execute();
 

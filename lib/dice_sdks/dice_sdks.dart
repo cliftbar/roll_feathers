@@ -1,12 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
 import 'package:roll_feathers/dice_sdks/godice.dart' as godice;
-import 'package:roll_feathers/dice_sdks/godice_ai.dart';
 import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
+
+class MessageParseError extends IOException {
+  final String message;
+
+  MessageParseError(this.message);
+}
 
 enum BatteryState { unknown, ok, low, transition, badCharging, error, charging, trickleCharge, done, lowTemp, highTemp }
 
@@ -50,10 +56,9 @@ class DiceState {
   }
 }
 
-enum GenericDieType {
-  pixel,
-  godice
-}
+enum DiceRollState { unknown, rolled, handling, rolling, crooked, onFace }
+
+enum GenericDieType { pixel, godice }
 
 abstract class GenericBleDie {
   abstract final Logger _log;
@@ -70,10 +75,14 @@ abstract class GenericBleDie {
       GenericBleDie die;
       var serviceIds = device.servicesList.map((e) => e.serviceUuid);
       var chars = device.servicesList.expand((s) => s.characteristics.map((c) => c.characteristicUuid));
-      if (serviceIds.contains(pix.pixelsService) && chars.contains(pix.pixelWriteCharacteristic) && chars.contains(pix.pixelNotifyCharacteristic)) {
+      if (serviceIds.contains(pix.pixelsService) &&
+          chars.contains(pix.pixelWriteCharacteristic) &&
+          chars.contains(pix.pixelNotifyCharacteristic)) {
         die = PixelDie._(device: device);
         await die._init();
-      } else if (serviceIds.contains(GoDice.SERVICE_UUID) && chars.contains(GoDice.TX_CHARACTERISTIC_UUID) && chars.contains(GoDice.RX_CHARACTERISTIC_UUID)) {
+      } else if (serviceIds.contains(godice.godiceServiceGuid) &&
+          chars.contains(godice.godiceWriteCharacteristic) &&
+          chars.contains(godice.godiceNotifyCharacteristic)) {
         die = GoDiceBle(device: device);
         await die._init();
         // (die as GoDiceBle)._init();
@@ -91,8 +100,9 @@ abstract class GenericBleDie {
   Future<void> _init();
 
   Map<int, Map<String, Function(RxMessage)>> messageRxCallbacks = {};
+  Map<DiceRollState, Map<String, Function(DiceRollState)>> rollCallbacks = {};
 
-  GenericBleDie({required this.device}){
+  GenericBleDie({required this.device}) {
     state = DiceState();
   }
 
@@ -108,14 +118,15 @@ abstract class GenericBleDie {
     await _sendMessageBuffer(msg.toBuffer());
   }
 
+  // for overrides
   void _readNotify(List<int> data);
-
-  List<int> listUint8ToInt(List<int> lIn) {
-    return List.of(lIn.map((e) => e as int));
-  }
 
   void addMessageCallback(int messageType, String callbackKey, Function(RxMessage) callback) {
     messageRxCallbacks.putIfAbsent(messageType, () => {})[callbackKey] = callback;
+  }
+
+  void addRollCallback(DiceRollState rollState, String callbackKey, Function(DiceRollState) callback) {
+    rollCallbacks.putIfAbsent(rollState, () => {})[callbackKey] = callback;
   }
 
   int getFaceValueOrElse({int orElse = -1}) {
@@ -137,40 +148,111 @@ class GoDiceBle extends GenericBleDie {
 
   GoDiceBle({required super.device});
 
+  // 9007199254740991 is max on web, others are larger, but whatever, its big enough.
+  static const int intMaxValue = 9000000000000000;
+
+  int getClosestRollByVector(godice.Vector coord, godice.GodiceDieType dieType) {
+    Map<int, godice.Vector> dieTypeVectorTable = godice.vectors[dieType]!;
+    int minDistance = intMaxValue;
+    int value = 0;
+    godice.Vector result;
+
+    // Calculating distance to each value in vector array
+    for (int dieValue in dieTypeVectorTable.keys) {
+      godice.Vector vector = dieTypeVectorTable[dieValue]!;
+
+      result = godice.Vector(x: coord.x - vector.x, y: coord.y - vector.y, z: coord.z - vector.z);
+
+      // Calculating squared magnitude (since it's only for comparing there's no need for sqrt)
+      int curDist = ((result.x * result.x) + (result.y * result.y) + (result.z * result.z));
+
+      if (curDist < minDistance) {
+        minDistance = curDist;
+        value = dieValue;
+      }
+    }
+    return value;
+  }
+
   @override
-  void _readNotify(List<int> dataBytes) {
-    var data = listUint8ToInt(dataBytes);
+  void _readNotify(List<int> data) {
     _log.info(data);
     var msgType = godice.GodiceMessageType.getByValue(data[0]);
     switch (msgType) {
       case godice.GodiceMessageType.batteryLevelAck:
-        var msg = godice.MessageBatteryLevelAck.parse(data);
+        godice.MessageBatteryLevelAck msg = godice.MessageBatteryLevelAck.parse(data);
         _updateStateBattery(msg);
-        _log.fine('Received msg ${godice.GodiceMessageType.batteryLevelAck.name}: ${json.encode(msg)}');
-        if (messageRxCallbacks.containsKey(godice.GodiceMessageType.batteryLevelAck.index)) {
-          for (Function(RxMessage) func in (messageRxCallbacks[godice.GodiceMessageType.batteryLevelAck.index]?.values ?? [])) {
-            func(msg);
-          }
-        }
+        _log.fine('$friendlyName Received msg ${msgType.name}: ${json.encode(msg)}');
+        _runMessageCallbacks(msg, msgType);
         break;
       case godice.GodiceMessageType.diceColorAck:
-        var msg = godice.MessageDiceColorAck.parse(data);
-        info["diceColor"] = msg.diceColor.name;
-        print('Received msg ${godice.GodiceMessageType.diceColorAck.name}: ${json.encode(msg)}');
-        if (messageRxCallbacks.containsKey(godice.GodiceMessageType.diceColorAck.index)) {
-          for (Function(RxMessage) func in (messageRxCallbacks[godice.GodiceMessageType.diceColorAck.index]?.values ?? [])) {
-            func(msg);
-          }
+        godice.MessageDiceColorAck msg;
+        try {
+          msg = godice.MessageDiceColorAck.parse(data);
+        } on MessageParseError catch (e) {
+          _log.fine("$friendlyName bad message ${e.message}");
+          return;
         }
+        info["diceColor"] = msg.diceColor.name;
+        _log.fine('$friendlyName Received msg ${msgType.name}: ${json.encode(msg)}');
+        _runMessageCallbacks(msg, msgType);
+        break;
+      case godice.GodiceMessageType.stable:
+        try {
+          godice.MessageStable msg = godice.MessageStable.parse(data);
+          _handleRollUpdate(msg.xyzData);
+          _log.fine('$friendlyName Received msg ${msgType.name}: ${json.encode(msg)}');
+          _runMessageCallbacks(msg, msgType);
+          _runRollCallbacks(DiceRollState.rolled);
+        } on MessageParseError catch (e) {
+          _log.fine("$friendlyName error parsing message $data: $e");
+        }
+      case godice.GodiceMessageType.fakeStable:
+        try {
+          godice.MessageFakeStable msg = godice.MessageFakeStable.parse(data);
+          _handleRollUpdate(msg.xyzData);
+          _log.fine('$friendlyName Received msg ${msgType.name}: ${json.encode(msg)}');
+          _runMessageCallbacks(msg, msgType);
+          _runRollCallbacks(DiceRollState.rolled);
+        } on MessageParseError catch (e) {
+          _log.fine("$friendlyName error parsing message $data: $e");
+        }
+        break;
+      case godice.GodiceMessageType.rollStart:
+        godice.MessageRollStart msg = godice.MessageRollStart.parse(data);
+        state.rollState = DiceRollState.rolling.index;
+        _log.fine('$friendlyName Received msg ${msgType.name}: ${json.encode(msg)}');
+        _runMessageCallbacks(msg, msgType);
+        _runRollCallbacks(DiceRollState.rolling);
         break;
       default:
         var msg = godice.MessageUnknown.parse(data);
-        print('Received data: ${msg.buffer}');
-        if (messageRxCallbacks.containsKey(pix.PixelMessageType.none.index)) {
-          for (Function(RxMessage) func in (messageRxCallbacks[pix.PixelMessageType.none.index]?.values ?? [])) {
-            func(msg);
-          }
-        }
+        _log.fine('$friendlyName Received msg ${msgType.name} data: ${msg.buffer}');
+        _runMessageCallbacks(msg, godice.GodiceMessageType.unknown);
+    }
+  }
+
+  void _handleRollUpdate(godice.Vector xyzData) {
+    int currentRoll = getClosestRollByVector(xyzData, godice.GodiceDieType.d6);
+    state.rollState = DiceRollState.rolled.index;
+    state.currentFaceIndex = currentRoll - 1;
+    state.currentFaceValue = currentRoll;
+    state.lastRolled = DateTime.now();
+  }
+
+  void _runMessageCallbacks(RxMessage msg, godice.GodiceMessageType msgType) {
+    if (messageRxCallbacks.containsKey(msgType.index)) {
+      for (Function(RxMessage) func in (messageRxCallbacks[msgType.index]?.values ?? [])) {
+        func(msg);
+      }
+    }
+  }
+
+  void _runRollCallbacks(DiceRollState rs) {
+    if (rollCallbacks.containsKey(rs)) {
+      for (Function(DiceRollState) func in (rollCallbacks[rs]?.values ?? [])) {
+        func(rs);
+      }
     }
   }
 
@@ -184,13 +266,13 @@ class GoDiceBle extends GenericBleDie {
     _notifyChar?.onValueReceived.listen(_readNotify);
     await device.discoverServices();
 
-    var service = device.servicesList.firstWhere((bs) => bs.serviceUuid == GoDice.SERVICE_UUID);
-    _writeChar = service.characteristics.firstWhere((c) => c.uuid == GoDice.TX_CHARACTERISTIC_UUID);
-    _notifyChar = service.characteristics.firstWhere((c) => c.uuid == GoDice.RX_CHARACTERISTIC_UUID);
+    var service = device.servicesList.firstWhere((bs) => bs.serviceUuid == godice.godiceServiceGuid);
+    _writeChar = service.characteristics.firstWhere((c) => c.uuid == godice.godiceWriteCharacteristic);
+    _notifyChar = service.characteristics.firstWhere((c) => c.uuid == godice.godiceNotifyCharacteristic);
 
     await _notifyChar?.setNotifyValue(true);
 
-    _sendMessageBuffer(godice.MessageBatteryLevel().toBuffer());
+    _sendMessageBuffer(godice.MessageInit().toBuffer());
     _sendMessageBuffer(godice.MessageDiceColor().toBuffer());
   }
 
@@ -216,43 +298,52 @@ class PixelDie extends GenericBleDie {
       case pix.PixelMessageType.iAmADie:
         var msg = pix.MessageIAmADie.parse(data);
         _updateStateIAmADie(msg);
-        _log.fine('Received msg IAmADie: ${json.encode(msg)}');
-        if (messageRxCallbacks.containsKey(pix.PixelMessageType.iAmADie.index)) {
-          for (Function(RxMessage) func in (messageRxCallbacks[pix.PixelMessageType.iAmADie.index]?.values ?? [])) {
-            func(msg);
-          }
-        }
+        _log.fine('Received msg ${msgType.name}: ${json.encode(msg)}');
+        _runMessageCallbacks(msg, msgType);
         break;
       case pix.PixelMessageType.batteryLevel:
         var msg = pix.MessageBatteryLevel.parse(data);
         _updateStateBattery(msg);
-        _log.fine('Received msg BatteryLevel: ${json.encode(msg)}');
+        _log.fine('Received msg ${msgType.name}: ${json.encode(msg)}');
         if (messageRxCallbacks.containsKey(pix.PixelMessageType.batteryLevel.index)) {
-          for (Function(RxMessage) func in (messageRxCallbacks[pix.PixelMessageType.batteryLevel.index]?.values ?? [])) {
+          for (Function(RxMessage) func
+              in (messageRxCallbacks[pix.PixelMessageType.batteryLevel.index]?.values ?? [])) {
             func(msg);
           }
         }
+        _runMessageCallbacks(msg, msgType);
         break;
       case pix.PixelMessageType.rollState:
         var msg = pix.MessageRollState.parse(data);
         _updateStateRoll(msg);
-        _log.fine('Received msg RollState: ${pix.PixelRollState.values[msg.rollState]} ${json.encode(msg)}');
-        if (messageRxCallbacks.containsKey(pix.PixelMessageType.rollState.index)) {
-          for (Function(RxMessage) func in (messageRxCallbacks[pix.PixelMessageType.rollState.index]?.values ?? [])) {
-            func(msg);
-          }
-        }
+        _log.fine('Received msg ${msgType.name}: ${DiceRollState.values[msg.rollState]} ${json.encode(msg)}');
+        _runMessageCallbacks(msg, msgType);
+        DiceRollState rollState =
+            state.rollState != null ? DiceRollState.values[state.rollState!] : DiceRollState.unknown;
+        _runRollCallbacks(rollState);
         break;
       default:
         var msg = pix.MessageNone.parse(data);
-        _log.fine('Received data: ${msg.buffer}');
-        if (messageRxCallbacks.containsKey(pix.PixelMessageType.none.index)) {
-          for (Function(RxMessage) func in (messageRxCallbacks[pix.PixelMessageType.none.index]?.values ?? [])) {
-            func(msg);
-          }
-        }
+        _log.fine('Received msg ${msgType.name} data: ${msg.buffer}');
+        _runMessageCallbacks(msg, msgType);
     }
     //
+  }
+
+  void _runMessageCallbacks(RxMessage msg, pix.PixelMessageType msgType) {
+    if (messageRxCallbacks.containsKey(msgType.index)) {
+      for (Function(RxMessage) func in (messageRxCallbacks[msgType.index]?.values ?? [])) {
+        func(msg);
+      }
+    }
+  }
+
+  void _runRollCallbacks(DiceRollState rs) {
+    if (rollCallbacks.containsKey(rs)) {
+      for (Function(DiceRollState) func in (rollCallbacks[rs]?.values ?? [])) {
+        func(rs);
+      }
+    }
   }
 
   void _updateStateIAmADie(pix.MessageIAmADie msg) {
@@ -289,19 +380,18 @@ class PixelDie extends GenericBleDie {
   Future<void> _init() async {
     _notifyChar?.onValueReceived.listen(_readNotify);
 
-   var service = device.servicesList.firstWhere((bs) => bs.serviceUuid == pix.pixelsService);
-   _writeChar = service.characteristics.firstWhere((c) => c.uuid == pix.pixelWriteCharacteristic);
-   _notifyChar = service.characteristics.firstWhere((c) => c.uuid == pix.pixelNotifyCharacteristic);
+    var service = device.servicesList.firstWhere((bs) => bs.serviceUuid == pix.pixelsService);
+    _writeChar = service.characteristics.firstWhere((c) => c.uuid == pix.pixelWriteCharacteristic);
+    _notifyChar = service.characteristics.firstWhere((c) => c.uuid == pix.pixelNotifyCharacteristic);
 
-   await _notifyChar?.setNotifyValue(true);
+    await _notifyChar?.setNotifyValue(true);
 
-   await _sendMessageBuffer(pix.MessageWhoAreYou().toBuffer());
+    await _sendMessageBuffer(pix.MessageWhoAreYou().toBuffer());
   }
 
   @override
   // TODO: implement friendlyName
   String get friendlyName => device.platformName;
-
 }
 
 // Messages
@@ -331,12 +421,14 @@ abstract class TxMessage extends Message {
   List<int> toBuffer();
 }
 
-abstract class Blinker with Color255 {
+abstract class Blinker extends TxMessage with Color255 {
+  Blinker({required super.id});
+
   int getCount();
 
-  int getDuration();
+  Duration getOnDuration();
 
-  int getLoopCount();
+  Duration getOffDuration();
 }
 
 mixin Color255 {

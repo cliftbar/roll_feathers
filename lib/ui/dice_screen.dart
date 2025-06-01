@@ -1,30 +1,30 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:roll_feathers/di/di.dart';
+import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart';
-import 'package:roll_feathers/ui/pixel_dice_screen_vm.dart';
+import 'package:roll_feathers/ui/dice_screen_vm.dart';
 
-import 'package:roll_feathers/dice_sdks/generic_die.dart';
 import 'app_settings_screen.dart';
 
-class PixelDiceScreenWidget extends StatefulWidget {
-  const PixelDiceScreenWidget._(this.viewModel);
+class DiceScreenWidget extends StatefulWidget {
+  const DiceScreenWidget._(this.viewModel);
 
-  static Future<PixelDiceScreenWidget> create(DiWrapper di) async {
-    var vm = PixelDiceScreenViewModel(di);
-    var widget = PixelDiceScreenWidget._(vm);
+  static Future<DiceScreenWidget> create(DiWrapper di) async {
+    var vm = DiceScreenViewModel(di);
+    var widget = DiceScreenWidget._(vm);
 
     return widget;
   }
 
-  final PixelDiceScreenViewModel viewModel;
+  final DiceScreenViewModel viewModel;
 
   @override
-  State<PixelDiceScreenWidget> createState() => _PixelDiceScreenWidgetState();
+  State<DiceScreenWidget> createState() => _DiceScreenWidgetState();
 }
 
-class _PixelDiceScreenWidgetState extends State<PixelDiceScreenWidget> {
+class _DiceScreenWidgetState extends State<DiceScreenWidget> {
   bool _withAdvantage = false; // Add this line
   bool _withDisadvantage = false; // Add this line
 
@@ -44,11 +44,11 @@ class _PixelDiceScreenWidgetState extends State<PixelDiceScreenWidget> {
             DrawerHeader(
               decoration: BoxDecoration(color: Colors.blue),
               child: Text(
-                'Settings\n${widget.viewModel.getIpAddress().join("\n")}',
+                'Settings',
                 style: TextStyle(color: Colors.white, fontSize: 24),
               ),
             ),
-            AppSettingsWidget(),
+            AppSettingsWidget(ips: widget.viewModel.getIpAddress()),
             // Why does this get notified, when the view model is the main screen view model?
             Card(
               margin: const EdgeInsets.all(16.0),
@@ -58,13 +58,7 @@ class _PixelDiceScreenWidgetState extends State<PixelDiceScreenWidget> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      'Pixel Dice Settings',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    const Text('Pixel Dice Settings', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
 
                     // Theme toggle
@@ -72,7 +66,9 @@ class _PixelDiceScreenWidgetState extends State<PixelDiceScreenWidget> {
                       listenable: widget.viewModel,
                       builder: (context, _) {
                         return ListTile(
-                          leading: Icon(widget.viewModel.themeMode == ThemeMode.light ? Icons.dark_mode : Icons.light_mode),
+                          leading: Icon(
+                            widget.viewModel.themeMode == ThemeMode.light ? Icons.dark_mode : Icons.light_mode,
+                          ),
                           title: Text(widget.viewModel.themeMode == ThemeMode.light ? 'Dark Mode' : 'Light Mode'),
                           onTap: () {
                             widget.viewModel.toggleTheme.execute();
@@ -108,12 +104,12 @@ class _PixelDiceScreenWidgetState extends State<PixelDiceScreenWidget> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8.0),
-            child: FloatingActionButton(
+            child: FloatingActionButton.extended(
               onPressed: () {
                 widget.viewModel.startBleScan.execute();
               },
-              mini: true,
-              child: const Icon(Icons.refresh),
+              label: Text(kIsWeb ? "Pair Die" : "Scan Die"),
+              icon: kIsWeb ? const Icon(Icons.bluetooth) : const Icon(Icons.refresh),
             ),
           ),
         ],
@@ -147,13 +143,9 @@ class _PixelDiceScreenWidgetState extends State<PixelDiceScreenWidget> {
                         return ListTile(
                           textColor: _getRollingTextColor(die, context),
                           title: Text(
-                            die.friendlyName.isEmpty
-                                ? 'Unknown Device ${die.device.remoteId}'
-                                : die.friendlyName,
+                            die.friendlyName.isEmpty ? 'Unknown Device ${die.device.remoteId}' : die.friendlyName,
                           ),
-                          subtitle: Text(
-                            '${die.state.batteryLevel}% ${PixelRollState.values[die.state.rollState ?? PixelRollState.unknown.index].name} ${die.state.currentFaceValue}',
-                          ),
+                          subtitle: Text(_getDieText(die)),
                           onTap: () {
                             showDialog(
                               context: context,
@@ -335,12 +327,29 @@ class _PixelDiceScreenWidgetState extends State<PixelDiceScreenWidget> {
     );
   }
 
+  String _getDieText(GenericBleDie die) {
+    String valueString;
+    DiceRollState rollState = DiceRollState.values[die.state.rollState ?? DiceRollState.unknown.index];
+    switch (rollState) {
+      case DiceRollState.rolling:
+      case DiceRollState.handling:
+        valueString = " rolling";
+      case DiceRollState.rolled:
+      case DiceRollState.onFace:
+        valueString = " Value: ${die.state.currentFaceValue}";
+      default:
+        valueString = "";
+    }
+
+    return '${die.state.batteryLevel}%$valueString';
+  }
+
   // Helpers
   void _setRollType() {
     if (_withAdvantage) {
-      widget.viewModel.setRollType.execute(RollType.advantage);
+      widget.viewModel.setRollType.execute(RollType.max);
     } else if (_withDisadvantage) {
-      widget.viewModel.setRollType.execute(RollType.disadvantage);
+      widget.viewModel.setRollType.execute(RollType.min);
     } else {
       widget.viewModel.setRollType.execute(RollType.sum);
     }
@@ -348,21 +357,23 @@ class _PixelDiceScreenWidgetState extends State<PixelDiceScreenWidget> {
 
   String _makeRollText(RollResult roll) {
     String rollResult = 'Roll';
+    roll.rolls.sort();
+    String rollString = roll.rolls.reversed.join(", ");
     switch (roll.rollType) {
-      case RollType.advantage:
-        rollResult += ' (Adv): ${roll.rollResult}';
+      case RollType.max:
+        rollResult += ' <Adv>: ${roll.rollResult} ($rollString)';
         break;
-      case RollType.disadvantage:
-        rollResult += ' (Dis): ${roll.rollResult}';
+      case RollType.min:
+        rollResult += ' <Dis>: ${roll.rollResult} ($rollString)';
         break;
       default:
-        rollResult += '(Sum): ${roll.rollResult}';
+        rollResult += '<Sum>: ${roll.rollResult} ($rollString)';
     }
 
     return rollResult;
   }
 
-  void _showHomeAssistantSettings(BuildContext context, PixelDiceScreenViewModel vm) async {
+  void _showHomeAssistantSettings(BuildContext context, DiceScreenViewModel vm) async {
     var haConfig = vm.getHaConfig();
     final urlController = TextEditingController(text: haConfig.url);
     final tokenController = TextEditingController(text: haConfig.token);
@@ -438,12 +449,12 @@ class _PixelDiceScreenWidgetState extends State<PixelDiceScreenWidget> {
   }
 
   Color _getRollingTextColor(GenericBleDie die, BuildContext context) {
-    switch (PixelRollState.values[die.state.rollState ?? 0]) {
-      case PixelRollState.rolling:
-      case PixelRollState.handling:
+    switch (DiceRollState.values[die.state.rollState ?? 0]) {
+      case DiceRollState.rolling:
+      case DiceRollState.handling:
         return Colors.orange;
-      case PixelRollState.onFace:
-      case PixelRollState.rolled:
+      case DiceRollState.onFace:
+      case DiceRollState.rolled:
       default:
         return widget.viewModel.blinkColors[die.deviceId]?.withAlpha(255) ??
             Theme.of(context).textTheme.bodyMedium?.color! ??

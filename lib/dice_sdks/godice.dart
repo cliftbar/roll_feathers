@@ -1,23 +1,17 @@
 // GoDice service and characteristic UUIDs
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:roll_feathers/dice_sdks/generic_die.dart';
-import 'package:collection/collection.dart';
+import 'dart:typed_data';
 
+import 'package:collection/collection.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 
 Guid godiceServiceGuid = Guid("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
 Guid godiceWriteCharacteristic = Guid("6e400002-b5a3-f393-e0a9-e50e24dcca9e");
 Guid godiceNotifyCharacteristic = Guid("6e400003-b5a3-f393-e0a9-e50e24dcca9e");
 
 // Die colors
-enum GodiceDieColor {
-  black,
-  red,
-  green,
-  blue,
-  yellow,
-  orange,
-  unknown
-}
+enum GodiceDieColor { black, red, green, blue, yellow, orange, unknown }
 
 class Vector {
   final int x;
@@ -25,6 +19,8 @@ class Vector {
   final int z;
 
   const Vector({required this.x, required this.y, required this.z});
+
+  List<int> toJson() => [x, y, z];
 }
 
 // Die types
@@ -223,19 +219,34 @@ const Map<GodiceDieType, Map<int, int>> transforms = {
   },
 };
 
+// Gets the xyz coord from sent message
+Vector getXyzFromBytes(List<int> data, int startByte) {
+  // values are int8's
+  var int8Data = Int8List.fromList(data.sublist(startByte, startByte + 3));
+  int x = int8Data[0];
+  int y = int8Data[1];
+  int z = int8Data[2];
+  return Vector(x: x, y: y, z: z);
+}
+
 enum GodiceMessageType {
   unknown([0]),
   batteryLevel([3]),
+  init([0x19]),
+  updateSampleSettings([0x65]),
   diceColor([23]),
   setLed([8]),
-  setLedToggle([16]),
-  rollStart([82]),
-  batteryLevelAck([66, 97, 116]),
-  diceColorAck([67, 111, 108]),
-  stable([83]),
-  fakeStable([70, 83]),
-  tiltStable([84, 83]),
-  moveStable([77, 83])
+  toggleLeds([16]),
+  rollStart([82]), // "R"
+  batteryLevelAck([66, 97, 116]), // "Bat"
+  diceColorAck([67, 111, 108]), // "Col"
+  stable([83]), // "S"
+  fakeStable([70, 83]), // "FS
+  tiltStable([84, 83]), // "TS"
+  moveStable([77, 83]), // "MS"
+  charging([67, 104, 97, 114]), // "Char"
+  tap([84, 97, 112]), // "Tap"
+  dTap([68, 84, 97, 112]) // "DTap"
   ;
 
   final List<int> value;
@@ -244,14 +255,6 @@ enum GodiceMessageType {
 
   static GodiceMessageType getByValue(int id) {
     return GodiceMessageType.values.firstWhere((v) => v.value[0] == id, orElse: () => unknown);
-  }
-}
-
-class MessageUnknown extends RxMessage {
-  MessageUnknown({required super.buffer}) : super(id: GodiceMessageType.unknown.index);
-
-  static MessageUnknown parse(List<int> data) {
-    return MessageUnknown(buffer: data);
   }
 }
 
@@ -273,13 +276,160 @@ class MessageDiceColor extends TxMessage {
   }
 }
 
+enum BlinkMode { oneByOne, parallel }
+
+enum BlinkLedSelector { both, ledOne, ledTwo }
+
+class MessageInit extends TxMessage with Color255 {
+  int diceSensitivity;
+  int numberOfBlinks;
+  int lightOnDuration10ms;
+  int lightOffDuration10ms;
+  Color connectColor;
+  BlinkMode blinkMode;
+  BlinkLedSelector leds;
+  MessageInit({
+    this.diceSensitivity = 30,
+    this.numberOfBlinks = 1,
+    this.lightOnDuration10ms = 50,
+    this.lightOffDuration10ms = 50,
+    this.connectColor = Colors.blue,
+    this.blinkMode = BlinkMode.parallel,
+    this.leds = BlinkLedSelector.both,
+  }) : super(id: GodiceMessageType.init.value[0]);
+
+  @override
+  List<int> toBuffer() {
+    return [
+      id,
+      diceSensitivity,
+      numberOfBlinks,
+      lightOnDuration10ms,
+      lightOffDuration10ms,
+      r255(),
+      g255(),
+      b255(),
+      blinkMode.index,
+      leds.index,
+    ];
+  }
+
+  @override
+  Color getColor() {
+    return connectColor;
+  }
+}
+
+class MessageToggleLeds extends Blinker with Color255 {
+  int numberOfBlinks;
+  int lightOnDuration10ms;
+  int lightOffDuration10ms;
+  Color toggleColor;
+  BlinkMode blinkMode;
+  BlinkLedSelector leds;
+  MessageToggleLeds({
+    this.numberOfBlinks = 2,
+    this.lightOnDuration10ms = 25,
+    this.lightOffDuration10ms = 25,
+    this.toggleColor = Colors.white,
+    this.blinkMode = BlinkMode.parallel,
+    this.leds = BlinkLedSelector.both,
+  }) : super(id: GodiceMessageType.toggleLeds.value[0]);
+
+  @override
+  List<int> toBuffer() {
+    return [
+      id,
+      numberOfBlinks,
+      lightOnDuration10ms,
+      lightOffDuration10ms,
+      r255(),
+      g255(),
+      b255(),
+      blinkMode.index,
+      leds.index,
+    ];
+  }
+
+  @override
+  Color getColor() {
+    return toggleColor;
+  }
+
+  @override
+  int getCount() {
+    return numberOfBlinks;
+  }
+
+  @override
+  Duration getOnDuration() {
+    return Duration(milliseconds: lightOnDuration10ms * 10);
+  }
+
+  @override
+  Duration getOffDuration() {
+    return Duration(milliseconds: lightOffDuration10ms * 10);
+  }
+}
+
+class MessageUpdateSampleSettings extends TxMessage {
+  int samplesCount;
+  int movementCount;
+  int faceCount;
+  int minFlatDeg;
+  int maxFlatDeg;
+  int weakStable;
+  int movementDeg;
+  int rollThreshold;
+  MessageUpdateSampleSettings({
+    this.samplesCount = 4,
+    this.movementCount = 2,
+    this.faceCount = 1,
+    this.minFlatDeg = 10,
+    this.maxFlatDeg = 54,
+    this.weakStable = 20,
+    this.movementDeg = 50,
+    this.rollThreshold = 30,
+  }) : super(id: GodiceMessageType.updateSampleSettings.value[0]);
+
+  @override
+  List<int> toBuffer() {
+    return [id, samplesCount, movementCount, faceCount, minFlatDeg, maxFlatDeg, weakStable, movementDeg, rollThreshold];
+  }
+}
+
+class MessageUnknown extends RxMessage {
+  MessageUnknown({required super.buffer}) : super(id: GodiceMessageType.unknown.index);
+
+  static MessageUnknown parse(List<int> data) {
+    return MessageUnknown(buffer: data);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'buffer': buffer};
+  }
+}
+
+class MessageRollStart extends RxMessage {
+  MessageRollStart({required super.buffer}) : super(id: GodiceMessageType.rollStart.index);
+
+  static MessageRollStart parse(List<int> data) {
+    return MessageRollStart(buffer: data);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'buffer': buffer};
+  }
+}
+
 class MessageBatteryLevelAck extends RxMessage {
   final int batteryLevel;
-  MessageBatteryLevelAck({required super.buffer, required this.batteryLevel}) : super(id: GodiceMessageType.batteryLevelAck.value[0]);
+  MessageBatteryLevelAck({required super.buffer, required this.batteryLevel})
+    : super(id: GodiceMessageType.batteryLevelAck.value[0]);
 
   static MessageBatteryLevelAck parse(List<int> data) {
     if (!ListEquality().equals(data.sublist(0, 3), GodiceMessageType.batteryLevelAck.value)) {
-      throw Exception("bad message");
+      throw MessageParseError("bad battery level message $data");
     }
     return MessageBatteryLevelAck(buffer: data, batteryLevel: data[3]);
   }
@@ -291,11 +441,12 @@ class MessageBatteryLevelAck extends RxMessage {
 
 class MessageDiceColorAck extends RxMessage {
   final GodiceDieColor diceColor;
-  MessageDiceColorAck({required super.buffer, required this.diceColor}) : super(id: GodiceMessageType.batteryLevelAck.value[0]);
+  MessageDiceColorAck({required super.buffer, required this.diceColor})
+    : super(id: GodiceMessageType.batteryLevelAck.value[0]);
 
   static MessageDiceColorAck parse(List<int> data) {
     if (!ListEquality().equals(data.sublist(0, 3), GodiceMessageType.diceColorAck.value)) {
-      throw Exception("bad message $data");
+      throw MessageParseError("bad message $data");
     }
     GodiceDieColor color = GodiceDieColor.values[data[3]];
     return MessageDiceColorAck(buffer: data, diceColor: color);
@@ -303,5 +454,43 @@ class MessageDiceColorAck extends RxMessage {
 
   Map<String, dynamic> toJson() {
     return {'id': id, 'buffer': buffer, 'diceColor': diceColor.name};
+  }
+}
+
+class MessageStable extends RxMessage {
+  static final int _dataOffset = GodiceMessageType.stable.value.length;
+  final Vector xyzData;
+  MessageStable({required super.buffer, required this.xyzData}) : super(id: GodiceMessageType.stable.value[0]);
+
+  static MessageStable parse(List<int> data) {
+    if (!ListEquality().equals(data.sublist(0, _dataOffset), GodiceMessageType.stable.value)) {
+      throw MessageParseError("bad stable message $data");
+    }
+    Vector xyzData = getXyzFromBytes(data, _dataOffset);
+
+    return MessageStable(buffer: data, xyzData: xyzData);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'buffer': buffer, 'xyzData': xyzData.toJson()};
+  }
+}
+
+class MessageFakeStable extends RxMessage {
+  static final int _dataOffset = GodiceMessageType.fakeStable.value.length;
+  final Vector xyzData;
+  MessageFakeStable({required super.buffer, required this.xyzData}) : super(id: GodiceMessageType.fakeStable.value[0]);
+
+  static MessageFakeStable parse(List<int> data) {
+    if (!ListEquality().equals(data.sublist(0, _dataOffset), GodiceMessageType.fakeStable.value)) {
+      throw MessageParseError("bad fake stable message $data");
+    }
+    Vector xyzData = getXyzFromBytes(data, _dataOffset);
+
+    return MessageFakeStable(buffer: data, xyzData: xyzData);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'buffer': buffer, 'xyzData': xyzData.toJson()};
   }
 }

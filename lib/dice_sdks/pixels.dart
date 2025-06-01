@@ -1,9 +1,7 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
-import 'generic_die.dart';
+import 'dice_sdks.dart';
 
 const Color green = Color.fromARGB(255, 0, 255, 0);
 const Color red = Color.fromARGB(255, 255, 0, 0);
@@ -31,8 +29,6 @@ enum PixelDesignAndColor {
 
   const PixelDesignAndColor(this.value);
 }
-
-enum PixelRollState { unknown, rolled, handling, rolling, crooked, onFace }
 
 enum PixelMessageType {
   none,
@@ -162,7 +158,7 @@ class MessageBatteryLevel extends RxMessage {
   final int batteryState;
 
   MessageBatteryLevel({required super.buffer, required this.batteryLevel, required this.batteryState})
-      : super(id: PixelMessageType.batteryLevel.index);
+    : super(id: PixelMessageType.batteryLevel.index);
 
   static MessageBatteryLevel parse(List<int> data) {
     return MessageBatteryLevel(buffer: data, batteryLevel: data[1], batteryState: data[2]);
@@ -319,7 +315,7 @@ class MessageNone extends RxMessage {
   }
 }
 
-class BlinkMessage extends TxMessage with Color255 implements Blinker {
+class MessageBlink extends Blinker with Color255 {
   final int count;
   final int duration;
   final Color blinkColor;
@@ -327,7 +323,7 @@ class BlinkMessage extends TxMessage with Color255 implements Blinker {
   final int fade;
   final int loopCount;
 
-  BlinkMessage({
+  MessageBlink({
     this.count = 1,
     this.duration = 500,
     this.blinkColor = Colors.white,
@@ -367,12 +363,12 @@ class BlinkMessage extends TxMessage with Color255 implements Blinker {
   }
 
   @override
-  int getDuration() {
-    return duration;
+  Duration getOnDuration() {
+    return Duration(milliseconds: duration);
   }
 
   @override
-  int getLoopCount() {
-    return loopCount;
+  Duration getOffDuration() {
+    return Duration(milliseconds: duration);
   }
 }

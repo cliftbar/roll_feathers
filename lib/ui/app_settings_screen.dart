@@ -1,8 +1,9 @@
 // File: lib/ui/widgets/app_settings_widget.dart
 
-import 'package:flutter/material.dart';
 import 'dart:io' show Platform;
+
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
 
 /// A widget that displays application-level settings including Bluetooth settings.
 /// This widget can be included in screens that need to display app settings.
@@ -11,15 +12,18 @@ class AppSettingsWidget extends StatelessWidget {
     super.key,
     this.onBluetoothToggled,
     this.isBluetoothEnabled = false,
-    this.onOpenBluetoothSettings,
+    this.onOpenBluetoothSettings, // do this more correctly
+    required this.ips,
   });
+
+  final List<String> ips;
 
   /// Callback when Bluetooth is toggled
   final Function(bool)? onBluetoothToggled;
-  
+
   /// Current Bluetooth state
   final bool isBluetoothEnabled;
-  
+
   /// Callback to open system Bluetooth settings
   final VoidCallback? onOpenBluetoothSettings;
 
@@ -33,41 +37,35 @@ class AppSettingsWidget extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Application Settings',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+            const Text('Application Settings', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            
+
             // Bluetooth settings section
-            const Text(
-              'Connectivity',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            _buildPlatformSpecificBluetoothSetting(),
-            
-            const Divider(),
+            // const Text(
+            //   'Connectivity',
+            //   style: TextStyle(
+            //     fontSize: 16,
+            //     fontWeight: FontWeight.w500,
+            //   ),
+            // ),
+            // const SizedBox(height: 8),
+            // _buildPlatformSpecificBluetoothSetting(),
+            //
+            // const Divider(),
 
-            ListTile(
-              title: const Text('Theme'),
-              trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-              leading: const Icon(Icons.color_lens),
-              onTap: () {
-                // Theme selection logic would be handled by the ViewModel
-              },
-            ),
-
+            // ListTile(
+            //   title: const Text('Theme'),
+            //   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+            //   leading: const Icon(Icons.color_lens),
+            //   onTap: () {
+            //     // Theme selection logic would be handled by the ViewModel
+            //   },
+            // ),
             ListTile(
               title: const Text('IPs'),
-              trailing: Text("192.168.0.1\n127.0.0.1"),
+              trailing: Text(ips.join("\n")),
               leading: const Icon(Icons.info_outline),
+              enabled: ips.isNotEmpty,
               onTap: () {
                 // About screen navigation would be handled by the ViewModel
               },
@@ -77,7 +75,7 @@ class AppSettingsWidget extends StatelessWidget {
       ),
     );
   }
-  
+
   /// Builds the appropriate Bluetooth setting widget based on platform
   Widget _buildPlatformSpecificBluetoothSetting() {
     // For web, we'll show a message that Bluetooth might not be available
@@ -88,7 +86,7 @@ class AppSettingsWidget extends StatelessWidget {
         leading: const Icon(Icons.bluetooth_disabled, color: Colors.grey),
       );
     }
-    
+
     // For iOS, macOS, and other platforms where direct toggle isn't appropriate
     if (Platform.isIOS || Platform.isMacOS) {
       return Column(
@@ -100,8 +98,7 @@ class AppSettingsWidget extends StatelessWidget {
               onOpenBluetoothSettings?.call();
             },
             child: const Text('Open Bluetooth Settings'),
-          ),
-          // ListTile(
+          ), // ListTile(
           //   title: const Text('Bluetooth'),
           //   subtitle:
           //   leading: Icon(
@@ -119,17 +116,14 @@ class AppSettingsWidget extends StatelessWidget {
         ],
       );
     }
-    
+
     // For Android and other platforms that support direct Bluetooth toggle
     return SwitchListTile(
       title: const Text('Bluetooth'),
       subtitle: Text(isBluetoothEnabled ? 'On' : 'Off'),
       value: isBluetoothEnabled,
       onChanged: onBluetoothToggled,
-      secondary: Icon(
-        Icons.bluetooth,
-        color: isBluetoothEnabled ? Colors.blue : Colors.grey,
-      ),
+      secondary: Icon(Icons.bluetooth, color: isBluetoothEnabled ? Colors.blue : Colors.grey),
     );
   }
 }

@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:home_assistant/home_assistant.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 
-import 'package:roll_feathers/dice_sdks/generic_die.dart';
+import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 
 enum LightServiceActions {
   on(action: "turn_on"),
@@ -50,10 +50,10 @@ class HaService {
     };
 
     await _homeAssistant.executeService(entity, LightServiceActions.on.action, additionalActions: blinkPayload);
-    sleep(Duration(milliseconds: blink.getDuration()));
+    sleep(Duration(milliseconds: blink.getOnDuration().inMilliseconds));
     await _homeAssistant.executeService(entity, LightServiceActions.off.action);
 
-    sleep(Duration(milliseconds: blink.getDuration()));
+    sleep(Duration(milliseconds: blink.getOffDuration().inMilliseconds));
     await _homeAssistant.executeService(entity, revertAction.action, additionalActions: revertPayload);
 
     print("HA blink");

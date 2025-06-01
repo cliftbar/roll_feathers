@@ -1,11 +1,11 @@
 {
-    "name": "roll_feathers",
-    "short_name": "roll_feathers",
+    "name": "Roll Feathers",
+    "short_name": "Roll Feathers",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "Smart dice companion app",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

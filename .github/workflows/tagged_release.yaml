@@ -30,7 +30,7 @@ jobs:  # Telling what jobs we need to happen
         if: github.ref_type == 'tag'
       - run: flutter build macos --release
         if: github.ref_type == 'tag'
-      - run: create-dmg --window-size 400 200 --icon-size 100 --icon "roll_feathers.app" 50 50 --app-drop-link 200 50 rollFeathersInstaller-${{ github.ref_name }}-release.dmg /build/macos/Build/Products/Release/roll_feathers.app
+      - run: create-dmg --hdiutil-quiet --window-size 400 200 --icon-size 100 --icon "roll_feathers.app" 50 50 --app-drop-link 200 50 rollFeathersInstaller-${{ github.ref_name }}-release.dmg /build/macos/Build/Products/Release/roll_feathers.app
       - name: Release
         uses: softprops/action-gh-release@v2
         if: github.ref_type == 'tag'

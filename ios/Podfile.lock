@@ -6,6 +6,8 @@ PODS:
   - flutter_blue_plus_darwin (0.0.2):
     - Flutter
     - FlutterMacOS
+  - open_settings_plus (0.0.1):
+    - Flutter
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -14,6 +16,7 @@ DEPENDENCIES:
   - bluetooth_low_energy_darwin (from `.symlinks/plugins/bluetooth_low_energy_darwin/darwin`)
   - Flutter (from `Flutter`)
   - flutter_blue_plus_darwin (from `.symlinks/plugins/flutter_blue_plus_darwin/darwin`)
+  - open_settings_plus (from `.symlinks/plugins/open_settings_plus/ios`)
   - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
 
 EXTERNAL SOURCES:
@@ -23,6 +26,8 @@ EXTERNAL SOURCES:
     :path: Flutter
   flutter_blue_plus_darwin:
     :path: ".symlinks/plugins/flutter_blue_plus_darwin/darwin"
+  open_settings_plus:
+    :path: ".symlinks/plugins/open_settings_plus/ios"
   shared_preferences_foundation:
     :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
 
@@ -30,6 +35,7 @@ SPEC CHECKSUMS:
   bluetooth_low_energy_darwin: 2779e2ddb50aca45ff2c9832760b3802669a9db0
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
   flutter_blue_plus_darwin: 20a08bfeaa0f7804d524858d3d8744bcc1b6dbc3
+  open_settings_plus: d19f91e8a04649358a51c19b484ce2e637149d70
   shared_preferences_foundation: 9e1978ff2562383bd5676f64ec4e9aa8fa06a6f7
 
 PODFILE CHECKSUM: 4305caec6b40dde0ae97be1573c53de1882a07e5

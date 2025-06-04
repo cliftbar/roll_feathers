@@ -96,11 +96,8 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
           Expanded(
             child: Column(
               children: [
-                Row(
-                  children: [
-                    Row(
+                Wrap(
                       // TODO: second row so alignment works?
-                      mainAxisSize: MainAxisSize.min,
                       children: [
                         _makeAutoRollSwitch(),
                         TextButton.icon(
@@ -140,8 +137,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                         ),
                       ],
                     ),
-                  ],
-                ), // TODO: Does this need to be listenable?  does the stream already handle updates?
+                 // TODO: Does this need to be listenable?  does the stream already handle updates?
                 Expanded(
                   child: ListenableBuilder(
                     listenable: widget.viewModel,

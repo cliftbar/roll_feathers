@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:home_assistant/home_assistant.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 
-import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 
 import '../../dice_sdks/message_sdk.dart';
 

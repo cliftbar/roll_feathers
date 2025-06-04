@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roll_feathers/di/di.dart';
 
-import 'package:roll_feathers/main.dart';
 import 'package:roll_feathers/ui/roll_feathers_app.dart';
 
 void main() {

@@ -1,6 +1,10 @@
 name: "Build & Release"   # You can name it as you want
 
-on: push
+on:
+  push:
+    # Pattern matched against refs/tags
+    tags:
+      - '*'
 
 jobs:  # Telling what jobs we need to happen
   build:      # Specify the building name and machine
@@ -14,6 +18,10 @@ jobs:  # Telling what jobs we need to happen
         with:
           channel: stable
           flutter-version-file: pubspec.yaml # path to pubspec.yaml
+      - name: create-dmg install
+        run: |
+          echo "Install create-dmg"
+          brew install create-dmg
       - run: flutter pub get
       - run: flutter test
       - run: flutter build apk --release

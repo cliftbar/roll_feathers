@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
-import 'dice_sdks.dart';
+import 'message_sdk.dart';
 
 const Color green = Color.fromARGB(255, 0, 255, 0);
 const Color red = Color.fromARGB(255, 255, 0, 0);
@@ -13,7 +13,22 @@ const String nordicsDFU = "fe59";
 Guid pixelNotifyCharacteristic = Guid("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
 Guid pixelWriteCharacteristic = Guid("6e400002-b5a3-f393-e0a9-e50e24dcca9e");
 
-enum PixelDieType { unknown, d4, d6, d8, d10, d00, d12, d20, d6Pipped, d6Fudge }
+enum PixelDieType {
+  unknown(-1),
+  d4(4),
+  d6(6),
+  d8(8),
+  d10(10),
+  d00(10),
+  d12(12),
+  d20(20),
+  d6Pipped(6),
+  d6Fudge(6);
+
+  final int faces;
+
+  const PixelDieType(this.faces);
+}
 
 enum PixelDesignAndColor {
   unknown(0),
@@ -100,8 +115,8 @@ enum PixelMessageType {
 
 class PixelDiceInfo {
   final int ledCount;
-  final int designAndColor;
-  final int reserved;
+  final PixelDesignAndColor designAndColor;
+  final PixelDieType pixelDieTypeFaces;
   final int dataSetHash;
   final int pixelId;
   final int availableFlash;
@@ -110,7 +125,7 @@ class PixelDiceInfo {
   PixelDiceInfo({
     required this.ledCount,
     required this.designAndColor,
-    required this.reserved,
+    required this.pixelDieTypeFaces,
     required this.dataSetHash,
     required this.pixelId,
     required this.availableFlash,
@@ -120,8 +135,8 @@ class PixelDiceInfo {
   factory PixelDiceInfo.fromJson(Map<String, dynamic> json) {
     return PixelDiceInfo(
       ledCount: json['ledCount'] as int,
-      designAndColor: json['designAndColor'] as int,
-      reserved: json['reserved'] as int,
+      designAndColor: PixelDesignAndColor.values[json['designAndColor'] as int],
+      pixelDieTypeFaces: PixelDieType.values[json['reserved'] as int],
       dataSetHash: json['dataSetHash'] as int,
       pixelId: json['pixelId'] as int,
       availableFlash: json['availableFlash'] as int,
@@ -132,8 +147,8 @@ class PixelDiceInfo {
   Map<String, dynamic> toJson() {
     return {
       'ledCount': ledCount,
-      'designAndColor': designAndColor,
-      'reserved': reserved,
+      'designAndColor': designAndColor.index,
+      'reserved': pixelDieTypeFaces.index,
       'dataSetHash': dataSetHash,
       'pixelId': pixelId,
       'availableFlash': availableFlash,
@@ -215,8 +230,8 @@ class MessageRollState extends RxMessage {
 
 class MessageIAmADie extends RxMessage {
   final int ledCount;
-  final int designAndColor;
-  final int reserved;
+  final PixelDesignAndColor designAndColor;
+  final PixelDieType pixelDieTypeFaces;
   final int dataSetHash;
   final int pixelId;
   final int availableFlash;
@@ -231,7 +246,7 @@ class MessageIAmADie extends RxMessage {
     required super.buffer,
     required this.ledCount,
     required this.designAndColor,
-    required this.reserved,
+    required this.pixelDieTypeFaces,
     required this.dataSetHash,
     required this.pixelId,
     required this.availableFlash,
@@ -247,8 +262,8 @@ class MessageIAmADie extends RxMessage {
     return MessageIAmADie(
       buffer: data,
       ledCount: data[1],
-      designAndColor: data[2],
-      reserved: data[3],
+      designAndColor: PixelDesignAndColor.values[data[2]],
+      pixelDieTypeFaces: PixelDieType.values[data[3]],
       dataSetHash: Message.bytesToIntList(data.sublist(4, 8)),
       pixelId: Message.bytesToIntList(data.sublist(8, 12)),
       availableFlash: Message.bytesToIntList(data.sublist(12, 14)),
@@ -265,8 +280,8 @@ class MessageIAmADie extends RxMessage {
     return MessageIAmADie(
       buffer: json['buffer'],
       ledCount: json['ledCount'] as int,
-      designAndColor: json['designAndColor'] as int,
-      reserved: json['reserved'] as int,
+      designAndColor: PixelDesignAndColor.values[json['designAndColor'] as int],
+      pixelDieTypeFaces: PixelDieType.values[json['reserved'] as int],
       dataSetHash: json['dataSetHash'] as int,
       pixelId: json['pixelId'] as int,
       availableFlash: json['availableFlash'] as int,
@@ -284,8 +299,8 @@ class MessageIAmADie extends RxMessage {
       'id': id,
       'buffer': buffer,
       'ledCount': ledCount,
-      'designAndColor': designAndColor,
-      'reserved': reserved,
+      'designAndColor': designAndColor.index,
+      'reserved': pixelDieTypeFaces.index,
       'dataSetHash': dataSetHash,
       'pixelId': pixelId,
       'availableFlash': availableFlash,

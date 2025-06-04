@@ -5,6 +5,8 @@ import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 
+import '../../dice_sdks/message_sdk.dart';
+
 enum LightServiceActions {
   on(action: "turn_on"),
   off(action: "turn_off");

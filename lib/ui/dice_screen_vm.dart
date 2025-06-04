@@ -31,12 +31,18 @@ class DiceScreenViewModel extends ChangeNotifier {
   // rolling
   late Command0 clearRollResultHistory;
   late Command1<void, RollType> setRollType;
+  late Command1<void, bool> setWithVirtualDice;
   late StreamSubscription<List<RollResult>> _rollResultsSubscription;
   late StreamSubscription<RollStatus> _rollStatusSubscription;
+  late Command0<void> rollAllVirtualDice;
 
   // die control settings
-  late Command3<void, Color, GenericBleDie, String?> blink;
-  late Command3<void, GenericBleDie, Color, String> updateDieSettings;
+  late Command3<void, Color, GenericDie, String?> blink;
+  late Command3<void, GenericDie, Color, String> updateDieSettings;
+  late Command2<void, int, String> addVirtualDie;
+  late Command0<void> disconnectAllDice;
+  late Command0<void> disconnectAllNonVirtualDice;
+  late Command1<void, String> disconnectDie;
 
   DiceScreenViewModel(this._diWrapper) {
     // init
@@ -62,6 +68,8 @@ class DiceScreenViewModel extends ChangeNotifier {
     // rolling
     clearRollResultHistory = Command0(_clearRollResultHistory);
     setRollType = Command1(_setRollType);
+    setWithVirtualDice = Command1(_setWithVirtualDice);
+    rollAllVirtualDice = Command0(_rollAllVirtualDice);
     _rollResultsSubscription = _diWrapper.rollDomain.subscribeRollResults().listen((rollResult) {
       notifyListeners();
     });
@@ -73,6 +81,11 @@ class DiceScreenViewModel extends ChangeNotifier {
     // die control settings
     blink = Command3(_blink);
     updateDieSettings = Command3(_updateDieSettings);
+    addVirtualDie = Command2(_addVirtualDie);
+
+    disconnectAllDice = Command0(_disconnectAllDice);
+    disconnectAllNonVirtualDice = Command0(_disconnectAllNonVirtualDice);
+    disconnectDie = Command1(_disconnectDie);
   }
 
   // init
@@ -133,26 +146,60 @@ class DiceScreenViewModel extends ChangeNotifier {
     return Result.value(null);
   }
 
+  Future<Result<void>> _setWithVirtualDice(bool withVirtualDice) async {
+    _diWrapper.rollDomain.autoRollVirtualDice = withVirtualDice;
+    return Result.value(null);
+  }
+
   RollType getRollType() {
     return _diWrapper.rollDomain.rollType;
   }
 
   // die control settings
   Map<String, Color> get blinkColors => _diWrapper.rollDomain.blinkColors;
-  Future<Result<void>> _blink(Color blinkColor, GenericBleDie die, String? entityOverride) async {
+  Future<Result<void>> _blink(Color blinkColor, GenericDie die, String? entityOverride) async {
     _diWrapper.rfController.blink(blinkColor, die);
 
     return Result.value(null);
   }
 
   // TODO: Refactor needed?  I'm not sure how the UI is getting notified about this?
-  Stream<Map<String, GenericBleDie>> getDeviceStream() {
-    return _diWrapper.rfController.getDeviceStream();
+  Stream<Map<String, GenericDie>> getDeviceStream() {
+    return _diWrapper.rfController.getDiceStream();
   }
 
-  Future<Result<void>> _updateDieSettings(GenericBleDie die, Color blinkColor, String entity) async {
-    _diWrapper.rollDomain.blinkColors[die.device.remoteId.str] = blinkColor;
+  Future<Result<void>> _updateDieSettings(GenericDie die, Color blinkColor, String entity) async {
+    _diWrapper.rollDomain.blinkColors[die.dieId] = blinkColor;
     die.haEntityTargets = [entity];
+    notifyListeners();
+    return Result.value(null);
+  }
+
+  Future<Result<void>> _addVirtualDie(int faceCount, String name) async {
+    _diWrapper.rfController.addVirtualDie(faceCount: faceCount, name: name);
+    notifyListeners();
+    return Result.value(null);
+  }
+
+  Future<Result<void>> _rollAllVirtualDice() async {
+    _diWrapper.rollDomain.rollAllVirtualDice();
+    return Result.value(null);
+  }
+
+  Future<Result<void>> _disconnectAllDice() async {
+    await _diWrapper.rfController.disconnectAllDice();
+    notifyListeners();
+    return Result.value(null);
+  }
+
+  Future<Result<void>> _disconnectAllNonVirtualDice() async {
+    await _diWrapper.rfController.disconnectAllNonVirtualDice();
+    notifyListeners();
+    return Result.value(null);
+  }
+
+  Future<Result<void>> _disconnectDie(String dieId) async {
+    await _diWrapper.rfController.disconnectDie(dieId);
     notifyListeners();
     return Result.value(null);
   }

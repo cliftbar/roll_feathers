@@ -5,33 +5,48 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fbp;
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/dice_sdks/godice.dart';
+import 'package:roll_feathers/dice_sdks/message_sdk.dart';
 import 'package:roll_feathers/dice_sdks/pixels.dart';
 import 'package:roll_feathers/repositories/ble_repository.dart';
 import 'package:roll_feathers/repositories/home_assistant_repository.dart';
 
-class PixelDieDomain {
+class DieDomain {
   final BleRepository _bleRepository;
   final HaRepository _haRepository;
-  final Map<String, GenericBleDie> _foundDie = {};
+  final Map<String, GenericDie> _foundDie = {};
 
-  final _pixelDiceSubscription = StreamController<Map<String, GenericBleDie>>.broadcast();
+  final _diceSubscription = StreamController<Map<String, GenericDie>>.broadcast();
 
-  PixelDieDomain(this._bleRepository, this._haRepository) {
+  DieDomain(this._bleRepository, this._haRepository) {
     _bleRepository.subscribeBleDevices().asyncMap(asyncConvertToDie).listen((data) {
-      _pixelDiceSubscription.add(data);
+      _diceSubscription.add(data);
     });
   }
 
-  Future<Map<String, GenericBleDie>> asyncConvertToDie(Map<String, fbp.BluetoothDevice> data) async {
+  void addVirtualDie({required faceCount, String? dieId, String? name}) {
+    var vd = VirtualDie(faceCount: faceCount, name: name);
+    _foundDie[vd.dieId] = vd;
+    _diceSubscription.add(_foundDie);
+  }
+
+  List<VirtualDie> getVirtualDice() {
+    var res = _foundDie.values.toList().where((d) => d.type == GenericDieType.virtual).toList();
+    print("1 $res");
+    var res2 = res.map((d) => d as VirtualDie).toList();
+    print("2 $res2");
+    return res2;
+  }
+
+  Future<Map<String, GenericDie>> asyncConvertToDie(Map<String, fbp.BluetoothDevice> data) async {
     for (var device in List.of(data.values)) {
       if (!_foundDie.containsKey(device.remoteId.str)) {
         var pd = await GenericBleDie.fromDevice(device);
-        _foundDie[pd.deviceId] = pd;
+        _foundDie[pd.dieId] = pd;
       }
     }
-    for (String id in List.of(_foundDie.keys)) {
-      if (!data.containsKey(id)) {
-        _foundDie.remove(id);
+    for (GenericDie d in List.of(_foundDie.values.where((d) => d.type != GenericDieType.virtual))) {
+      if (!data.containsKey(d.dieId)) {
+        _foundDie.remove(d.dieId);
       }
     }
     return _foundDie;
@@ -41,20 +56,67 @@ class PixelDieDomain {
     _bleRepository.dispose();
   }
 
-  Stream<Map<String, GenericBleDie>> getDeviceStream() {
-    return _pixelDiceSubscription.stream;
+  Stream<Map<String, GenericDie>> getDiceStream() {
+    return _diceSubscription.stream;
   }
 
-  void blink(Color blinkColor, GenericBleDie die) async {
-    Blinker blinker;
+  // Disconnect a specific die
+  Future<void> disconnectDie(String dieId) async {
+    if (_foundDie.containsKey(dieId)) {
+      GenericDie die = _foundDie[dieId]!;
+      if (die.type != GenericDieType.virtual) {
+        await _bleRepository.disconnectDevice(dieId);
+        // The die will be removed from _foundDie in asyncConvertToDie when the BLE device is disconnected
+      } else {
+        _foundDie.remove(dieId);
+        _diceSubscription.add(_foundDie);
+      }
+    }
+  }
+
+  // Disconnect all dice (including virtual)
+  Future<void> disconnectAllDice() async {
+    // Disconnect all BLE devices
+    await _bleRepository.disconnectAllDevices();
+
+    // Remove all virtual dice
+    _foundDie.removeWhere((_, die) => die.type == GenericDieType.virtual);
+
+    // Update subscribers
+    _diceSubscription.add(_foundDie);
+  }
+
+  // Disconnect all non-virtual dice
+  Future<void> disconnectAllNonVirtualDice() async {
+    // Disconnect all BLE devices
+    await _bleRepository.disconnectAllDevices();
+
+    // Keep only virtual dice
+    List<String> keys = _foundDie.keys.toList();
+    for (var id in keys) {
+      if (_foundDie[id]?.type != GenericDieType.virtual) {
+        _foundDie.remove(id);
+      }
+    }
+    // Update subscribers
+    _diceSubscription.add(_foundDie);
+  }
+
+  void blink(Color blinkColor, GenericDie die) async {
+    Blinker? blinker;
     switch (die.type) {
       case GenericDieType.godice:
         blinker = MessageToggleLeds(toggleColor: blinkColor);
+        (die as GoDiceBle).sendMessage(blinker);
       case GenericDieType.pixel:
         blinker = MessageBlink(blinkColor: blinkColor);
+        (die as PixelDie).sendMessage(blinker);
+      default:
+        {}
     }
 
-    _haRepository.blinkEntity(blink: blinker, entity: die.haEntityTargets.firstOrNull);
-    die.sendMessage(blinker);
+    if (blinker != null) {
+      _haRepository.blinkEntity(blink: blinker, entity: die.haEntityTargets.firstOrNull);
+    }
   }
 }

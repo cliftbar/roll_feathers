@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui';
+import 'dart:math';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
 import 'package:roll_feathers/dice_sdks/godice.dart' as godice;
 import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
+import 'package:uuid/uuid.dart';
+
+import 'message_sdk.dart';
 
 class MessageParseError extends IOException {
   final String message;
@@ -58,16 +61,43 @@ class DiceState {
 
 enum DiceRollState { unknown, rolled, handling, rolling, crooked, onFace }
 
-enum GenericDieType { pixel, godice }
+enum GenericDieType { pixel, godice, virtual }
 
-abstract class GenericBleDie {
+abstract class GenericDie {
   abstract final Logger _log;
   abstract final GenericDieType type;
+  late DiceState state;
+  List<String> haEntityTargets = [];
+
+  Future<void> _init();
+
+  Map<DiceRollState, Map<String, Function(DiceRollState)>> rollCallbacks = {};
+
+  GenericDie() {
+    state = DiceState();
+    state.batteryLevel = 100;
+    state.batteryState = BatteryState.unknown;
+  }
+
+  void addRollCallback(DiceRollState rollState, String callbackKey, Function(DiceRollState) callback) {
+    rollCallbacks.putIfAbsent(rollState, () => {})[callbackKey] = callback;
+  }
+
+  int getFaceValueOrElse({int orElse = -1}) {
+    return state.currentFaceValue ?? orElse;
+  }
+
+  String get dieId;
+
+  String get friendlyName;
+
+  int get faceCount;
+}
+
+abstract class GenericBleDie extends GenericDie {
   BluetoothDevice device;
   BluetoothCharacteristic? _writeChar;
   BluetoothCharacteristic? _notifyChar;
-  late DiceState state;
-  List<String> haEntityTargets = [];
 
   static Future<GenericBleDie> fromDevice(BluetoothDevice device) async {
     try {
@@ -97,10 +127,7 @@ abstract class GenericBleDie {
     }
   }
 
-  Future<void> _init();
-
   Map<int, Map<String, Function(RxMessage)>> messageRxCallbacks = {};
-  Map<DiceRollState, Map<String, Function(DiceRollState)>> rollCallbacks = {};
 
   GenericBleDie({required this.device}) {
     state = DiceState();
@@ -125,16 +152,10 @@ abstract class GenericBleDie {
     messageRxCallbacks.putIfAbsent(messageType, () => {})[callbackKey] = callback;
   }
 
-  void addRollCallback(DiceRollState rollState, String callbackKey, Function(DiceRollState) callback) {
-    rollCallbacks.putIfAbsent(rollState, () => {})[callbackKey] = callback;
-  }
+  @override
+  String get dieId => device.remoteId.str;
 
-  int getFaceValueOrElse({int orElse = -1}) {
-    return state.currentFaceValue ?? orElse;
-  }
-
-  String get deviceId => device.remoteId.str;
-
+  @override
   String get friendlyName;
 }
 
@@ -277,8 +298,10 @@ class GoDiceBle extends GenericBleDie {
   }
 
   @override
-  // TODO: implement friendlyName
   String get friendlyName => "GoDice ${info["diceColor"]}";
+
+  @override
+  int get faceCount => throw UnimplementedError();
 }
 
 class PixelDie extends GenericBleDie {
@@ -350,7 +373,7 @@ class PixelDie extends GenericBleDie {
     info ??= pix.PixelDiceInfo(
       ledCount: msg.ledCount,
       designAndColor: msg.designAndColor,
-      reserved: msg.reserved,
+      pixelDieTypeFaces: msg.pixelDieTypeFaces,
       dataSetHash: msg.dataSetHash,
       pixelId: msg.pixelId,
       availableFlash: msg.availableFlash,
@@ -390,63 +413,58 @@ class PixelDie extends GenericBleDie {
   }
 
   @override
-  // TODO: implement friendlyName
   String get friendlyName => device.platformName;
+
+  @override
+  int get faceCount => info?.pixelDieTypeFaces.faces ?? pix.PixelDieType.unknown.faces;
 }
 
-// Messages
-abstract class Message {
-  final int id;
+class VirtualDie extends GenericDie {
+  @override
+  final _log = Logger("VirtualDie");
 
-  Message({required this.id});
+  late final String _dieId;
+  late final String? _name;
+  late final int _faceCount;
+  final Random rand = Random();
 
-  static int bytesToIntList(List<int> bytes) {
-    var result = 0;
-    for (var i = 0; i < bytes.length; i++) {
-      result |= bytes[i] << (8 * i);
+  @override
+  final GenericDieType type = GenericDieType.virtual;
+
+  VirtualDie({required faceCount, String? dieId, String? name}) {
+    _dieId = dieId ?? Uuid().v4();
+    _name = name;
+    state.currentFaceValue = 1;
+    state.currentFaceIndex = 0;
+    _faceCount = faceCount;
+  }
+
+  @override
+  String get dieId => _dieId;
+
+  void setRollState(DiceRollState rs) {
+    state.rollState = rs.index;
+    if (rs == DiceRollState.rolled || rs == DiceRollState.onFace) {
+      state.currentFaceIndex = rand.nextInt(faceCount);
+      state.currentFaceValue = state.currentFaceIndex! + 1;
     }
-    return result;
-  }
-}
-
-abstract class RxMessage extends Message {
-  RxMessage({required this.buffer, required super.id});
-
-  final List<int> buffer;
-}
-
-abstract class TxMessage extends Message {
-  TxMessage({required super.id});
-
-  List<int> toBuffer();
-}
-
-abstract class Blinker extends TxMessage with Color255 {
-  Blinker({required super.id});
-
-  int getCount();
-
-  Duration getOnDuration();
-
-  Duration getOffDuration();
-}
-
-mixin Color255 {
-  Color getColor();
-
-  int r255() {
-    return (getColor().r * getColor().a * 255).toInt();
+    _runRollCallbacks(rs);
   }
 
-  int g255() {
-    return (getColor().g * getColor().a * 255).toInt();
+  void _runRollCallbacks(DiceRollState rs) {
+    if (rollCallbacks.containsKey(rs)) {
+      for (Function(DiceRollState) func in (rollCallbacks[rs]?.values ?? [])) {
+        func(rs);
+      }
+    }
   }
 
-  int b255() {
-    return (getColor().b * getColor().a * 255).toInt();
-  }
+  @override
+  Future<void> _init() async {}
 
-  int a255() {
-    return (getColor().a * 255).toInt();
-  }
+  @override
+  String get friendlyName => _name ?? dieId;
+
+  @override
+  int get faceCount => _faceCount;
 }

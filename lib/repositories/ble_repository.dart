@@ -84,6 +84,24 @@ class BleRepository {
     await fbp.FlutterBluePlus.stopScan();
   }
 
+  // Disconnect a specific device
+  Future<void> disconnectDevice(String deviceId) async {
+    if (_discoveredBleDevices.containsKey(deviceId)) {
+      await _discoveredBleDevices[deviceId]!.disconnect();
+      _discoveredBleDevices.remove(deviceId);
+      _bleDeviceSubscription.add(_discoveredBleDevices);
+    }
+  }
+
+  // Disconnect all devices
+  Future<void> disconnectAllDevices() async {
+    for (var device in List.of(_discoveredBleDevices.values)) {
+      await device.disconnect();
+    }
+    _discoveredBleDevices.clear();
+    _bleDeviceSubscription.add(_discoveredBleDevices);
+  }
+
   void dispose() {
     stopScan();
     _bleDeviceSubscription.close();

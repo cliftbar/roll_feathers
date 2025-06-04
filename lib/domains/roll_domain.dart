@@ -39,23 +39,24 @@ class RollDomain {
 
   List<RollResult> get rollHistory => _rollHistory;
   bool _isRolling = false;
-  final Map<String, GenericBleDie> _rollingDie = {};
+  final Map<String, GenericDie> _rolledDie = {};
   RollType rollType = RollType.sum;
+  bool autoRollVirtualDice = true;
 
-  final PixelDieDomain _rollFeathersController;
-  late StreamSubscription<Map<String, GenericBleDie>> _deviceStreamListener; // used for notifications, better way?
+  final DieDomain _diceDomain;
+  late StreamSubscription<Map<String, GenericDie>> _deviceStreamListener; // used for notifications, better way?
   final Map<String, Color> blinkColors = {};
 
   Timer? _rollUpdateTimer;
 
-  RollDomain._(this._rollFeathersController) {
-    _deviceStreamListener = _rollFeathersController.getDeviceStream().listen(rollStreamListener);
+  RollDomain._(this._diceDomain) {
+    _deviceStreamListener = _diceDomain.getDiceStream().listen(rollStreamListener);
   }
 
   Stream<List<RollResult>> subscribeRollResults() => _rollResultStream.stream;
   Stream<RollStatus> subscribeRollStatus() => _rollStatusStream.stream;
 
-  static Future<RollDomain> create(PixelDieDomain rfController) async {
+  static Future<RollDomain> create(DieDomain rfController) async {
     return RollDomain._(rfController);
   }
 
@@ -71,7 +72,7 @@ class RollDomain {
     }
   }
 
-  bool areDieRolling(List<GenericBleDie> allDie) {
+  bool areDieRolling(List<GenericDie> allDie) {
     return allDie.every(
       (d) => d.state.rollState == DiceRollState.rolled.index || d.state.rollState == DiceRollState.onFace.index,
     );
@@ -79,7 +80,7 @@ class RollDomain {
 
   void _startRolling() {
     // reset roll state as needed
-    _rollingDie.clear();
+    _rolledDie.clear();
     _rollUpdateTimer?.cancel();
 
     _isRolling = true;
@@ -107,30 +108,30 @@ class RollDomain {
     late int rollRet;
     switch (rollType) {
       case RollType.max:
-        var maxRoll = _rollingDie.entries.reduce(
+        var maxRoll = _rolledDie.entries.reduce(
           (v, e) => v.value.getFaceValueOrElse() >= e.value.getFaceValueOrElse() ? v : e,
         );
         if (advBlink != null) {
-          _rollFeathersController.blink(advBlink, maxRoll.value);
+          _diceDomain.blink(advBlink, maxRoll.value);
         }
         rollRet = maxRoll.value.getFaceValueOrElse();
       case RollType.min:
-        var minRoll = _rollingDie.entries.reduce(
+        var minRoll = _rolledDie.entries.reduce(
           (v, e) => v.value.getFaceValueOrElse() <= e.value.getFaceValueOrElse() ? v : e,
         );
         if (disAdvBlink != null) {
-          _rollFeathersController.blink(disAdvBlink, minRoll.value);
+          _diceDomain.blink(disAdvBlink, minRoll.value);
         }
         rollRet = minRoll.value.getFaceValueOrElse();
       default:
-        for (var die in _rollingDie.values) {
-          _rollFeathersController.blink(blinkColors[die.deviceId] ?? blue, die);
+        for (var die in _rolledDie.values) {
+          _diceDomain.blink(blinkColors[die.dieId] ?? blue, die);
         }
         rollRet = _rollTotal();
     }
     var result = RollResult(
       rollType: rollType,
-      rolls: _rollingDie.values.map((d) => d.getFaceValueOrElse()).toList(),
+      rolls: _rolledDie.values.map((d) => d.getFaceValueOrElse()).toList(),
       rollResult: rollRet,
     );
     _rollHistory.insert(0, result);
@@ -140,27 +141,48 @@ class RollDomain {
   }
 
   int _rollTotal() {
-    return _rollingDie.values.map((d) => d.getFaceValueOrElse(orElse: 0)).fold(0, (p, c) => p + c);
+    return _rolledDie.values.map((d) => d.getFaceValueOrElse(orElse: 0)).fold(0, (p, c) => p + c);
+  }
+
+  void _rollStartVirtualDice() {
+    if (!autoRollVirtualDice) {
+      return;
+    }
+    _diceDomain.getVirtualDice().forEach((vd) => vd.setRollState(DiceRollState.rolling));
+  }
+
+  void _rollEndVirtualDie() {
+    if (!autoRollVirtualDice) {
+      return;
+    }
+
+    _diceDomain.getVirtualDice().forEach((vd) {
+      vd.setRollState(DiceRollState.rolled);
+      _rolledDie[vd.dieId] = vd;
+    });
   }
 
   // attach listeners to die
-  void rollStreamListener(Map<String, GenericBleDie> data) {
-    for (var die in data.values) {
+  void rollStreamListener(Map<String, GenericDie> data) {
+    // TODO: something broken here for virtual dice
+    for (var die in data.values.where((d) => d.type != GenericDieType.virtual)) {
+      die.addRollCallback(DiceRollState.rolling, "$hashCode.rolling", (DiceRollState rollState) {
+        // die has started rolling, initiate roll if its not already going
+        if (!_isRolling) {
+          _rollStartVirtualDice();
+          _startRolling();
+        }
+      });
+
       die.addRollCallback(DiceRollState.rolled, "$hashCode.rolled", (DiceRollState rollState) {
-        bool allDiceRolled = areDieRolling(data.values.toList());
-        _rollingDie[die.device.remoteId.str] = die;
+        bool allDiceRolled = areDieRolling(data.values.where((d) => d.type != GenericDieType.virtual).toList());
+        _rolledDie[die.dieId] = die;
+        _rollEndVirtualDie();
 
         if (allDiceRolled && _isRolling) {
           // roll is active but all dice are done rolling
           _stopRolling();
           _stopRollWithResult(rollType: rollType, totalColors: blinkColors);
-        }
-      });
-
-      die.addRollCallback(DiceRollState.rolling, "$hashCode.rolling", (DiceRollState rollState) {
-        // die has started rolling, initiate roll if its not already going
-        if (!_isRolling) {
-          _startRolling();
         }
       });
     }
@@ -169,5 +191,18 @@ class RollDomain {
   void clearRollResults() {
     _rollHistory.clear();
     _rollResultStream.add(_rollHistory);
+  }
+
+  void rollAllVirtualDice() {
+    // Start the rolling process
+    _startRolling();
+    _rollStartVirtualDice();
+
+    // Use a timer to simulate the rolling animation
+    Timer(const Duration(milliseconds: 500), () {
+      _rollEndVirtualDie();
+      _stopRolling();
+      _stopRollWithResult(rollType: rollType, totalColors: blinkColors);
+    });
   }
 }

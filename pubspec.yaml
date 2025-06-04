@@ -48,6 +48,8 @@ dependencies:
   shelf_router: ^1.1.4
   shelf_routing: ^0.1.0
   collection: ^1.19.1
+  uuid: ^4.5.1
+  open_settings_plus: ^0.4.0
 
 dev_dependencies:
   flutter_test:

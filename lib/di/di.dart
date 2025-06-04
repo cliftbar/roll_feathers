@@ -20,7 +20,7 @@ class DiWrapper {
   final AppRepository appRepository;
 
   final BleRepository bleRepository;
-  final PixelDieDomain rfController;
+  final DieDomain rfController;
   final RollDomain rollDomain;
   final ApiDomain apiDomain;
 
@@ -41,7 +41,7 @@ class DiWrapper {
     // Run ble init and scan in background
     bleRepo.init().whenComplete(() => bleRepo.scan(services: [pixelsService, godiceServiceGuid]));
 
-    var rfController = PixelDieDomain(bleRepo, haRepository);
+    var rfController = DieDomain(bleRepo, haRepository);
 
     var rollDomain = await RollDomain.create(rfController);
     late ApiDomain apiDomain;

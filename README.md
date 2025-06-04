@@ -7,12 +7,16 @@ Companion app for [Pixel Dice](https://github.com/GameWithPixels).
 - Track roll history
 - Roll with Advantage & Disadvantage
 - Blink Dice on roll
-- Home Assistant Light integration for Blinks
+- Home Assistant Light integration
 - API to get rolls
 
-- cross platform
+- Support
+  - Pixel Dice
+  - GoDice
+- cross-platform
   - Android
   - iOS
   - MacOs
   - Windows
   - Linux
+  - Web (Chromium)

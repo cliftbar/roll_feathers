@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 
+import 'message_sdk.dart';
+
 Guid godiceServiceGuid = Guid("6e400001-b5a3-f393-e0a9-e50e24dcca9e");
 Guid godiceWriteCharacteristic = Guid("6e400002-b5a3-f393-e0a9-e50e24dcca9e");
 Guid godiceNotifyCharacteristic = Guid("6e400003-b5a3-f393-e0a9-e50e24dcca9e");

@@ -1,7 +1,3 @@
-// File: lib/ui/widgets/app_settings_widget.dart
-
-import 'dart:io' show Platform;
-
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
@@ -10,26 +6,108 @@ import 'dice_screen_vm.dart';
 /// A widget that displays application-level settings including Bluetooth settings.
 /// This widget can be included in screens that need to display app settings.
 class AppSettingsWidget extends StatelessWidget {
-  const AppSettingsWidget({
-    super.key,
-    this.onBluetoothToggled,
-    this.isBluetoothEnabled = false,
-    this.onOpenBluetoothSettings, // do this more correctly
-    required this.ips,
-    required this.parentVm,
-  });
+  const AppSettingsWidget({super.key, required this.ips, required this.parentVm});
 
   final List<String> ips;
   final DiceScreenViewModel parentVm;
 
-  /// Callback when Bluetooth is toggled
-  final Function(bool)? onBluetoothToggled;
+  void _showHomeAssistantSettings(BuildContext context, DiceScreenViewModel vm) async {
+    var haConfig = vm.getHaConfig();
+    final urlController = TextEditingController(text: haConfig.url);
+    final tokenController = TextEditingController(text: haConfig.token);
+    final entityController = TextEditingController(text: haConfig.entity);
+    bool isEnabled = haConfig.enabled;
+    bool webDisabled = kIsWeb && !isEnabled;
 
-  /// Current Bluetooth state
-  final bool isBluetoothEnabled;
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          // Use StatefulBuilder to manage toggle state
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Home Assistant Settings${webDisabled ? "\nDisabled On Web " : ""}'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SwitchListTile(
+                      title: const Text('Enable Home Assistant'),
+                      value: isEnabled,
+                      onChanged:
+                          webDisabled
+                              ? null
+                              : (bool value) {
+                                setState(() {
+                                  isEnabled = value;
+                                });
+                              },
+                    ),
+                    const Divider(),
+                    TextField(
+                      controller: urlController,
+                      enabled: isEnabled,
+                      decoration: const InputDecoration(
+                        labelText: 'Home Assistant URL',
+                        hintText: 'http://homeassistant.local:8123',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: tokenController,
+                      enabled: isEnabled,
+                      decoration: const InputDecoration(labelText: 'Long-Lived Access Token'),
+                      obscureText: true,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: entityController,
+                      enabled: isEnabled,
+                      decoration: const InputDecoration(labelText: 'Light Entity ID', hintText: 'light.game_room'),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+                TextButton(
+                  child: const Text('Save'),
+                  onPressed: () {
+                    vm.setHaConfig.execute(isEnabled, urlController.text, tokenController.text, entityController.text);
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 
-  /// Callback to open system Bluetooth settings
-  final VoidCallback? onOpenBluetoothSettings;
+  ListenableBuilder _makeBleScanButton(DiceScreenViewModel parentVm) {
+    return ListenableBuilder(
+      listenable: parentVm,
+      builder: (context, _) {
+        return ListTile(
+          onTap:
+              parentVm.bleIsEnabled()
+                  ? () {
+                    parentVm.startBleScan.execute();
+                  }
+                  : null,
+          title: parentVm.bleIsEnabled() ? Text(kIsWeb ? "Pair Die" : "Scan") : Text("BLE Disabled"),
+          leading:
+              parentVm.bleIsEnabled() ? const Icon(Icons.bluetooth_searching) : const Icon(Icons.bluetooth_disabled),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +121,21 @@ class AppSettingsWidget extends StatelessWidget {
           children: [
             const Text('Application Settings', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-
+            // Theme toggle
+            ListenableBuilder(
+              listenable: parentVm,
+              builder: (context, _) {
+                return ListTile(
+                  leading: Icon(parentVm.themeMode == ThemeMode.light ? Icons.dark_mode : Icons.light_mode),
+                  title: Text(parentVm.themeMode == ThemeMode.light ? 'Dark Mode' : 'Light Mode'),
+                  onTap: () {
+                    parentVm.toggleTheme.execute();
+                    Navigator.pop(context);
+                  },
+                );
+              },
+            ),
+            const Divider(),
             // Bluetooth settings section
             // const Text(
             //   'Connectivity',
@@ -70,7 +162,11 @@ class AppSettingsWidget extends StatelessWidget {
               builder: (context, _) {
                 return ListTile(
                   title: Text(
-                    'Bluetooth: ${parentVm.bleIsEnabled() ? kIsWeb ? "supported" : "enabled" : "disabled${kIsWeb ? "\nBLE only supported in Chrome" : ""}"}',
+                    'Bluetooth: ${parentVm.bleIsEnabled()
+                        ? kIsWeb
+                            ? "supported"
+                            : "enabled"
+                        : "disabled${kIsWeb ? "\nBLE only supported in Chrome" : ""}"}',
                     // 'Bluetooth: ${parentVm.bleIsEnabled() ? "enabled" : "disabled${kIsWeb ? "\nBLE only supported in Chrome" : ""}"}',
                   ),
                   // trailing: Text(bleEnabled ? "enabled" : kIsWeb ? "BLE only supported on Chrome" : "disabled"),
@@ -82,9 +178,20 @@ class AppSettingsWidget extends StatelessWidget {
                 );
               },
             ),
-
+            _makeBleScanButton(parentVm),
             ListTile(
-              title: const Text('IPs'),
+              onTap:
+                  parentVm.bleIsEnabled()
+                      ? () {
+                        parentVm.disconnectAllNonVirtualDice.execute();
+                      }
+                      : null,
+              title: const Text("Disconnect Dice"),
+              leading: const Icon(Icons.bluetooth_disabled),
+            ),
+            const Divider(),
+            ListTile(
+              title: const Text('API IPs'),
               trailing: Text(ips.join("\n")),
               leading: const Icon(Icons.info_outline),
               enabled: ips.isNotEmpty,
@@ -92,60 +199,23 @@ class AppSettingsWidget extends StatelessWidget {
                 // About screen navigation would be handled by the ViewModel
               },
             ),
+            const Divider(),
+            ListenableBuilder(
+              listenable: parentVm,
+              builder: (context, _) {
+                return ListTile(
+                  leading: const Icon(Icons.home),
+                  title: Text('Home Assistant Settings'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showHomeAssistantSettings(context, parentVm);
+                  },
+                );
+              },
+            ),
           ],
         ),
       ),
-    );
-  }
-
-  /// Builds the appropriate Bluetooth setting widget based on platform
-  Widget _buildPlatformSpecificBluetoothSetting() {
-    // For web, we'll show a message that Bluetooth might not be available
-    if (kIsWeb) {
-      return ListTile(
-        title: const Text('Bluetooth'),
-        subtitle: const Text('Bluetooth access may be limited in web browsers'),
-        leading: const Icon(Icons.bluetooth_disabled, color: Colors.grey),
-      );
-    }
-
-    // For iOS, macOS, and other platforms where direct toggle isn't appropriate
-    if (Platform.isIOS || Platform.isMacOS) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ElevatedButton(
-            onPressed: () {
-              print('Opening Bluetooth settings');
-              onOpenBluetoothSettings?.call();
-            },
-            child: const Text('Open Bluetooth Settings'),
-          ), // ListTile(
-          //   title: const Text('Bluetooth'),
-          //   subtitle:
-          //   leading: Icon(
-          //     Icons.bluetooth,
-          //     color: isBluetoothEnabled ? Colors.blue : Colors.grey,
-          //   ),
-          // ),
-          // Padding(
-          //   padding: const EdgeInsets.only(left: 72.0, right: 16.0, bottom: 16.0),
-          //   child: ElevatedButton(
-          //     onPressed: onOpenBluetoothSettings,
-          //     child: const Text('Open System Settings'),
-          //   ),
-          // ),
-        ],
-      );
-    }
-
-    // For Android and other platforms that support direct Bluetooth toggle
-    return SwitchListTile(
-      title: const Text('Bluetooth'),
-      subtitle: Text(isBluetoothEnabled ? 'On' : 'Off'),
-      value: isBluetoothEnabled,
-      onChanged: onBluetoothToggled,
-      secondary: Icon(Icons.bluetooth, color: isBluetoothEnabled ? Colors.blue : Colors.grey),
     );
   }
 }

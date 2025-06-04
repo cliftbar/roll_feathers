@@ -17,7 +17,9 @@ jobs:  # Telling what jobs we need to happen
       - run: flutter pub get
       - run: flutter test
       - run: flutter build apk --release
+        if: github.ref_type == 'tag'
       - run: flutter build appbundle --release
+        if: github.ref_type == 'tag'
       - name: Release
         uses: softprops/action-gh-release@v2
         if: github.ref_type == 'tag'

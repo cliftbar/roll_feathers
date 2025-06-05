@@ -57,12 +57,7 @@ jobs:  # Telling what jobs we need to happen
           cache: 'true'
           cache-key: "flutter-:channel:-:version:-:hash:"
           flutter-version-file: pubspec.yaml # path to pubspec.yaml
-      - name: create-dmg install
-        run: |
-          echo "Install create-dmg"
-          brew install create-dmg
       - run: flutter pub get
-      - run: flutter test
       - run: flutter build windows --release
       - run: dart run inno_bundle:build  --release
       - name: Update release

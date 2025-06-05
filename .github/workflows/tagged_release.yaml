@@ -7,8 +7,8 @@ on:
       - '*'
 
 jobs:  # Telling what jobs we need to happen
-  build:      # Specify the building name and machine
-    name: Build & Release  # you can name the build whatever you want
+  build-macos-mobile:      # Specify the building name and machine
+    name: Build & Release macOs & mobile  # you can name the build whatever you want
     runs-on: macos-latest # here we selected macos-latest to be able to get ios build
     steps:
       - name: Clone repository
@@ -25,18 +25,55 @@ jobs:  # Telling what jobs we need to happen
       - run: flutter pub get
       - run: flutter test
       - run: flutter build apk --release
-        if: github.ref_type == 'tag'
       - run: flutter build appbundle --release
-        if: github.ref_type == 'tag'
       - run: flutter build macos --release
-        if: github.ref_type == 'tag'
-      - run: create-dmg --hdiutil-quiet --window-size 400 200 --icon-size 100 --icon "roll_feathers.app" 50 50 --app-drop-link 200 50 rollFeathersInstaller-${{ github.ref_name }}-release.dmg /build/macos/Build/Products/Release/roll_feathers.app
+      - run: create-dmg --hdiutil-quiet --window-size 400 200 --icon-size 100 --icon "roll_feathers.app" 50 50 --app-drop-link 200 50 rollFeathersInstaller-${{ github.ref_name }}-release.dmg build/macos/Build/Products/Release/roll_feathers.app
       - name: Release
         uses: softprops/action-gh-release@v2
-        if: github.ref_type == 'tag'
         with:
           prerelease: true
           files: |
             build/app/outputs/apk/release/roll_feathers-${{ github.ref_name }}-release.apk
             build/app/outputs/bundle/release/roll_feathers-${{ github.ref_name }}-release.aab
             rollFeathersInstaller-${{ github.ref_name }}-release.dmg
+
+
+#  build-windows:
+#    needs: build-macos-mobile
+#    name: Build and Release Windows
+#    runs-on: windows-latest
+#    steps:
+#      - name: Clone repository
+#        uses: actions/checkout@v4
+#      - name: Set up Flutter
+#        uses: subosito/flutter-action@v2
+#        with:
+#          channel: stable
+#          flutter-version-file: pubspec.yaml # path to pubspec.yaml
+#      - name: create-dmg install
+#        run: |
+#          echo "Install create-dmg"
+#          brew install create-dmg
+#      - run: flutter pub get
+#      - run: flutter test
+#      - run: flutter build windows --release
+#
+#  build-linux:
+#    needs: build-macos-mobile
+#    name: Build and Release Linux
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Clone repository
+#        uses: actions/checkout@v4
+#      - name: Set up Flutter
+#        uses: subosito/flutter-action@v2
+#        with:
+#          channel: stable
+#          flutter-version-file: pubspec.yaml # path to pubspec.yaml
+#      - name: create-dmg install
+#        run: |
+#          echo "Install create-dmg"
+#          brew install create-dmg
+#      - run: flutter pub get
+#      - run: flutter test
+#      - run: flutter build windows --release

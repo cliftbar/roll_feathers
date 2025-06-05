@@ -43,25 +43,33 @@ jobs:  # Telling what jobs we need to happen
             rollFeathersInstaller-${{ github.ref_name }}-release.dmg
 
 
-#  build-windows:
-#    needs: build-macos-mobile
-#    name: Build and Release Windows
-#    runs-on: windows-latest
-#    steps:
-#      - name: Clone repository
-#        uses: actions/checkout@v4
-#      - name: Set up Flutter
-#        uses: subosito/flutter-action@v2
-#        with:
-#          channel: stable
-#          flutter-version-file: pubspec.yaml # path to pubspec.yaml
-#      - name: create-dmg install
-#        run: |
-#          echo "Install create-dmg"
-#          brew install create-dmg
-#      - run: flutter pub get
-#      - run: flutter test
-#      - run: flutter build windows --release
+  build-windows:
+    needs: build-macos-mobile
+    name: Build and Release Windows
+    runs-on: windows-latest
+    steps:
+      - name: Clone repository
+        uses: actions/checkout@v4
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: 'true'
+          cache-key: "flutter-:channel:-:version:-:hash:"
+          flutter-version-file: pubspec.yaml # path to pubspec.yaml
+      - name: create-dmg install
+        run: |
+          echo "Install create-dmg"
+          brew install create-dmg
+      - run: flutter pub get
+      - run: flutter test
+      - run: flutter build windows --release
+      - run: dart run inno_bundle:build  --release
+      - name: Update release
+        run: |
+          Compress-Archive -Path  build\windows\x64\runner\Release\* -Destination rollFeathers-${{github.ref_name}}.zip
+          gh release upload ${{ github.ref_name }} rollFeathers-${{github.ref_name}}.zip
+          gh release upload ${{ github.ref_name }} build\windows\x64\installer\Release\RollFeathers-x86_64-${{ github.ref_name }}-Installer.exe
 #
 #  build-linux:
 #    needs: build-macos-mobile

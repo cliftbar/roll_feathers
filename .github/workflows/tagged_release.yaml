@@ -6,6 +6,9 @@ on:
     tags:
       - '*'
 
+permissions:
+  contents: write
+
 jobs:  # Telling what jobs we need to happen
   build-macos-mobile:      # Specify the building name and machine
     name: Build & Release macOs & mobile  # you can name the build whatever you want

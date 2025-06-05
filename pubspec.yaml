@@ -3,6 +3,7 @@ description: "Smart dice companion app"
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+homepage: https://git.cliftbar.site/cliftbar/roll_feathers
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -16,7 +17,20 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 0.5.10
+version: 0.5.11
+#msix_config:
+#  display_name: Roll Feathers
+#  publisher_display_name: Cliftbar
+#  identity_name: site.cliftbar.roll-feathers
+#  msix_version: 0.5.10.0
+#  capabilities: internetClientServer, privateNetworkClientServer, bluetooth, radios
+#  debug: false
+inno_bundle:
+  id: 8C60A441-1A83-4F28-989E-0C7814CB035E
+  publisher: cliftbar
+  admin: auto
+  vc_redist: true
+  name: Roll Feathers
 
 environment:
   sdk: ^3.7.2
@@ -36,7 +50,9 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   bluetooth_low_energy: ^6.0.2
-  flutter_blue_plus: ^1.35.5
+  # pin fbp for windows support
+  flutter_blue_plus:
+    version: ^1.34.0
   color: ^3.0.0
   home_assistant: ^1.0.1
   flutter_dotenv: ^5.2.1
@@ -51,6 +67,7 @@ dependencies:
   collection: ^1.19.1
   uuid: ^4.5.1
   open_settings_plus: ^0.4.0
+  flutter_blue_plus_windows: ^1.25.2
 
 dev_dependencies:
   flutter_test:
@@ -62,6 +79,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  msix: ^3.16.9
+  inno_bundle: ^0.9.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

@@ -1,41 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fbp;
+import 'package:flutter_blue_plus_windows/flutter_blue_plus_windows.dart' as fbp;
+// import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fbp;
 import 'package:logging/logging.dart';
+import 'package:roll_feathers/repositories/ble_repository.dart';
 
-class BluetoothNotSupported extends fbp.FlutterBluePlusException {
-  BluetoothNotSupported(super.platform, super.function, super.code, super.description);
-}
-
-
-abstract class BleRepository {
-  Map<String, fbp.BluetoothDevice> get discoveredBleDevices;
-  bool initialized = false;
-  bool supported = false;
-
-  Stream<Map<String, fbp.BluetoothDevice>> subscribeBleDevices();
-  Stream<bool> subscribeBleEnabled();
-
-  Future<void> init();
-
-  Future<bool> isSupported();
-
-  Future<void> _connect({Duration timeout = const Duration(seconds: 3)});
-
-  Future<void> scan({List<fbp.Guid>? services, Duration? timeout = const Duration(seconds: 5)});
-  // Stop scanning for devices
-  Future<void> stopScan();
-
-  // Disconnect a specific device
-  Future<void> disconnectDevice(String deviceId);
-
-  // Disconnect all devices
-  Future<void> disconnectAllDevices();
-
-  void dispose();
-}
-
-class BleCrossRepository implements BleRepository {
+class BleWindowsRepository implements BleRepository {
   final _log = Logger("BleRepository");
 
   final Map<String, fbp.BluetoothDevice> _discoveredBleDevices = {};
@@ -48,6 +18,7 @@ class BleCrossRepository implements BleRepository {
   @override
   bool supported = false;
 
+  @override
   Stream<Map<String, fbp.BluetoothDevice>> subscribeBleDevices() => _bleDeviceSubscription.stream;
   @override
   Stream<bool> subscribeBleEnabled() => _bleEnabledSubscription.stream;
@@ -91,7 +62,7 @@ class BleCrossRepository implements BleRepository {
       return;
     }
     _log.info("ble scan start");
-    var scanSub = fbp.FlutterBluePlus.onScanResults.listen((srs) async {
+    var scanSub = fbp.FlutterBluePlus.scanResults.listen((srs) async {
       for (var sr in srs) {
         await sr.device.connect();
         sr.device.connectionState.listen((state) {

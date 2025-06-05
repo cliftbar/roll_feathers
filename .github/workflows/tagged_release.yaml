@@ -21,7 +21,7 @@ jobs:  # Telling what jobs we need to happen
         with:
           channel: stable
           cache: 'true'
-          cache-key: "flutter-:channel:-:version:-:hash:"
+          cache-key: "flutter-:os:-:channel:-:version:"
           flutter-version-file: pubspec.yaml # path to pubspec.yaml
       - name: create-dmg install
         run: |
@@ -55,7 +55,7 @@ jobs:  # Telling what jobs we need to happen
         with:
           channel: stable
           cache: 'true'
-          cache-key: "flutter-:channel:-:version:-:hash:"
+          cache-key: "flutter-:os:-:channel:-:version:"
           flutter-version-file: pubspec.yaml # path to pubspec.yaml
       - run: flutter pub get
       - run: flutter build windows --release

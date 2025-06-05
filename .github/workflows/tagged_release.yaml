@@ -20,8 +20,6 @@ jobs:  # Telling what jobs we need to happen
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          cache: 'true'
-          cache-key: "flutter-:os:-:channel:-:version:"
           flutter-version-file: pubspec.yaml # path to pubspec.yaml
       - name: create-dmg install
         run: |
@@ -42,7 +40,6 @@ jobs:  # Telling what jobs we need to happen
             build/app/outputs/bundle/release/roll_feathers-${{ github.ref_name }}-release.aab
             rollFeathersInstaller-${{ github.ref_name }}-release.dmg
 
-
   build-windows:
     needs: build-macos-mobile
     name: Build and Release Windows
@@ -54,13 +51,13 @@ jobs:  # Telling what jobs we need to happen
         uses: subosito/flutter-action@v2
         with:
           channel: stable
-          cache: 'true'
-          cache-key: "flutter-:os:-:channel:-:version:"
           flutter-version-file: pubspec.yaml # path to pubspec.yaml
       - run: flutter pub get
       - run: flutter build windows --release
       - run: dart run inno_bundle:build  --release
       - name: Update release
+        env:
+          GITHUB_TOKEN: ${{ github.TOKEN }}
         run: |
           Compress-Archive -Path  build\windows\x64\runner\Release\* -Destination rollFeathers-${{github.ref_name}}.zip
           gh release upload ${{ github.ref_name }} rollFeathers-${{github.ref_name}}.zip

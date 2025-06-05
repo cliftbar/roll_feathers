@@ -20,6 +20,8 @@ jobs:  # Telling what jobs we need to happen
         uses: subosito/flutter-action@v2
         with:
           channel: stable
+          cache: 'true'
+          cache-key: "flutter-:channel:-:version:-:hash:"
           flutter-version-file: pubspec.yaml # path to pubspec.yaml
       - name: create-dmg install
         run: |

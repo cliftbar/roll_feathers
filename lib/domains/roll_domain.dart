@@ -144,15 +144,15 @@ class RollDomain {
     return _rolledDie.values.map((d) => d.getFaceValueOrElse(orElse: 0)).fold(0, (p, c) => p + c);
   }
 
-  void _rollStartVirtualDice() {
-    if (!autoRollVirtualDice) {
+  void _rollStartVirtualDice({bool force = false}) {
+    if (!autoRollVirtualDice && !force) {
       return;
     }
     _diceDomain.getVirtualDice().forEach((vd) => vd.setRollState(DiceRollState.rolling));
   }
 
-  void _rollEndVirtualDie() {
-    if (!autoRollVirtualDice) {
+  void _rollEndVirtualDie({bool force = false}) {
+    if (!autoRollVirtualDice && !force) {
       return;
     }
 
@@ -193,14 +193,14 @@ class RollDomain {
     _rollResultStream.add(_rollHistory);
   }
 
-  void rollAllVirtualDice() {
+  void rollAllVirtualDice({bool force = false}) {
     // Start the rolling process
     _startRolling();
-    _rollStartVirtualDice();
+    _rollStartVirtualDice(force: force);
 
     // Use a timer to simulate the rolling animation
     Timer(const Duration(milliseconds: 500), () {
-      _rollEndVirtualDie();
+      _rollEndVirtualDie(force: force);
       _stopRolling();
       _stopRollWithResult(rollType: rollType, totalColors: blinkColors);
     });

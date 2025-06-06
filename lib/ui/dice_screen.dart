@@ -135,7 +135,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                         ),
                         TextButton.icon(
                           onPressed: () {
-                            widget.viewModel.rollAllVirtualDice.execute();
+                            widget.viewModel.rollAllVirtualDice.execute(true);
                           },
                           label: const Text("Roll"),
                           icon: const Icon(Icons.refresh),

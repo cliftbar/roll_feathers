@@ -40,7 +40,7 @@ class DiceScreenViewModel extends ChangeNotifier {
   late Command1<void, bool> setWithVirtualDice;
   late StreamSubscription<List<RollResult>> _rollResultsSubscription;
   late StreamSubscription<RollStatus> _rollStatusSubscription;
-  late Command0<void> rollAllVirtualDice;
+  late Command1<void, bool> rollAllVirtualDice;
 
   // die control settings
   late Command3<void, Color, GenericDie, String?> blink;
@@ -83,7 +83,7 @@ class DiceScreenViewModel extends ChangeNotifier {
     clearRollResultHistory = Command0(_clearRollResultHistory);
     setRollType = Command1(_setRollType);
     setWithVirtualDice = Command1(_setWithVirtualDice);
-    rollAllVirtualDice = Command0(_rollAllVirtualDice);
+    rollAllVirtualDice = Command1(_rollAllVirtualDice);
     _rollResultsSubscription = _diWrapper.rollDomain.subscribeRollResults().listen((rollResult) {
       notifyListeners();
     });
@@ -215,8 +215,8 @@ class DiceScreenViewModel extends ChangeNotifier {
     return Result.value(null);
   }
 
-  Future<Result<void>> _rollAllVirtualDice() async {
-    _diWrapper.rollDomain.rollAllVirtualDice();
+  Future<Result<void>> _rollAllVirtualDice(bool force) async {
+    _diWrapper.rollDomain.rollAllVirtualDice(force: force);
     return Result.value(null);
   }
 

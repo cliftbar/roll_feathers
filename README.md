@@ -2,6 +2,9 @@
 
 Companion app for Bluetooth enabled dice.
 
+**WARNING:** there will be constant breaking changes, and bad builds, for the foreseeable future.  Please report issues
+or requests.
+
 ## Features
 - Supported Dice
 - [Pixel Dice](https://gamewithpixels.com/)
@@ -11,12 +14,12 @@ Companion app for Bluetooth enabled dice.
 - Track roll history
 - Roll types
   - sum, max (advantage), min (disadvantage)
-  - Blink lowest or highest die when rolling max or min
+  - Blink the lowest or highest die when rolling max or min
 - Blink Dice on roll
   - choose blink color
 - Home Assistant light integration
   - Not available on web
-- API to get latest roll
+- API to get the latest roll
   - GET http://<device-ip>:8080/api/last-roll
   - Not available on web
   
@@ -29,10 +32,10 @@ Companion app for Bluetooth enabled dice.
   - [ ] Linux
     - build from source
   - [x] Web
-    - Chromium based browsers
+    - Chromium-based browsers
 
 ## Install
-All installers are currently unsigned, meaning you'll have to click past various security warning to install the app.
+All installers are currently unsigned, meaning you'll have to click past various security warnings to install the app.
 
 ### Android
 - download apk or appbundle
@@ -48,7 +51,7 @@ All installers are currently unsigned, meaning you'll have to click past various
 - drag the roll feathers app into the application folder
 - close and eject the dmg
 - open the roll feathers app from the applications folder, there will be a security warning
-- go to Settings -> Privacy & Security -> Security
+- go to Settings → Privacy & Security → Security
   - there should be a button to open roll feathers anyway
   - Open anyway
 - allow bluetooth permission when prompted

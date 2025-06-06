@@ -3,12 +3,12 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:logging/logging.dart';
-import 'package:roll_feathers/dice_sdks/godice.dart' as godice;
-import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
 import 'package:uuid/uuid.dart';
 
+import '../dice_sdks/godice.dart' as godice;
+import '../dice_sdks/pixels.dart' as pix;
+import '../repositories/ble/ble_repository.dart';
 import 'message_sdk.dart';
 
 class MessageParseError extends IOException {
@@ -95,16 +95,14 @@ abstract class GenericDie {
 }
 
 abstract class GenericBleDie extends GenericDie {
-  BluetoothDevice device;
-  BluetoothCharacteristic? _writeChar;
-  BluetoothCharacteristic? _notifyChar;
+  BleDeviceWrapper device;
 
-  static Future<GenericBleDie> fromDevice(BluetoothDevice device) async {
+  static Future<GenericBleDie> fromDevice(BleDeviceWrapper device) async {
     try {
-      await device.discoverServices();
+      await device.init();
       GenericBleDie die;
-      var serviceIds = device.servicesList.map((e) => e.serviceUuid);
-      var chars = device.servicesList.expand((s) => s.characteristics.map((c) => c.characteristicUuid));
+      List<String> serviceIds = device.servicesUuids;
+      List<String> chars = device.characteristicUuids;
       if (serviceIds.contains(pix.pixelsService) &&
           chars.contains(pix.pixelWriteCharacteristic) &&
           chars.contains(pix.pixelNotifyCharacteristic)) {
@@ -115,9 +113,8 @@ abstract class GenericBleDie extends GenericDie {
           chars.contains(godice.godiceNotifyCharacteristic)) {
         die = GoDiceBle(device: device);
         await die._init();
-        // (die as GoDiceBle)._init();
       } else {
-        throw Exception("not implemented");
+        throw Exception("Bluetooth Device Not Implemented");
       }
 
       await die._init();
@@ -135,7 +132,7 @@ abstract class GenericBleDie extends GenericDie {
 
   Future<void> _sendMessageBuffer(List<int> data) async {
     try {
-      await _writeChar?.write(data);
+      device.writeMessage(data);
     } catch (e) {
       throw Exception('Failed to send message: $e');
     }
@@ -145,7 +142,7 @@ abstract class GenericBleDie extends GenericDie {
     await _sendMessageBuffer(msg.toBuffer());
   }
 
-  // for overrides
+  // keeo for overrides!!
   void _readNotify(List<int> data);
 
   void addMessageCallback(int messageType, String callbackKey, Function(RxMessage) callback) {
@@ -153,7 +150,7 @@ abstract class GenericBleDie extends GenericDie {
   }
 
   @override
-  String get dieId => device.remoteId.str;
+  String get dieId => device.deviceId;
 
   @override
   String get friendlyName;
@@ -284,14 +281,12 @@ class GoDiceBle extends GenericBleDie {
 
   @override
   Future<void> _init() async {
-    _notifyChar?.onValueReceived.listen(_readNotify);
-    await device.discoverServices();
-
-    var service = device.servicesList.firstWhere((bs) => bs.serviceUuid == godice.godiceServiceGuid);
-    _writeChar = service.characteristics.firstWhere((c) => c.uuid == godice.godiceWriteCharacteristic);
-    _notifyChar = service.characteristics.firstWhere((c) => c.uuid == godice.godiceNotifyCharacteristic);
-
-    await _notifyChar?.setNotifyValue(true);
+    await device.setDeviceUuids(
+      serviceUuid: godice.godiceServiceGuid,
+      notifyUuid: godice.godiceNotifyCharacteristic,
+      writeUuid: godice.godiceWriteCharacteristic,
+    );
+    device.notifyStream.listen(_readNotify);
 
     _sendMessageBuffer(godice.MessageInit().toBuffer());
     _sendMessageBuffer(godice.MessageDiceColor().toBuffer());
@@ -401,19 +396,18 @@ class PixelDie extends GenericBleDie {
 
   @override
   Future<void> _init() async {
-    _notifyChar?.onValueReceived.listen(_readNotify);
-
-    var service = device.servicesList.firstWhere((bs) => bs.serviceUuid == pix.pixelsService);
-    _writeChar = service.characteristics.firstWhere((c) => c.uuid == pix.pixelWriteCharacteristic);
-    _notifyChar = service.characteristics.firstWhere((c) => c.uuid == pix.pixelNotifyCharacteristic);
-
-    await _notifyChar?.setNotifyValue(true);
-
+    await device.setDeviceUuids(
+      serviceUuid: pix.pixelsService,
+      notifyUuid: pix.pixelNotifyCharacteristic,
+      writeUuid: pix.pixelWriteCharacteristic,
+    );
+    device.notifyStream.listen(_readNotify);
+    await Future.delayed(Duration(milliseconds: 100)); // sleep needed on web??
     await _sendMessageBuffer(pix.MessageWhoAreYou().toBuffer());
   }
 
   @override
-  String get friendlyName => device.platformName;
+  String get friendlyName => device.friendlyName;
 
   @override
   int get faceCount => info?.pixelDieTypeFaces.faces ?? pix.PixelDieType.unknown.faces;

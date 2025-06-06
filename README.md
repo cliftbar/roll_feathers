@@ -17,7 +17,7 @@ Companion app for Bluetooth enabled dice.
 - Home Assistant light integration
   - Not available on web
 - API to get latest roll
-  - GET http://<device-ip>:/api/last-roll
+  - GET http://<device-ip>:8080/api/last-roll
   - Not available on web
   
 ## Platforms

@@ -2,13 +2,13 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart' as fbp;
-import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
-import 'package:roll_feathers/dice_sdks/godice.dart';
-import 'package:roll_feathers/dice_sdks/message_sdk.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart';
-import 'package:roll_feathers/repositories/ble_repository.dart';
-import 'package:roll_feathers/repositories/home_assistant_repository.dart';
+
+import '../dice_sdks/dice_sdks.dart';
+import '../dice_sdks/godice.dart';
+import '../dice_sdks/message_sdk.dart';
+import '../dice_sdks/pixels.dart';
+import '../repositories/ble/ble_repository.dart';
+import '../repositories/home_assistant_repository.dart';
 
 class DieDomain {
   final BleRepository _bleRepository;
@@ -37,9 +37,9 @@ class DieDomain {
     return res2;
   }
 
-  Future<Map<String, GenericDie>> asyncConvertToDie(Map<String, fbp.BluetoothDevice> data) async {
+  Future<Map<String, GenericDie>> asyncConvertToDie(Map<String, BleDeviceWrapper> data) async {
     for (var device in List.of(data.values)) {
-      if (!_foundDie.containsKey(device.remoteId.str)) {
+      if (!_foundDie.containsKey(device.deviceId)) {
         var pd = await GenericBleDie.fromDevice(device);
         _foundDie[pd.dieId] = pd;
       }

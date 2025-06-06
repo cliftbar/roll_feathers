@@ -43,22 +43,27 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
         child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            DrawerHeader(
+            Container(
               decoration: BoxDecoration(color: Colors.blue),
-              child: Text('Settings', style: TextStyle(color: Colors.white, fontSize: 24)),
+              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+              child: SafeArea(
+                bottom: false,
+                child: Text('Settings',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white))
+              ),
             ),
             AppSettingsWidget(ips: widget.viewModel.getIpAddress(), parentVm: widget.viewModel),
             // Why does this get notified, when the view model is the main screen view model?
             Card(
-              margin: const EdgeInsets.all(16.0),
+              margin: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('Dice Settings', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 16),
+                    Text('Dice', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white)),
+                    const SizedBox(height: 8),
                     SwitchListTile(
                       value: _rollVirtualDice,
                       onChanged: (bool value) {

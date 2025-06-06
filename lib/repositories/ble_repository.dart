@@ -20,8 +20,6 @@ abstract class BleRepository {
 
   Future<bool> isSupported();
 
-  Future<void> _connect({Duration timeout = const Duration(seconds: 3)});
-
   Future<void> scan({List<fbp.Guid>? services, Duration? timeout = const Duration(seconds: 5)});
   // Stop scanning for devices
   Future<void> stopScan();
@@ -48,9 +46,12 @@ class BleCrossRepository implements BleRepository {
   @override
   bool supported = false;
 
+  @override
   Stream<Map<String, fbp.BluetoothDevice>> subscribeBleDevices() => _bleDeviceSubscription.stream;
   @override
   Stream<bool> subscribeBleEnabled() => _bleEnabledSubscription.stream;
+
+  late StreamSubscription<fbp.BluetoothAdapterState> _adapterStateStateSubscription;
 
   @override
   Future<void> init() async {
@@ -71,23 +72,31 @@ class BleCrossRepository implements BleRepository {
     return await fbp.FlutterBluePlus.isSupported;
   }
 
-  @override
   Future<void> _connect({Duration timeout = const Duration(seconds: 3)}) async {
     if (!supported) {
       return;
     }
+    _adapterStateStateSubscription = fbp.FlutterBluePlus.adapterState.listen((fbp.BluetoothAdapterState? state) {
+      if (state == fbp.BluetoothAdapterState.on) {
+        initialized = true;
+        _bleEnabledSubscription.add(initialized && supported);
+      } else {
+        initialized = false;
+        _bleEnabledSubscription.add(initialized && supported);
+      }
+    });
     await fbp.FlutterBluePlus.adapterState
         .firstWhere(
           (state) => state == fbp.BluetoothAdapterState.on,
       orElse: () => throw TimeoutException('Bluetooth did not turn on'),
     )
-        .then((isOn) => {initialized = isOn == fbp.BluetoothAdapterState.on})
+        // .then((isOn) => {initialized = isOn == fbp.BluetoothAdapterState.on})
         .timeout(timeout, onTimeout: () => throw TimeoutException('Bluetooth connection timeout after 10 seconds'));
   }
 
   @override
   Future<void> scan({List<fbp.Guid>? services, Duration? timeout = const Duration(seconds: 5)}) async {
-    if (!supported) {
+    if (!supported || !initialized) {
       return;
     }
     _log.info("ble scan start");
@@ -144,6 +153,7 @@ class BleCrossRepository implements BleRepository {
   @override
   void dispose() {
     stopScan();
+    _adapterStateStateSubscription.cancel();
     _bleDeviceSubscription.close();
     _bleEnabledSubscription.close();
   }

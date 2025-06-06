@@ -112,15 +112,15 @@ class AppSettingsWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.all(16.0),
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Application Settings', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
+            Text('Application', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.white)),
+            const SizedBox(height: 8),
             // Theme toggle
             ListenableBuilder(
               listenable: parentVm,
@@ -136,27 +136,6 @@ class AppSettingsWidget extends StatelessWidget {
               },
             ),
             const Divider(),
-            // Bluetooth settings section
-            // const Text(
-            //   'Connectivity',
-            //   style: TextStyle(
-            //     fontSize: 16,
-            //     fontWeight: FontWeight.w500,
-            //   ),
-            // ),
-            // const SizedBox(height: 8),
-            // _buildPlatformSpecificBluetoothSetting(),
-            //
-            // const Divider(),
-
-            // ListTile(
-            //   title: const Text('Theme'),
-            //   trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            //   leading: const Icon(Icons.color_lens),
-            //   onTap: () {
-            //     // Theme selection logic would be handled by the ViewModel
-            //   },
-            // ),
             ListenableBuilder(
               listenable: parentVm,
               builder: (context, _) {

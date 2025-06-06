@@ -8,6 +8,7 @@ import 'package:roll_feathers/dice_sdks/pixels.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/util/command.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 class DiceScreenViewModel extends ChangeNotifier {
   // init
@@ -17,6 +18,11 @@ class DiceScreenViewModel extends ChangeNotifier {
   // theme
   ThemeMode themeMode = ThemeMode.system;
   late Command0 toggleTheme;
+
+  // screen wake lock
+  bool keepScreenOn = false;
+  late Command0 toggleKeepScreenOn;
+  late StreamSubscription<bool> _keepScreenOnSubscription;
 
   // ble
   late Command0 startBleScan;
@@ -50,6 +56,14 @@ class DiceScreenViewModel extends ChangeNotifier {
 
     // theme
     toggleTheme = Command0(_toggleTheme);
+
+    // screen wake lock
+    toggleKeepScreenOn = Command0(_toggleKeepScreenOn);
+    _keepScreenOnSubscription = _diWrapper.appRepository.observeKeepScreenOn().listen((enabled) {
+      keepScreenOn = enabled;
+      WakelockPlus.toggle(enable: enabled);
+      notifyListeners();
+    });
 
     // ble
     startBleScan = Command0(_startBleScan);
@@ -91,12 +105,19 @@ class DiceScreenViewModel extends ChangeNotifier {
   // init
   Future<Result<void>> _load() async {
     try {
-      final result = await _diWrapper.appRepository.getThemeMode();
-      if (result.isValue && result.asValue != null) {
-        themeMode = result.asValue!.value;
+      final themeResult = await _diWrapper.appRepository.getThemeMode();
+      if (themeResult.isValue && themeResult.asValue != null) {
+        themeMode = themeResult.asValue!.value;
       }
+
+      final keepScreenOnResult = await _diWrapper.appRepository.getKeepScreenOn();
+      if (keepScreenOnResult.isValue && keepScreenOnResult.asValue != null) {
+        keepScreenOn = keepScreenOnResult.asValue!.value;
+        WakelockPlus.toggle(enable: keepScreenOn);
+      }
+
       _haConfig = await _diWrapper.haRepository.getHaConfig();
-      return result;
+      return themeResult;
     } on Exception catch (e) {
       return Result.error(e);
     } finally {
@@ -110,6 +131,19 @@ class DiceScreenViewModel extends ChangeNotifier {
     try {
       themeMode = themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
       return await _diWrapper.appRepository.setThemeMode(themeMode);
+    } on Exception catch (e) {
+      return Result.error(e);
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  // screen wake lock
+  bool getKeepScreenOn() => keepScreenOn;
+  Future<Result<void>> _toggleKeepScreenOn() async {
+    try {
+      keepScreenOn = !keepScreenOn;
+      return await _diWrapper.appRepository.setKeepScreenOn(keepScreenOn);
     } on Exception catch (e) {
       return Result.error(e);
     } finally {
@@ -211,6 +245,8 @@ class DiceScreenViewModel extends ChangeNotifier {
     _rollResultsSubscription.cancel();
     _rollStatusSubscription.cancel();
     _bleEnabledSubscription.cancel();
+    _keepScreenOnSubscription.cancel();
+    _diWrapper.appRepository.setKeepScreenOn(false);
     super.dispose();
   }
 

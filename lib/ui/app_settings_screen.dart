@@ -135,6 +135,20 @@ class AppSettingsWidget extends StatelessWidget {
                 );
               },
             ),
+            // Keep screen on toggle
+            ListenableBuilder(
+              listenable: parentVm,
+              builder: (context, _) {
+                return SwitchListTile(
+                  secondary: Icon(parentVm.getKeepScreenOn() ? Icons.visibility : Icons.visibility_off),
+                  title: const Text('Keep Screen On'),
+                  value: parentVm.getKeepScreenOn(),
+                  onChanged: (bool value) {
+                    parentVm.toggleKeepScreenOn.execute();
+                  },
+                );
+              },
+            ),
             const Divider(),
             ListenableBuilder(
               listenable: parentVm,

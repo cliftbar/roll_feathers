@@ -8,6 +8,7 @@ class AppRepository {
   AppRepository(this._service);
 
   final _themeModeController = StreamController<ThemeMode>.broadcast();
+  final _keepScreenOnController = StreamController<bool>.broadcast();
 
   final AppService _service;
 
@@ -35,4 +36,28 @@ class AppRepository {
   /// Stream that emits theme config changes.
   /// ViewModels should call [isDarkMode] to get the current theme setting.
   Stream<ThemeMode> observeThemeMode() => _themeModeController.stream;
+
+  /// Get if screen should be kept on
+  Future<Result<bool>> getKeepScreenOn() async {
+    try {
+      final value = await _service.getKeepScreenOn();
+      return Result.value(value);
+    } on Exception catch (e) {
+      return Result.error(e);
+    }
+  }
+
+  /// Set if screen should be kept on
+  Future<Result<void>> setKeepScreenOn(bool keepScreenOn) async {
+    try {
+      await _service.setKeepScreenOn(keepScreenOn);
+      _keepScreenOnController.add(keepScreenOn);
+      return Result.value(null);
+    } on Exception catch (e) {
+      return Result.error(e);
+    }
+  }
+
+  /// Stream that emits screen wake lock setting changes.
+  Stream<bool> observeKeepScreenOn() => _keepScreenOnController.stream;
 }

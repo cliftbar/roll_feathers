@@ -17,10 +17,10 @@ abstract class HaRepository {
   Future<void> blinkEntity({required Blinker blink, String? entity, bool force = false});
 
   bool get enabled;
+  bool get available;
 }
 
 class HaRepositoryEmpty extends HaRepository {
-  final bool _enabled = false;
   @override
   Stream<HaConfig> subscribeHaSettings() => Stream.empty();
   @override
@@ -34,18 +34,21 @@ class HaRepositoryEmpty extends HaRepository {
   Future<void> blinkEntity({required Blinker blink, String? entity, bool force = false}) async {}
 
   @override
-  bool get enabled => _enabled;
+  bool get enabled => false;
+
+  @override
+  bool get available => false;
 }
 
 class HaRepositoryImpl extends HaRepository {
   final _log = Logger("HaRepository");
   final HaConfigService _haConfigService;
   final HaService _haService;
-  final bool _enabled = true;
+  late bool isEnabled;
 
   final _settingsStream = StreamController<HaConfig>.broadcast();
 
-  HaRepositoryImpl(this._haConfigService, this._haService);
+  HaRepositoryImpl(this._haConfigService, this._haService, this.isEnabled);
 
   @override
   Stream<HaConfig> subscribeHaSettings() => _settingsStream.stream;
@@ -68,12 +71,15 @@ class HaRepositoryImpl extends HaRepository {
   @override
   Future<void> blinkEntity({required Blinker blink, String? entity, bool force = false}) async {
     var conf = await _haConfigService.getConfig();
-    bool enabled = conf.enabled;
+    isEnabled = conf.enabled;
     if (enabled || force) {
       await _haService.blinkEntity(presentOrElse(entity, conf.entity), blink);
     }
   }
 
   @override
-  bool get enabled => _enabled;
+  bool get enabled => isEnabled;
+
+  @override
+  bool get available => true;
 }

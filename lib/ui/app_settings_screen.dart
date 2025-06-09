@@ -17,7 +17,7 @@ class AppSettingsWidget extends StatelessWidget {
     final tokenController = TextEditingController(text: haConfig.token);
     final entityController = TextEditingController(text: haConfig.entity);
     bool isEnabled = haConfig.enabled;
-    bool webDisabled = isEnabled;
+    bool webDisabled = kIsWeb;
 
     showDialog(
       context: context,

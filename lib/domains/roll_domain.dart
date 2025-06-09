@@ -8,7 +8,7 @@ import 'package:roll_feathers/domains/die_domain.dart';
 class RollResult {
   final RollType rollType;
   final int rollResult;
-  final List<int> rolls;
+  final Map<String, int> rolls;
   late final DateTime _rollTime;
 
   RollResult({required this.rollType, required this.rollResult, required this.rolls}) {
@@ -58,18 +58,6 @@ class RollDomain {
 
   static Future<RollDomain> create(DieDomain rfController) async {
     return RollDomain._(rfController);
-  }
-
-  Color getRollingTextColor(PixelDie die, Color defaultColor) {
-    switch (DiceRollState.values[die.state.rollState ?? 0]) {
-      case DiceRollState.rolling:
-      case DiceRollState.handling:
-        return Colors.orange;
-      case DiceRollState.onFace:
-      case DiceRollState.rolled:
-      default:
-        return defaultColor;
-    }
   }
 
   bool areDieRolling(List<GenericDie> allDie) {
@@ -131,7 +119,7 @@ class RollDomain {
     }
     var result = RollResult(
       rollType: rollType,
-      rolls: _rolledDie.values.map((d) => d.getFaceValueOrElse()).toList(),
+      rolls: Map.fromEntries(_rolledDie.entries.map((MapEntry<String, GenericDie> e) => MapEntry(e.key, e.value.getFaceValueOrElse()))),
       rollResult: rollRet,
     );
     _rollHistory.insert(0, result);
@@ -164,7 +152,7 @@ class RollDomain {
 
   // attach listeners to die
   void rollStreamListener(Map<String, GenericDie> data) {
-    // TODO: something broken here for virtual dice
+    // TODO: something broken here for virtual dice?
     for (var die in data.values.where((d) => d.type != GenericDieType.virtual)) {
       die.addRollCallback(DiceRollState.rolling, "$hashCode.rolling", (DiceRollState rollState) {
         // die has started rolling, initiate roll if its not already going

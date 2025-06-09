@@ -11,7 +11,6 @@ import '../repositories/app_repository.dart';
 import '../repositories/ble/ble_fbp_repository.dart';
 import '../repositories/ble/ble_repository.dart';
 import '../repositories/ble/ble_universal_repository.dart';
-import '../repositories/ble/ble_windows_repository.dart';
 import '../repositories/home_assistant_repository.dart';
 import '../services/app_service.dart';
 import '../services/home_assistant/ha_config_service.dart';
@@ -48,10 +47,10 @@ class DiWrapper {
       bleRepo = BleUniversalRepository();
       bleRepo.init();
     } else if (Platform.isWindows) {
-      bleRepo = BleFbpWindowsRepository();
+      bleRepo = BleUniversalRepository();
       bleRepo.init().whenComplete(() => bleRepo.scan(services: [pixelsService, godiceServiceGuid]));
     } else {
-      bleRepo = BleFbpCrossRepository();
+      bleRepo = BleUniversalRepository();
       bleRepo.init().whenComplete(() => bleRepo.scan(services: [pixelsService, godiceServiceGuid]));
     }
 

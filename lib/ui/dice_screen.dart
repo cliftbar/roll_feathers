@@ -1,11 +1,17 @@
+import 'dart:collection';
+import 'dart:math';
+
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
+import 'package:roll_feathers/dice_sdks/godice.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/ui/dice_screen_vm.dart';
+import 'package:tuple/tuple.dart';
 
 import 'app_settings_screen.dart';
 
@@ -263,14 +269,14 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                         return StreamBuilder(
                           stream: widget.viewModel.getResultsStream(),
                           builder: (context, snapshot) {
-                            var rollResults = snapshot.data ?? [];
+                            List<RollResult> rollResults = snapshot.data ?? [];
                             if (rollResults.isEmpty) {
                               return const Center(child: Text('Make some rolls!'));
                             }
                             return ListView.builder(
                               itemCount: rollResults.length,
                               itemBuilder: (context, index) {
-                                return ListTile(title: Text(_makeRollText(rollResults[index])));
+                                return ListTile(title: _makeRollText(context, rollResults[index]));
                               },
                             );
                           },
@@ -295,65 +301,73 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
         final entityController = TextEditingController(
           text: die.haEntityTargets.firstOrNull ?? "",
         ); // Add controller for entity field
-
-        return AlertDialog(
-          title: const Text('Die Settings'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text('Pick a color'),
-                ColorPicker(
-                  pickerColor: currentColor,
-                  hexInputBar: true,
-                  paletteType: PaletteType.hueWheel,
-                  onColorChanged: (Color color) {
-                    currentColor = color;
-                  },
-                  pickerAreaHeightPercent: 0.8,
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: entityController,
-                  enabled: widget.viewModel.getHaConfig().enabled,
-                  autocorrect: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Home Assistant Entity',
-                    hintText: 'light.bedroom',
-                    helperText: 'Leave empty to use default entity',
+        var faceTuple = _makeFaceSelectorWidget(die);
+        return ListenableBuilder(
+          listenable: widget.viewModel,
+            builder: (context, _) {
+              return AlertDialog(
+                title: Text('${die.friendlyName} Settings'),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text("Face Count"),
+                      faceTuple.item1,
+                      const Divider(),
+                      const Text('Pick a color'),
+                      ColorPicker(
+                        pickerColor: currentColor,
+                        hexInputBar: true,
+                        paletteType: PaletteType.hueWheel,
+                        onColorChanged: (Color color) {
+                          currentColor = color;
+                        },
+                        pickerAreaHeightPercent: 0.8,
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: entityController,
+                        enabled: widget.viewModel.getHaConfig().enabled,
+                        autocorrect: false,
+                        decoration: const InputDecoration(
+                          labelText: 'Home Assistant Entity',
+                          hintText: 'light.bedroom',
+                          helperText: 'Leave empty to use default entity',
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('Blink'),
-              onPressed: () {
-                widget.viewModel.blink.execute(currentColor, die, entityController.text);
-              },
-            ),
-            TextButton(
-              child: const Text('Disconnect'),
-              onPressed: () {
-                widget.viewModel.disconnectDie.execute(die.dieId);
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('Save'),
-              onPressed: () {
-                widget.viewModel.updateDieSettings.execute(die, currentColor, entityController.text);
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
+                actions: <Widget>[
+                  TextButton(
+                    child: const Text('Cancel'),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                  TextButton(
+                    child: const Text('Blink'),
+                    onPressed: () {
+                      widget.viewModel.blink.execute(currentColor, die, entityController.text);
+                    },
+                  ),
+                  TextButton(
+                    child: const Text('Disconnect'),
+                    onPressed: () {
+                      widget.viewModel.disconnectDie.execute(die.dieId);
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                  TextButton(
+                    child: const Text('Save'),
+                    onPressed: () {
+                      widget.viewModel.updateDieSettings.execute(die, currentColor, entityController.text, faceTuple.item2());
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ],
+              );
+            }
         );
       },
     );
@@ -373,7 +387,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
         valueString = "";
     }
 
-    return 'd${die.faceCount} ${die.state.batteryLevel}%$valueString';
+    return '${die.faceType.dName} ${die.state.batteryLevel}%$valueString ${die.dieId}';
   }
 
   // Helpers
@@ -392,22 +406,48 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
     widget.viewModel.setWithVirtualDice.execute(_rollVirtualDice);
   }
 
-  String _makeRollText(RollResult roll) {
-    String rollResult = 'Roll';
-    roll.rolls.sort();
-    String rollString = roll.rolls.reversed.join(", ");
+  RichText _makeRollText(BuildContext context, RollResult roll) {
+    List<TextSpan> rollsWithColors = roll.rolls.entries.sortedBy((e) => e.value)
+        .map((entry) => TextSpan(
+        text: "${entry.value}",
+        style: DefaultTextStyle.of(context).style.copyWith(color: _getBlinkColor(context, entry.key)))
+    ).toList();
+
+
+    TextSpan rollType;
     switch (roll.rollType) {
       case RollType.max:
-        rollResult += ' <max>: ${roll.rollResult} ($rollString)';
+        rollType = TextSpan(text: "<max>:  ${roll.rollResult}");
+        // rollResult += ' <max>: ${roll.rollResult} ($rollString)';
         break;
       case RollType.min:
-        rollResult += ' <min>: ${roll.rollResult} ($rollString)';
+        rollType = TextSpan(text: "<min>:  ${roll.rollResult}");
+        // rollResult += ' <min>: ${roll.rollResult} ($rollString)';
         break;
       default:
-        rollResult += '<sum>: ${roll.rollResult} ($rollString)';
+        rollType = TextSpan(text: "<sum>:  ${roll.rollResult}");
+        // rollResult += '<sum>: ${roll.rollResult} ($rollString)';
     }
+    List<TextSpan> dynamicText = <TextSpan>[
+      rollType,
+      TextSpan(text: " (")
+    ];
+    dynamicText.add(rollsWithColors[0]);
+    for (var r in rollsWithColors.sublist(1)) {
+      dynamicText.add(TextSpan(text: ", "));
+      dynamicText.add(r);
+    }
+    dynamicText.add(TextSpan(text: ")"));
 
-    return rollResult;
+    var rt = RichText(
+      text: TextSpan(
+        text: "Roll ",
+        style: DefaultTextStyle.of(context).style,
+        children: dynamicText,
+      ),
+    );
+
+    return rt;
   }
 
   Color _getRollingTextColor(GenericDie die, BuildContext context) {
@@ -418,10 +458,14 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
       case DiceRollState.onFace:
       case DiceRollState.rolled:
       default:
-        return widget.viewModel.blinkColors[die.dieId]?.withAlpha(255) ??
-            Theme.of(context).textTheme.bodyMedium?.color! ??
-            (widget.viewModel.themeMode == ThemeMode.dark ? Colors.white : Colors.black);
+        return _getBlinkColor(context, die.dieId);
     }
+  }
+
+  Color _getBlinkColor(BuildContext context, String dieId) {
+    return widget.viewModel.blinkColors[dieId]?.withAlpha(255) ??
+        Theme.of(context).textTheme.bodyMedium?.color! ??
+        (widget.viewModel.themeMode == ThemeMode.dark ? Colors.white : Colors.black);
   }
 
   Card _makeAutoRollSwitch() {
@@ -498,6 +542,55 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
         );
       },
     );
+  }
+
+  // this is a bad pattern x.x
+  Tuple2<Widget, ValueGetter<DieFaceContainer>>  _makeFaceSelectorWidget(GenericDie die) {
+    switch(die.type) {
+      case GenericDieType.pixel:
+        faceCallback() => die.faceType;
+        return Tuple2(Text("${die.faceType.dName}"), faceCallback);
+      case GenericDieType.godice:
+        final List<DropdownMenuEntry<String>> menuEntries = UnmodifiableListView<DropdownMenuEntry<String>>(
+          GodiceDieType.values.where((t) => t != GodiceDieType.d24).map<DropdownMenuEntry<String>>((GodiceDieType v) => DropdownMenuEntry<String>(value: v.name, label: v.name)),
+        );
+
+        DieFaceContainer dropdownValue = die.faceType;
+        var menu = DropdownMenu<String>(
+          initialSelection: GodiceDieType.fromName(die.faceType.dName)?.name ?? die.faceType.dName,
+          onSelected: (String? value) {
+            if (value != null) {
+              dropdownValue = DieFaceContainer(value, GodiceDieType.fromName(value)?.faces ?? GodiceDieType.unknown.faces);
+            }
+          },
+          dropdownMenuEntries: menuEntries,
+        );
+        faceCallback() => dropdownValue;
+        return Tuple2(menu, faceCallback);
+      case GenericDieType.virtual:
+        var faceCountUpdateController = TextEditingController(text: "${die.faceType.faceCount}");
+        faceCallback() {
+          int value = int.parse(faceCountUpdateController.text);
+          return DieFaceContainer("d$value", value);
+        }
+        var col = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: faceCountUpdateController,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(
+                labelText: 'Number of Faces',
+                hintText: 'Enter the number of faces',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        );
+
+        return Tuple2(col, faceCallback);
+    }
   }
 
   @override

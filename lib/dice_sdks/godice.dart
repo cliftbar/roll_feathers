@@ -25,14 +25,27 @@ class Vector {
 
 // Die types
 enum GodiceDieType {
-  d6, // Regular 6-sided die
-  d20, // 20-sided die
-  d10, // 10-sided die
-  d10X, // 10-sided percentile die (00-90)
-  d4, // 4-sided die
-  d8, // 8-sided die
-  d12, // 12-sided die
-  d24, // special form for vector transforms
+  unknown(-1),
+  d6(6), // Regular 6-sided die
+  d20(20), // 20-sided die
+  d10(10), // 10-sided die
+  d10X(0), // 10-sided percentile die (00-90)
+  d4(4), // 4-sided die
+  d8(8), // 8-sided die
+  d12(12), // 12-sided die
+  d24(24), // special form for vector transforms
+  ;
+
+  final int faces;
+  const GodiceDieType(this.faces);
+
+  static GodiceDieType fromFaceCount(int faceCount) {
+    return GodiceDieType.values.firstWhere((t) => t.faces == faceCount);
+  }
+
+  static GodiceDieType? fromName(String name) {
+    return GodiceDieType.values.firstWhere((t) => t.name == name);
+  }
 }
 
 const Map<GodiceDieType, Map<int, Vector>> vectors = {
@@ -92,6 +105,16 @@ const Map<GodiceDieType, Map<int, Vector>> vectors = {
     23: Vector(x: -20, y: 0, z: -60),
     24: Vector(x: -20, y: 60, z: 20),
   },
+};
+
+const Map<GodiceDieType, GodiceDieType> vectorToTransform = {
+  GodiceDieType.d6: GodiceDieType.d6,
+  GodiceDieType.d20: GodiceDieType.d20,
+  GodiceDieType.d10: GodiceDieType.d20,
+  GodiceDieType.d10X: GodiceDieType.d20,
+  GodiceDieType.d4: GodiceDieType.d24,
+  GodiceDieType.d8: GodiceDieType.d24,
+  GodiceDieType.d12: GodiceDieType.d24
 };
 
 const Map<GodiceDieType, Map<int, int>> transforms = {
@@ -253,8 +276,8 @@ enum GodiceMessageType {
 
   const GodiceMessageType(this.value);
 
-  static GodiceMessageType getByValue(int id) {
-    return GodiceMessageType.values.firstWhere((v) => v.value[0] == id, orElse: () => unknown);
+  static GodiceMessageType getByValue(List<int> data) {
+    return GodiceMessageType.values.firstWhere((v) => ListEquality().equals(v.value, data.sublist(0, v.value.length)), orElse: () => unknown);
   }
 }
 
@@ -289,7 +312,7 @@ class MessageInit extends TxMessage with Color255 {
   BlinkMode blinkMode;
   BlinkLedSelector leds;
   MessageInit({
-    this.diceSensitivity = 30,
+    this.diceSensitivity = 50,
     this.numberOfBlinks = 1,
     this.lightOnDuration10ms = 50,
     this.lightOffDuration10ms = 50,
@@ -422,6 +445,42 @@ class MessageRollStart extends RxMessage {
   }
 }
 
+class MessageCharging extends RxMessage {
+  MessageCharging({required super.buffer}) : super(id: GodiceMessageType.charging.index);
+
+  static MessageCharging parse(List<int> data) {
+    return MessageCharging(buffer: data);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'buffer': buffer};
+  }
+}
+
+class MessageTap extends RxMessage {
+  MessageTap({required super.buffer}) : super(id: GodiceMessageType.tap.index);
+
+  static MessageTap parse(List<int> data) {
+    return MessageTap(buffer: data);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'buffer': buffer};
+  }
+}
+
+class MessageDTap extends RxMessage {
+  MessageDTap({required super.buffer}) : super(id: GodiceMessageType.dTap.index);
+
+  static MessageDTap parse(List<int> data) {
+    return MessageDTap(buffer: data);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'buffer': buffer};
+  }
+}
+
 class MessageBatteryLevelAck extends RxMessage {
   final int batteryLevel;
   MessageBatteryLevelAck({required super.buffer, required this.batteryLevel})
@@ -488,6 +547,44 @@ class MessageFakeStable extends RxMessage {
     Vector xyzData = getXyzFromBytes(data, _dataOffset);
 
     return MessageFakeStable(buffer: data, xyzData: xyzData);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'buffer': buffer, 'xyzData': xyzData.toJson()};
+  }
+}
+
+class MessageTiltStable extends RxMessage {
+  static final int _dataOffset = GodiceMessageType.tiltStable.value.length;
+  final Vector xyzData;
+  MessageTiltStable({required super.buffer, required this.xyzData}) : super(id: GodiceMessageType.tiltStable.value[0]);
+
+  static MessageTiltStable parse(List<int> data) {
+    if (!ListEquality().equals(data.sublist(0, _dataOffset), GodiceMessageType.tiltStable.value)) {
+      throw MessageParseError("bad fake stable message $data");
+    }
+    Vector xyzData = getXyzFromBytes(data, _dataOffset);
+
+    return MessageTiltStable(buffer: data, xyzData: xyzData);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'id': id, 'buffer': buffer, 'xyzData': xyzData.toJson()};
+  }
+}
+
+class MessageMoveStable extends RxMessage {
+  static final int _dataOffset = GodiceMessageType.moveStable.value.length;
+  final Vector xyzData;
+  MessageMoveStable({required super.buffer, required this.xyzData}) : super(id: GodiceMessageType.moveStable.value[0]);
+
+  static MessageMoveStable parse(List<int> data) {
+    if (!ListEquality().equals(data.sublist(0, _dataOffset), GodiceMessageType.moveStable.value)) {
+      throw MessageParseError("bad fake stable message $data");
+    }
+    Vector xyzData = getXyzFromBytes(data, _dataOffset);
+
+    return MessageMoveStable(buffer: data, xyzData: xyzData);
   }
 
   Map<String, dynamic> toJson() {

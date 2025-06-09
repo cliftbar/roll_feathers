@@ -44,7 +44,7 @@ class DiceScreenViewModel extends ChangeNotifier {
 
   // die control settings
   late Command3<void, Color, GenericDie, String?> blink;
-  late Command3<void, GenericDie, Color, String> updateDieSettings;
+  late Command4<void, GenericDie, Color, String, DieFaceContainer> updateDieSettings;
   late Command2<void, int, String> addVirtualDie;
   late Command0<void> disconnectAllDice;
   late Command0<void> disconnectAllNonVirtualDice;
@@ -94,7 +94,7 @@ class DiceScreenViewModel extends ChangeNotifier {
 
     // die control settings
     blink = Command3(_blink);
-    updateDieSettings = Command3(_updateDieSettings);
+    updateDieSettings = Command4(_updateDieSettings);
     addVirtualDie = Command2(_addVirtualDie);
 
     disconnectAllDice = Command0(_disconnectAllDice);
@@ -202,9 +202,12 @@ class DiceScreenViewModel extends ChangeNotifier {
     return _diWrapper.rfController.getDiceStream();
   }
 
-  Future<Result<void>> _updateDieSettings(GenericDie die, Color blinkColor, String entity) async {
+  Future<Result<void>> _updateDieSettings(GenericDie die, Color blinkColor, String entity, DieFaceContainer faceCount) async {
     _diWrapper.rollDomain.blinkColors[die.dieId] = blinkColor;
     die.haEntityTargets = [entity];
+    if (die.type != GenericDieType.pixel) {
+      die.faceType = faceCount;
+    }
     notifyListeners();
     return Result.value(null);
   }

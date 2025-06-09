@@ -63,6 +63,13 @@ enum DiceRollState { unknown, rolled, handling, rolling, crooked, onFace }
 
 enum GenericDieType { pixel, godice, virtual }
 
+class DieFaceContainer {
+  String dName;
+  int faceCount;
+
+  DieFaceContainer(this.dName, this.faceCount);
+}
+
 abstract class GenericDie {
   abstract final Logger _log;
   abstract final GenericDieType type;
@@ -91,11 +98,18 @@ abstract class GenericDie {
 
   String get friendlyName;
 
-  int get faceCount;
+  DieFaceContainer get faceType;
+  set faceType(DieFaceContainer df);
 }
 
 abstract class GenericBleDie extends GenericDie {
   BleDeviceWrapper device;
+
+  Future<void> resetDevice(BleDeviceWrapper device) async {
+    await device.init();
+    device = device;
+    await _init();
+  }
 
   static Future<GenericBleDie> fromDevice(BleDeviceWrapper device) async {
     try {
@@ -111,7 +125,7 @@ abstract class GenericBleDie extends GenericDie {
       } else if (serviceIds.contains(godice.godiceServiceGuid) &&
           chars.contains(godice.godiceWriteCharacteristic) &&
           chars.contains(godice.godiceNotifyCharacteristic)) {
-        die = GoDiceBle(device: device);
+        die = GoDiceBle(device: device, dieFaceType: godice.GodiceDieType.d6);
         await die._init();
       } else {
         throw Exception("Bluetooth Device Not Implemented");
@@ -157,6 +171,9 @@ abstract class GenericBleDie extends GenericDie {
 }
 
 class GoDiceBle extends GenericBleDie {
+  // 9007199254740991 is max on web, others are larger, but whatever, its big enough.
+  static const int intMaxValue = 9000000000000000;
+
   final Map<String, dynamic> info = {};
 
   @override
@@ -164,13 +181,17 @@ class GoDiceBle extends GenericBleDie {
   @override
   final GenericDieType type = GenericDieType.godice;
 
-  GoDiceBle({required super.device});
+  final String _godiceFaceTypeKey = "dieFaceType";
+  final String _dieFaceContainerKey = "dieFaceContainer";
 
-  // 9007199254740991 is max on web, others are larger, but whatever, its big enough.
-  static const int intMaxValue = 9000000000000000;
+  GoDiceBle({required godice.GodiceDieType dieFaceType, required super.device}) {
+    DieFaceContainer df = DieFaceContainer(dieFaceType.name, dieFaceType.faces);
+    info[_godiceFaceTypeKey] = dieFaceType;
+    info[_dieFaceContainerKey] = df;
+  }
 
   int getClosestRollByVector(godice.Vector coord, godice.GodiceDieType dieType) {
-    Map<int, godice.Vector> dieTypeVectorTable = godice.vectors[dieType]!;
+    Map<int, godice.Vector> dieTypeVectorTable = godice.vectors[godice.vectorToTransform[dieType]]!;
     int minDistance = intMaxValue;
     int value = 0;
     godice.Vector result;
@@ -189,13 +210,18 @@ class GoDiceBle extends GenericBleDie {
         value = dieValue;
       }
     }
+
+    if (godice.transforms.containsKey(dieType)) {
+      value = godice.transforms[dieType]![value]!;
+    }
+
     return value;
   }
 
   @override
   void _readNotify(List<int> data) {
-    _log.info(data);
-    var msgType = godice.GodiceMessageType.getByValue(data[0]);
+    _log.finer(data);
+    var msgType = godice.GodiceMessageType.getByValue(data);
     switch (msgType) {
       case godice.GodiceMessageType.batteryLevelAck:
         godice.MessageBatteryLevelAck msg = godice.MessageBatteryLevelAck.parse(data);
@@ -236,6 +262,28 @@ class GoDiceBle extends GenericBleDie {
           _log.fine("$friendlyName error parsing message $data: $e");
         }
         break;
+      case godice.GodiceMessageType.tiltStable:
+        try {
+          godice.MessageTiltStable msg = godice.MessageTiltStable.parse(data);
+          _handleRollUpdate(msg.xyzData);
+          _log.fine('$friendlyName Received msg ${msgType.name}: ${json.encode(msg)}');
+          _runMessageCallbacks(msg, msgType);
+          _runRollCallbacks(DiceRollState.rolled);
+        } on MessageParseError catch (e) {
+          _log.fine("$friendlyName error parsing message $data: $e");
+        }
+        break;
+      case godice.GodiceMessageType.moveStable:
+        try {
+          godice.MessageMoveStable msg = godice.MessageMoveStable.parse(data);
+          _handleRollUpdate(msg.xyzData);
+          _log.fine('$friendlyName Received msg ${msgType.name}: ${json.encode(msg)}');
+          _runMessageCallbacks(msg, msgType);
+          _runRollCallbacks(DiceRollState.rolled);
+        } on MessageParseError catch (e) {
+          _log.fine("$friendlyName error parsing message $data: $e");
+        }
+        break;
       case godice.GodiceMessageType.rollStart:
         godice.MessageRollStart msg = godice.MessageRollStart.parse(data);
         state.rollState = DiceRollState.rolling.index;
@@ -251,7 +299,7 @@ class GoDiceBle extends GenericBleDie {
   }
 
   void _handleRollUpdate(godice.Vector xyzData) {
-    int currentRoll = getClosestRollByVector(xyzData, godice.GodiceDieType.d6);
+    int currentRoll = getClosestRollByVector(xyzData, info[_godiceFaceTypeKey]);
     state.rollState = DiceRollState.rolled.index;
     state.currentFaceIndex = currentRoll - 1;
     state.currentFaceValue = currentRoll;
@@ -296,7 +344,12 @@ class GoDiceBle extends GenericBleDie {
   String get friendlyName => "GoDice ${info["diceColor"]}";
 
   @override
-  int get faceCount => throw UnimplementedError();
+  DieFaceContainer get faceType => info[_dieFaceContainerKey];
+
+  @override
+  set faceType(DieFaceContainer df) {
+    info[_dieFaceContainerKey] = df;
+  }
 }
 
 class PixelDie extends GenericBleDie {
@@ -410,7 +463,16 @@ class PixelDie extends GenericBleDie {
   String get friendlyName => device.friendlyName;
 
   @override
-  int get faceCount => info?.pixelDieTypeFaces.faces ?? pix.PixelDieType.unknown.faces;
+  DieFaceContainer get faceType {
+    pix.PixelDieType dt = info?.pixelDieTypeFaces ?? pix.PixelDieType.unknown;
+
+    return DieFaceContainer(dt.name, dt.faces);
+  }
+
+  @override
+  set faceType(DieFaceContainer faces) {
+    throw UnsupportedError("pixel die can't change faces");
+  }
 }
 
 class VirtualDie extends GenericDie {
@@ -419,7 +481,7 @@ class VirtualDie extends GenericDie {
 
   late final String _dieId;
   late final String? _name;
-  late final int _faceCount;
+  late int _faceCount;
   final Random rand = Random();
 
   @override
@@ -437,11 +499,13 @@ class VirtualDie extends GenericDie {
   String get dieId => _dieId;
 
   void setRollState(DiceRollState rs) {
-    state.rollState = rs.index;
-    if (rs == DiceRollState.rolled || rs == DiceRollState.onFace) {
-      state.currentFaceIndex = rand.nextInt(faceCount);
+
+    if ((rs == DiceRollState.rolled || rs == DiceRollState.onFace) && state.rollState == DiceRollState.rolling.index) {
+
+      state.currentFaceIndex = rand.nextInt(_faceCount);
       state.currentFaceValue = state.currentFaceIndex! + 1;
     }
+    state.rollState = rs.index;
     _runRollCallbacks(rs);
   }
 
@@ -460,5 +524,12 @@ class VirtualDie extends GenericDie {
   String get friendlyName => _name ?? dieId;
 
   @override
-  int get faceCount => _faceCount;
+  DieFaceContainer get faceType {
+    return DieFaceContainer("d$_faceCount", _faceCount);
+  }
+
+  @override
+  set faceType(DieFaceContainer faces) {
+    _faceCount = faces.faceCount;
+  }
 }

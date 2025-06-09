@@ -31,9 +31,7 @@ class DieDomain {
 
   List<VirtualDie> getVirtualDice() {
     var res = _foundDie.values.toList().where((d) => d.type == GenericDieType.virtual).toList();
-    print("1 $res");
     var res2 = res.map((d) => d as VirtualDie).toList();
-    print("2 $res2");
     return res2;
   }
 

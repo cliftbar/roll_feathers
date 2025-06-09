@@ -101,6 +101,7 @@ class BleUniversalRepository implements BleRepository {
 
   @override
   Future<void> init() async {
+    UniversalBle.timeout = const Duration(seconds: 10);
     supported = await isSupported();
     if (!supported) {
       _log.severe("Bluetooth is not supported");
@@ -139,7 +140,7 @@ class BleUniversalRepository implements BleRepository {
         )
         .timeout(timeout, onTimeout: () => throw TimeoutException('Bluetooth enablement timeout after 10 seconds'));
   }
-
+  final Map<String, int> _deviceReconnects = {};
   @override
   Future<void> scan({List<String>? services, Duration? timeout = const Duration(seconds: 5)}) async {
     if (!supported || !enabled) {
@@ -148,9 +149,21 @@ class BleUniversalRepository implements BleRepository {
     _log.info("ble scan start");
     var scanSub = UniversalBle.scanStream.listen((BleDevice bleDevice) async {
       await UniversalBle.connect(bleDevice.deviceId);
-      UniversalBle.connectionStream(bleDevice.deviceId).listen((bool isConnected) {
+      UniversalBle.connectionStream(bleDevice.deviceId).listen((bool isConnected) async {
         if (!isConnected) {
-          _discoveredBleDevices.remove(bleDevice.deviceId);
+          if (_discoveredBleDevices.containsKey(bleDevice.deviceId)) {  // not manually disconnected, try reconnect
+            int reconnects = _deviceReconnects.putIfAbsent(bleDevice.deviceId, () => 0);
+            if (reconnects < 0) {
+              //attempt reconnect, but disabled for now
+              await Future.delayed(Duration(seconds: 1 * reconnects));
+              await UniversalBle.connect(bleDevice.deviceId);
+              _log.warning("attempting reconnect on ${bleDevice.deviceId} ${await bleDevice.connectionState}");
+              _discoveredBleDevices[bleDevice.deviceId] = UniversalBleDevice(device: bleDevice);
+            } else {
+              _log.warning("disconnecting ${bleDevice.deviceId} ${await bleDevice.connectionState}");
+              _discoveredBleDevices.remove(bleDevice.deviceId);
+            }
+          }
           _bleDeviceSubscription.add(_discoveredBleDevices);
         }
       });
@@ -164,6 +177,7 @@ class BleUniversalRepository implements BleRepository {
     Timer(Duration(seconds: 10), () {
       UniversalBle.stopScan();
       scanSub.cancel();
+      _log.info("Scan finished");
     });
   }
 

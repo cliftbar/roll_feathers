@@ -20,7 +20,7 @@ abstract class HaRepository {
 }
 
 class HaRepositoryEmpty extends HaRepository {
-  final bool _enabled = true;
+  final bool _enabled = false;
   @override
   Stream<HaConfig> subscribeHaSettings() => Stream.empty();
   @override
@@ -75,6 +75,5 @@ class HaRepositoryImpl extends HaRepository {
   }
 
   @override
-  // TODO: implement enabled
   bool get enabled => _enabled;
 }

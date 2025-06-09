@@ -34,7 +34,6 @@ class HaRepositoryEmpty extends HaRepository {
   Future<void> blinkEntity({required Blinker blink, String? entity, bool force = false}) async {}
 
   @override
-  // TODO: implement enabled
   bool get enabled => _enabled;
 }
 

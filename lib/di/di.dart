@@ -34,7 +34,7 @@ class DiWrapper {
     var haService = await HaService.create();
     var haConfigService = HaConfigService();
     if (kIsWeb) {
-      haRepository = HaRepositoryEmpty();
+      haRepository = HaRepositoryImpl(haConfigService, haService);
     } else {
       haRepository = HaRepositoryImpl(haConfigService, haService);
     }

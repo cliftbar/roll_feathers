@@ -23,8 +23,9 @@ class DieDomain {
     });
   }
 
-  void addVirtualDie({required faceCount, String? dieId, String? name}) {
-    var vd = VirtualDie(faceCount: faceCount, name: name);
+  void addVirtualDie({required int faceCount, String? dieId, String? name}) {
+    var dType = GenericDTypeFactory.fromIntId(faceCount) ?? GenericDType("d${faceCount.toString()}", faceCount, faceCount, 0, 1);
+    var vd = VirtualDie(dType: dType, name: name);
     _foundDie[vd.dieId] = vd;
     _diceSubscription.add(_foundDie);
   }

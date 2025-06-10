@@ -387,7 +387,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
         valueString = "";
     }
 
-    return '${die.faceType.dName} ${die.state.batteryLevel}%$valueString ${die.dieId}';
+    return '${die.dType.name} ${die.state.batteryLevel}%$valueString ${die.dieId}';
   }
 
   // Helpers
@@ -545,22 +545,22 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
   }
 
   // this is a bad pattern x.x
-  Tuple2<Widget, ValueGetter<DieFaceContainer>>  _makeFaceSelectorWidget(GenericDie die) {
+  Tuple2<Widget, ValueGetter<GenericDType>>  _makeFaceSelectorWidget(GenericDie die) {
     switch(die.type) {
       case GenericDieType.pixel:
-        faceCallback() => die.faceType;
-        return Tuple2(Text("${die.faceType.dName}"), faceCallback);
+        faceCallback() => die.dType;
+        return Tuple2(Text(die.dType.name), faceCallback);
       case GenericDieType.godice:
         final List<DropdownMenuEntry<String>> menuEntries = UnmodifiableListView<DropdownMenuEntry<String>>(
           GodiceDieType.values.where((t) => t != GodiceDieType.d24).map<DropdownMenuEntry<String>>((GodiceDieType v) => DropdownMenuEntry<String>(value: v.name, label: v.name)),
         );
 
-        DieFaceContainer dropdownValue = die.faceType;
+        GenericDType dropdownValue = die.dType;
         var menu = DropdownMenu<String>(
-          initialSelection: GodiceDieType.fromName(die.faceType.dName)?.name ?? die.faceType.dName,
+          initialSelection: GodiceDieType.fromName(die.dType.name)?.name ?? die.dType.name,
           onSelected: (String? value) {
             if (value != null) {
-              dropdownValue = DieFaceContainer(value, GodiceDieType.fromName(value)?.faces ?? GodiceDieType.unknown.faces);
+              dropdownValue = GodiceDieType.fromName(value).toDType();
             }
           },
           dropdownMenuEntries: menuEntries,
@@ -568,10 +568,11 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
         faceCallback() => dropdownValue;
         return Tuple2(menu, faceCallback);
       case GenericDieType.virtual:
-        var faceCountUpdateController = TextEditingController(text: "${die.faceType.faceCount}");
+        var faceCountUpdateController = TextEditingController(text: "${die.dType.faces}");
         faceCallback() {
           int value = int.parse(faceCountUpdateController.text);
-          return DieFaceContainer("d$value", value);
+          var dType = GenericDTypeFactory.fromIntId(value) ?? GenericDType("d${value.toString()}", value, value, 0, 1);
+          return dType;
         }
         var col = Column(
           mainAxisSize: MainAxisSize.min,

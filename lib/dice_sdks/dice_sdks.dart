@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 
@@ -61,13 +62,50 @@ class DiceState {
 
 enum DiceRollState { unknown, rolled, handling, rolling, crooked, onFace }
 
-enum GenericDieType { pixel, godice, virtual }
+enum GenericDieType {pixel, godice, virtual }
 
-class DieFaceContainer {
-  String dName;
-  int faceCount;
+class GenericDType {
 
-  DieFaceContainer(this.dName, this.faceCount);
+  final String name;
+  final int intId;
+  final int faces;
+  final int multiplier;
+  final int indexOffset;
+
+  const GenericDType(this.name, this.intId, this.faces, this.indexOffset, this.multiplier);
+}
+
+class GenericDTypeFactory {
+  static final String unknown = "unknown";
+  static final String d4 = "d4";
+  static final String d6 = "d6";
+  static final String d8 = "d8";
+  static final String d10 = "d10";
+  static final String d00 = "d00";
+  static final String d12 = "d12";
+  static final String d20 = "d20";
+  static final Map<String, GenericDType> _wellKnown = {
+    unknown: GenericDType("unknown", -1, -1, 0, 1),
+    d4: GenericDType("d4", 4, 4, 1, 1),
+    d6: GenericDType("d6", 6, 6, 1, 1),
+    d8: GenericDType("d8", 8, 8, 1, 1),
+    d10: GenericDType("d10", 10, 10, 0, 1),
+    d00: GenericDType("d00", 0, 10, 0, 10),
+    d12: GenericDType("d12", 12, 12, 1, 1),
+    d20: GenericDType("d20", 20, 20, 1, 1),
+  };
+
+  static GenericDType getKnownChecked(String name) {
+    return _wellKnown[name] ?? _wellKnown[unknown]!;
+  }
+
+  static GenericDType? getKnown(String name) {
+    return _wellKnown[name];
+  }
+
+  static GenericDType? fromIntId(int intId) {
+    return _wellKnown.values.firstWhereOrNull((v) => v.intId == intId);
+  }
 }
 
 abstract class GenericDie {
@@ -98,8 +136,8 @@ abstract class GenericDie {
 
   String get friendlyName;
 
-  DieFaceContainer get faceType;
-  set faceType(DieFaceContainer df);
+  GenericDType get dType;
+  set dType(GenericDType df);
 }
 
 abstract class GenericBleDie extends GenericDie {
@@ -182,12 +220,12 @@ class GoDiceBle extends GenericBleDie {
   final GenericDieType type = GenericDieType.godice;
 
   final String _godiceFaceTypeKey = "dieFaceType";
-  final String _dieFaceContainerKey = "dieFaceContainer";
+  final String _dTypeContainerKey = "dieFaceContainer";
 
   GoDiceBle({required godice.GodiceDieType dieFaceType, required super.device}) {
-    DieFaceContainer df = DieFaceContainer(dieFaceType.name, dieFaceType.faces);
+    GenericDType df = dieFaceType.toDType();
     info[_godiceFaceTypeKey] = dieFaceType;
-    info[_dieFaceContainerKey] = df;
+    info[_dTypeContainerKey] = df;
   }
 
   int getClosestRollByVector(godice.Vector coord, godice.GodiceDieType dieType) {
@@ -344,11 +382,11 @@ class GoDiceBle extends GenericBleDie {
   String get friendlyName => "GoDice ${info["diceColor"]}";
 
   @override
-  DieFaceContainer get faceType => info[_dieFaceContainerKey];
+  GenericDType get dType => info[_dTypeContainerKey];
 
   @override
-  set faceType(DieFaceContainer df) {
-    info[_dieFaceContainerKey] = df;
+  set dType(GenericDType df) {
+    info[_dTypeContainerKey] = df;
   }
 }
 
@@ -463,15 +501,15 @@ class PixelDie extends GenericBleDie {
   String get friendlyName => device.friendlyName;
 
   @override
-  DieFaceContainer get faceType {
+  GenericDType get dType {
     pix.PixelDieType dt = info?.pixelDieTypeFaces ?? pix.PixelDieType.unknown;
 
-    return DieFaceContainer(dt.name, dt.faces);
+    return dt.toDType();
   }
 
   @override
-  set faceType(DieFaceContainer faces) {
-    throw UnsupportedError("pixel die can't change faces");
+  set dType(GenericDType faces) {
+    throw UnsupportedError("pixel die can't change dTypes");
   }
 }
 
@@ -481,18 +519,18 @@ class VirtualDie extends GenericDie {
 
   late final String _dieId;
   late final String? _name;
-  late int _faceCount;
   final Random rand = Random();
+  late GenericDType _dType;
 
   @override
   final GenericDieType type = GenericDieType.virtual;
 
-  VirtualDie({required faceCount, String? dieId, String? name}) {
+  VirtualDie({required GenericDType dType, String? dieId, String? name}) {
     _dieId = dieId ?? Uuid().v4();
     _name = name;
-    state.currentFaceValue = 1;
-    state.currentFaceIndex = 0;
-    _faceCount = faceCount;
+    _dType = dType;
+    setIndexValue(0);
+
   }
 
   @override
@@ -502,8 +540,8 @@ class VirtualDie extends GenericDie {
 
     if ((rs == DiceRollState.rolled || rs == DiceRollState.onFace) && state.rollState == DiceRollState.rolling.index) {
 
-      state.currentFaceIndex = rand.nextInt(_faceCount);
-      state.currentFaceValue = state.currentFaceIndex! + 1;
+      state.currentFaceIndex = rand.nextInt(_dType.faces);
+      state.currentFaceValue = (state.currentFaceIndex! + _dType.indexOffset) * _dType.multiplier;
     }
     state.rollState = rs.index;
     _runRollCallbacks(rs);
@@ -517,6 +555,11 @@ class VirtualDie extends GenericDie {
     }
   }
 
+  void setIndexValue(int index) {
+    state.currentFaceValue = (index + _dType.indexOffset) * _dType.multiplier;
+    state.currentFaceIndex = index;
+  }
+
   @override
   Future<void> _init() async {}
 
@@ -524,12 +567,55 @@ class VirtualDie extends GenericDie {
   String get friendlyName => _name ?? dieId;
 
   @override
-  DieFaceContainer get faceType {
-    return DieFaceContainer("d$_faceCount", _faceCount);
+  GenericDType get dType {
+    return _dType;
   }
 
   @override
-  set faceType(DieFaceContainer faces) {
-    _faceCount = faces.faceCount;
+  set dType(GenericDType dType) {
+  _dType = dType;
+  }
+}
+
+class StaticVirtualDie extends GenericDie {
+  @override
+  final _log = Logger("StaticVirtualDie");
+
+  late final String _dieId;
+  late final String? _name;
+  late GenericDType _dType;
+
+  @override
+  final GenericDieType type = GenericDieType.virtual;
+
+  StaticVirtualDie({required GenericDType dType, required int index, String? dieId, String? name}) {
+    _dieId = dieId ?? Uuid().v4();
+    _name = name;
+    _dType = dType;
+    setIndexValue(index);
+  }
+
+  void setIndexValue(int index) {
+    state.currentFaceValue = (index + _dType.indexOffset) * _dType.multiplier;
+    state.currentFaceIndex = index;
+  }
+
+  @override
+  String get dieId => _dieId;
+
+  @override
+  Future<void> _init() async {}
+
+  @override
+  String get friendlyName => _name ?? dieId;
+
+  @override
+  GenericDType get dType {
+    return _dType;
+  }
+
+  @override
+  set dType(GenericDType dType) {
+    _dType = dType;
   }
 }

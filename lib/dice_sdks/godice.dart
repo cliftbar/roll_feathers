@@ -29,7 +29,7 @@ enum GodiceDieType {
   d6(6), // Regular 6-sided die
   d20(20), // 20-sided die
   d10(10), // 10-sided die
-  d10X(0), // 10-sided percentile die (00-90)
+  d00(0), // 10-sided percentile die (00-90)
   d4(4), // 4-sided die
   d8(8), // 8-sided die
   d12(12), // 12-sided die
@@ -43,8 +43,31 @@ enum GodiceDieType {
     return GodiceDieType.values.firstWhere((t) => t.faces == faceCount);
   }
 
-  static GodiceDieType? fromName(String name) {
-    return GodiceDieType.values.firstWhere((t) => t.name == name);
+  static GodiceDieType fromName(String name) {
+    return GodiceDieType.values.firstWhere((t) => t.name == name, orElse: () => GodiceDieType.unknown);
+  }
+
+  GenericDType toDType() {
+    switch(this){
+      case GodiceDieType.unknown:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.unknown);
+      case GodiceDieType.d4:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d4);
+      case GodiceDieType.d6:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d6);
+      case GodiceDieType.d20:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d20);
+      case GodiceDieType.d10:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d10);
+      case GodiceDieType.d00:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d00);
+      case GodiceDieType.d8:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d8);
+      case GodiceDieType.d12:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d12);
+      case GodiceDieType.d24:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.unknown);
+    }
   }
 }
 
@@ -111,7 +134,7 @@ const Map<GodiceDieType, GodiceDieType> vectorToTransform = {
   GodiceDieType.d6: GodiceDieType.d6,
   GodiceDieType.d20: GodiceDieType.d20,
   GodiceDieType.d10: GodiceDieType.d20,
-  GodiceDieType.d10X: GodiceDieType.d20,
+  GodiceDieType.d00: GodiceDieType.d20,
   GodiceDieType.d4: GodiceDieType.d24,
   GodiceDieType.d8: GodiceDieType.d24,
   GodiceDieType.d12: GodiceDieType.d24
@@ -140,7 +163,7 @@ const Map<GodiceDieType, Map<int, int>> transforms = {
     19: 2,
     20: 8,
   },
-  GodiceDieType.d10X: {
+  GodiceDieType.d00: {
     1: 80,
     2: 20,
     3: 60,

@@ -36,6 +36,10 @@ class DieDomain {
     return res2;
   }
 
+  GenericDie? getDieById(String dieId) {
+    return _foundDie[dieId];
+  }
+
   Future<Map<String, GenericDie>> asyncConvertToDie(Map<String, BleDeviceWrapper> data) async {
     for (var device in List.of(data.values)) {
       if (!_foundDie.containsKey(device.deviceId)) {
@@ -101,7 +105,7 @@ class DieDomain {
     _diceSubscription.add(_foundDie);
   }
 
-  void blink(Color blinkColor, GenericDie die) async {
+  Future<void> blink(Color blinkColor, GenericDie die) async {
     Blinker? blinker;
     switch (die.type) {
       case GenericDieType.godice:

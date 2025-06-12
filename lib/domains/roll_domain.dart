@@ -47,7 +47,7 @@ class RollDomain {
 
   final DieDomain _diceDomain;
   late StreamSubscription<Map<String, GenericDie>> _deviceStreamListener; // used for notifications, better way?
-  final Map<String, Color> blinkColors = {};
+  // final Map<String, Color> blinkColors = {};
 
   Timer? _rollUpdateTimer;
 
@@ -94,9 +94,7 @@ class RollDomain {
   }
 
   int _stopRollWithResult({
-    RollType rollType = RollType.sum,
-    Map<String, Color>? totalColors,
-  }) {
+    RollType rollType = RollType.sum}) {
     late ParseResult ruleResult;
     switch (rollType) {
       case RollType.max:
@@ -144,7 +142,6 @@ class RollDomain {
 
   // attach listeners to die
   void rollStreamListener(Map<String, GenericDie> data) {
-    // TODO: something broken here for virtual dice?
     for (var die in data.values.where((d) => d.type != GenericDieType.virtual)) {
       die.addRollCallback(DiceRollState.rolling, "$hashCode.rolling", (DiceRollState rollState) {
         // die has started rolling, initiate roll if its not already going
@@ -162,7 +159,7 @@ class RollDomain {
         if (allDiceRolled && _isRolling) {
           // roll is active but all dice are done rolling
           _stopRolling();
-          _stopRollWithResult(rollType: rollType, totalColors: blinkColors);
+          _stopRollWithResult(rollType: rollType);
         }
       });
     }
@@ -182,7 +179,7 @@ class RollDomain {
     Timer(const Duration(milliseconds: 500), () {
       _rollEndVirtualDie(force: force);
       _stopRolling();
-      _stopRollWithResult(rollType: rollType, totalColors: blinkColors);
+      _stopRollWithResult(rollType: rollType);
     });
   }
 }

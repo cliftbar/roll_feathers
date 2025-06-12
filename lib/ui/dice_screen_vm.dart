@@ -190,9 +190,9 @@ class DiceScreenViewModel extends ChangeNotifier {
   }
 
   // die control settings
-  Map<String, Color> get blinkColors => _diWrapper.rollDomain.blinkColors;
+  // Map<String, Color> get blinkColors => _diWrapper.rollDomain.blinkColors;
   Future<Result<void>> _blink(Color blinkColor, GenericDie die, String? entityOverride) async {
-    _diWrapper.dieDomain.blink(blinkColor, die);
+    _diWrapper.dieDomain.blink(die.blinkColor ?? Colors.white, die);
 
     return Result.value(null);
   }
@@ -203,7 +203,8 @@ class DiceScreenViewModel extends ChangeNotifier {
   }
 
   Future<Result<void>> _updateDieSettings(GenericDie die, Color blinkColor, String entity, GenericDType faceCount) async {
-    _diWrapper.rollDomain.blinkColors[die.dieId] = blinkColor;
+    // _diWrapper.rollDomain.blinkColors[die.dieId] = blinkColor;
+    die.blinkColor = blinkColor;
     die.haEntityTargets = [entity];
     if (die.type != GenericDieType.pixel) {
       die.dType = faceCount;
@@ -241,6 +242,9 @@ class DiceScreenViewModel extends ChangeNotifier {
     return Result.value(null);
   }
 
+  GenericDie? getDieById(String dieId) {
+    return _diWrapper.dieDomain.getDieById(dieId);
+  }
   // Cleanup
   @override
   void dispose() {

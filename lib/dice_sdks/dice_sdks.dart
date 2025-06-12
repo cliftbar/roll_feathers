@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:ui';
 
 import 'package:collection/collection.dart';
+import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 
@@ -114,6 +116,9 @@ abstract class GenericDie {
   late DiceState state;
   List<String> haEntityTargets = [];
 
+  Color? get blinkColor;
+  set blinkColor(Color? c);
+
   Future<void> _init();
 
   Map<DiceRollState, Map<String, Function(DiceRollState)>> rollCallbacks = {};
@@ -221,6 +226,7 @@ class GoDiceBle extends GenericBleDie {
 
   final String _godiceFaceTypeKey = "dieFaceType";
   final String _dTypeContainerKey = "dieFaceContainer";
+  Color? _blinkColor;
 
   GoDiceBle({required godice.GodiceDieType dieFaceType, required super.device}) {
     GenericDType df = dieFaceType.toDType();
@@ -388,6 +394,15 @@ class GoDiceBle extends GenericBleDie {
   set dType(GenericDType df) {
     info[_dTypeContainerKey] = df;
   }
+
+  @override
+  // TODO: implement blinkColor
+  Color? get blinkColor => _blinkColor;
+
+  @override
+  set blinkColor(Color? c) {
+    _blinkColor = c;
+  }
 }
 
 class PixelDie extends GenericBleDie {
@@ -397,6 +412,8 @@ class PixelDie extends GenericBleDie {
   @override
   final GenericDieType type = GenericDieType.pixel;
   pix.PixelDiceInfo? info;
+
+  Color? _blinkColor;
 
   PixelDie._({required super.device});
 
@@ -511,6 +528,15 @@ class PixelDie extends GenericBleDie {
   set dType(GenericDType faces) {
     throw UnsupportedError("pixel die can't change dTypes");
   }
+
+  @override
+  // TODO: implement blinkColor
+  Color? get blinkColor => _blinkColor;
+
+  @override
+  set blinkColor(Color? c) {
+    _blinkColor = c;
+  }
 }
 
 class VirtualDie extends GenericDie {
@@ -521,6 +547,7 @@ class VirtualDie extends GenericDie {
   late final String? _name;
   final Random rand = Random();
   late GenericDType _dType;
+  Color? _blinkColor;
 
   @override
   final GenericDieType type = GenericDieType.virtual;
@@ -575,6 +602,14 @@ class VirtualDie extends GenericDie {
   set dType(GenericDType dType) {
   _dType = dType;
   }
+
+  @override
+  Color? get blinkColor => _blinkColor;
+
+  @override
+  set blinkColor(Color? c) {
+    _blinkColor = c;
+  }
 }
 
 class StaticVirtualDie extends GenericDie {
@@ -584,6 +619,7 @@ class StaticVirtualDie extends GenericDie {
   late final String _dieId;
   late final String? _name;
   late GenericDType _dType;
+  Color? _blinkColor;
 
   @override
   final GenericDieType type = GenericDieType.virtual;
@@ -617,5 +653,13 @@ class StaticVirtualDie extends GenericDie {
   @override
   set dType(GenericDType dType) {
     _dType = dType;
+  }
+
+  @override
+  Color? get blinkColor => _blinkColor;
+
+  @override
+  set blinkColor(Color? c) {
+    _blinkColor = c;
   }
 }

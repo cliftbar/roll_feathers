@@ -20,6 +20,6 @@ void main() {
       StaticVirtualDie(dType: GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d20), index: 5)
     ];
     // parseRule(isSuccessPercentile, 12, 3, rolls);
-    parseRule(testRule, rolls, threshold: 41, modifier: 3);
+    runRule(testRule, rolls, threshold: 41, modifier: 3);
   });
 }

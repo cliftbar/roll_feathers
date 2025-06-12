@@ -1,38 +1,67 @@
-String isSuccessPercentile = """
-define is_percentile_success
-for roll 1d10,1d00
+String percentiles = """
+define percentiles
+for roll 2d20
+transform with mul 2.5
 apply sum
-with results
-on [0:\$threshold) return true
-on [\$threshold:100] return false
+with result
+on [0:10) action blink \$ALL_DICE red
+on [10:25) action blink \$ALL_DICE orange
+on [25:50) action blink \$ALL_DICE yellow
+on [50:75) action blink \$ALL_DICE green
+on [75:90) action blink \$ALL_DICE blue
+on [90:*) action blink \$ALL_DICE purple
 """;
 
 String advantage = """
 define advantage
 for roll 2d20
-transform with offset 2 1
+transform with top 1
 apply max
-with results
-on [0:\$threshold) return true
-on [\$threshold:100] return false
 """;
 
 String disadvantage = """
-define advantage
+define disadvantage
 for roll 2d20
+transform with bottom 1
 apply min
-with results
-on [0:\$threshold) return true
-on [\$threshold:100] return false
 """;
 
-String testRule = """
-define sum
-for roll 5d20
-transform with offset \$modifier with top 3
-  with over 10
+String standardRoll = """
+define standardRoll
+for roll *d*
+transform with offset \$MODIFIER
 apply sum
 with result
-on [*:\$threshold) return true
-on [\$threshold:*] return false
+on [*:*] action blink \$ALL_DICE
+""";
+
+String minRoll = """
+define minRoll
+for roll *d*
+transform with offset \$MODIFIER
+  with bottom 1
+apply min
+with result
+on [*:*] action blink \$RESULT_DICE red
+""";
+
+String maxRoll = """
+define maxRoll
+for roll *d*
+transform with offset \$MODIFIER
+  with top 1
+apply max
+with result
+on [*:*] action blink \$RESULT_DICE
+""";
+
+String simpleTest = """
+define sum
+for roll 2d20
+transform with offset \$MODIFIER
+apply sum
+with result
+on [*:\$THRESHOLD) rule return true
+on [\$THRESHOLD:*] rule return false
+on [\$THRESHOLD:*] action blink \$RESULT_DICE green
 """;

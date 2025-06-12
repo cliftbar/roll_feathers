@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/dice_sdks/pixels.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
+import 'package:roll_feathers/domains/roll_parser/parser.dart';
+import 'package:roll_feathers/domains/roll_parser/parser_rules.dart' as rule;
 
 class RollResult {
   final RollType rollType;
@@ -49,8 +51,12 @@ class RollDomain {
 
   Timer? _rollUpdateTimer;
 
+  late final RuleParser _ruleParser;
+
   RollDomain._(this._diceDomain) {
     _deviceStreamListener = _diceDomain.getDiceStream().listen(rollStreamListener);
+    _ruleParser = RuleParser(_diceDomain, this);
+
   }
 
   Stream<List<RollResult>> subscribeRollResults() => _rollResultStream.stream;
@@ -89,38 +95,21 @@ class RollDomain {
 
   int _stopRollWithResult({
     RollType rollType = RollType.sum,
-    Color? advBlink = green,
-    Color? disAdvBlink = red,
     Map<String, Color>? totalColors,
   }) {
-    late int rollRet;
+    late ParseResult ruleResult;
     switch (rollType) {
       case RollType.max:
-        var maxRoll = _rolledDie.entries.reduce(
-          (v, e) => v.value.getFaceValueOrElse() >= e.value.getFaceValueOrElse() ? v : e,
-        );
-        if (advBlink != null) {
-          _diceDomain.blink(advBlink, maxRoll.value);
-        }
-        rollRet = maxRoll.value.getFaceValueOrElse();
+        ruleResult = _ruleParser.runRule(rule.maxRoll, _rolledDie.values.toList());
       case RollType.min:
-        var minRoll = _rolledDie.entries.reduce(
-          (v, e) => v.value.getFaceValueOrElse() <= e.value.getFaceValueOrElse() ? v : e,
-        );
-        if (disAdvBlink != null) {
-          _diceDomain.blink(disAdvBlink, minRoll.value);
-        }
-        rollRet = minRoll.value.getFaceValueOrElse();
+        ruleResult = _ruleParser.runRule(rule.minRoll, _rolledDie.values.toList());
       default:
-        for (var die in _rolledDie.values) {
-          _diceDomain.blink(blinkColors[die.dieId] ?? blue, die);
-        }
-        rollRet = _rollTotal();
+        ruleResult = _ruleParser.runRule(rule.percentiles, _rolledDie.values.toList());
     }
     var result = RollResult(
       rollType: rollType,
-      rolls: Map.fromEntries(_rolledDie.entries.map((MapEntry<String, GenericDie> e) => MapEntry(e.key, e.value.getFaceValueOrElse()))),
-      rollResult: rollRet,
+      rolls: ruleResult.allRolled,
+      rollResult: ruleResult.result,
     );
     _rollHistory.insert(0, result);
     _rollStatusStream.add(RollStatus.rollEnded);

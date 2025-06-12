@@ -192,14 +192,14 @@ class DiceScreenViewModel extends ChangeNotifier {
   // die control settings
   Map<String, Color> get blinkColors => _diWrapper.rollDomain.blinkColors;
   Future<Result<void>> _blink(Color blinkColor, GenericDie die, String? entityOverride) async {
-    _diWrapper.rfController.blink(blinkColor, die);
+    _diWrapper.dieDomain.blink(blinkColor, die);
 
     return Result.value(null);
   }
 
   // TODO: Refactor needed?  I'm not sure how the UI is getting notified about this?
   Stream<Map<String, GenericDie>> getDeviceStream() {
-    return _diWrapper.rfController.getDiceStream();
+    return _diWrapper.dieDomain.getDiceStream();
   }
 
   Future<Result<void>> _updateDieSettings(GenericDie die, Color blinkColor, String entity, GenericDType faceCount) async {
@@ -213,7 +213,7 @@ class DiceScreenViewModel extends ChangeNotifier {
   }
 
   Future<Result<void>> _addVirtualDie(int faceCount, String name) async {
-    _diWrapper.rfController.addVirtualDie(faceCount: faceCount, name: name);
+    _diWrapper.dieDomain.addVirtualDie(faceCount: faceCount, name: name);
     notifyListeners();
     return Result.value(null);
   }
@@ -224,19 +224,19 @@ class DiceScreenViewModel extends ChangeNotifier {
   }
 
   Future<Result<void>> _disconnectAllDice() async {
-    await _diWrapper.rfController.disconnectAllDice();
+    await _diWrapper.dieDomain.disconnectAllDice();
     notifyListeners();
     return Result.value(null);
   }
 
   Future<Result<void>> _disconnectAllNonVirtualDice() async {
-    await _diWrapper.rfController.disconnectAllNonVirtualDice();
+    await _diWrapper.dieDomain.disconnectAllNonVirtualDice();
     notifyListeners();
     return Result.value(null);
   }
 
   Future<Result<void>> _disconnectDie(String dieId) async {
-    await _diWrapper.rfController.disconnectDie(dieId);
+    await _diWrapper.dieDomain.disconnectDie(dieId);
     notifyListeners();
     return Result.value(null);
   }

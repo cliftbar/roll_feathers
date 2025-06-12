@@ -34,6 +34,11 @@ var _transforms =
         number.repeatSeparated(" ".toParser(), 1, 1),
       ),
       pp.seq3(
+        "equals".toParser().map((f) => equalsValue),
+        pp.whitespace().star(),
+        number.repeatSeparated(" ".toParser(), 1, 1),
+      ),
+      pp.seq3(
         "match".toParser().map((f) => match),
         pp.whitespace().star(),
         number.repeatSeparated(" ".toParser(), 1, 1),
@@ -177,7 +182,7 @@ class RuleParser {
     // Check if the roll should evaluate
     var rollNames = rolls.map((d) => d.dType.name).toList();
     List<String> expandedResults =
-        (result.value[#dice] as List<String>).expand((v) {
+        (result.value[#roll] as List<String>).expand((v) {
           if (v[0] == "*") {
             return [v];
           } else {
@@ -210,7 +215,7 @@ class RuleParser {
     }
     // run actions if we should evaluate
     bool ruleReturn = true;
-    for (Tuple4<RollResultRange, String, String, List<String>> res in result.value[#results]) {
+    for (Tuple4<RollResultRange, String, String, List<String>> res in result.value[#targets]) {
       if (!res.item1.valueIn(rollResult)) {
         continue;
       }
@@ -263,7 +268,7 @@ class RuleParser {
                 pp.whitespace().star(),
               )
               .optional(),
-          pp.seq3(pp.string("apply ").times(1).flatten(), _functions, pp.whitespace().star()),
+          pp.seq4(pp.string("aggregate").times(1).flatten(), " ".toParser().star(), _functions, pp.whitespace().star()),
           pp
               .seq4(
                 pp.string("with result").times(1).flatten(),
@@ -274,17 +279,16 @@ class RuleParser {
               .optional(),
         )
         .map5(
-          (name, dieParse, transforms, apply, results) => <Symbol, dynamic>{
+          (name, roll, transforms, aggregate, targets) => <Symbol, dynamic>{
             #name: name.$2,
-            #dice: dieParse.$2.elements,
-            #exactly: dieParse.$3,
+            #roll: roll.$2.elements,
+            #exactly: roll.$3,
             #transforms: transforms?.$3.elements.map((e) => Tuple2(e.$3.$1, e.$3.$3.elements)).toList(),
-            #aggregate: apply.$2,
-            #results:
-                results?.$3.elements
+            #aggregate: aggregate.$3,
+            #targets:
+            targets?.$3.elements
                     .map((r) => Tuple4(RollResultRange(r.$3.$1, r.$3.$2.round(), r.$3.$4.round(), r.$3.$5), r.$5.$1, r.$5.$3, r.$5.$5.elements))
                     .toList(),
-            //result.value[#results]?.$3.elements[2].$5
           },
         );
     var result = parser.parse(replacedRule);

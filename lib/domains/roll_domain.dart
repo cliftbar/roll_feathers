@@ -104,7 +104,13 @@ class RollDomain {
       case RollType.min:
         ruleResult = _ruleParser.runRule(rule.minRoll, _rolledDie.values.toList());
       default:
-        ruleResult = _ruleParser.runRule(rule.percentiles, _rolledDie.values.toList());
+        ruleResult = _ruleParser.runRule(rule.doubles, _rolledDie.values.toList());
+        if (!ruleResult.ruleReturn) {
+          ruleResult = _ruleParser.runRule(rule.d20percentiles, _rolledDie.values.toList());
+        }
+        if (!ruleResult.ruleReturn) {
+          ruleResult = _ruleParser.runRule(rule.standardRoll, _rolledDie.values.toList());
+        }
     }
     var result = RollResult(
       rollType: rollType,

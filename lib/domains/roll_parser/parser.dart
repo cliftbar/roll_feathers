@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+import 'package:logging/logging.dart';
 import 'package:petitparser/petitparser.dart' as pp;
 import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
@@ -163,6 +164,7 @@ class ParseResult {
 }
 
 class RuleParser {
+  final Logger _log = Logger("RuleParser");
   final DieDomain _dieDomain;
   final RollDomain _rollDomain;
 
@@ -192,7 +194,7 @@ class RuleParser {
           }
         }).toList();
     bool passed = _checkRollConditions(expandedResults, rollNames);
-    print("Should Evaluate: $rollNames, $passed");
+    _log.fine("Should Evaluate: $rollNames, $passed");
 
     // Transform
     var rollMap = Map.fromEntries(rolls.map((r) => MapEntry(r, r.getFaceValueOrElse())));
@@ -200,12 +202,12 @@ class RuleParser {
       var args = transform.item2.map((e) => threshold == e ? threshold : e).toList();
       rollMap = transform.item1(rollMap, args);
     }
-    print("transformed: ${rollMap.values.toList()}");
+    _log.fine("transformed: ${rollMap.values.toList()}");
 
     // apply roll aggregate
     int rollResult = (result.value[#aggregate] as RollAggregate)(rollMap.values.toList());
 
-    print("Roll Result: $rollResult");
+    _log.fine("Roll Result: $rollResult");
 
     // determine the rolls to make a result
     Map<String, int> evaluatedRolls = Map.fromEntries(rollMap.entries.map((e) => MapEntry(e.key.dieId, e.value)));
@@ -244,7 +246,7 @@ class RuleParser {
       }
     }
 
-    print("result: $ruleReturn");
+    _log.fine("result: $ruleReturn");
 
 
     return ParseResult(result: rollResult, allRolled: allRolls, rolledEvaluated: evaluatedRolls, ruleName: result.value[#name], ruleReturn: ruleReturn);
@@ -292,7 +294,7 @@ class RuleParser {
           },
         );
     var result = parser.parse(replacedRule);
-    print(result.value);
+    _log.fine(result.value);
     return result;
   }
 

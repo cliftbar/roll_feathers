@@ -91,7 +91,7 @@ class GenericDTypeFactory {
     d4: GenericDType("d4", 4, 4, 1, 1),
     d6: GenericDType("d6", 6, 6, 1, 1),
     d8: GenericDType("d8", 8, 8, 1, 1),
-    d10: GenericDType("d10", 10, 10, 0, 1),
+    d10: GenericDType("d10", 10, 10, 1, 1),
     d00: GenericDType("d00", 0, 10, 0, 10),
     d12: GenericDType("d12", 12, 12, 1, 1),
     d20: GenericDType("d20", 20, 20, 1, 1),
@@ -632,7 +632,7 @@ class StaticVirtualDie extends GenericDie {
   }
 
   void setIndexValue(int index) {
-    state.currentFaceValue = (index + _dType.indexOffset) * _dType.multiplier;
+    state.currentFaceValue = ((index + _dType.indexOffset) * _dType.multiplier).round();
     state.currentFaceIndex = index;
   }
 

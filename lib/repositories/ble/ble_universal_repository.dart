@@ -9,11 +9,14 @@ import 'ble_repository.dart';
 class UniversalBleDevice implements BleDeviceWrapper {
   @override
   Logger log = Logger("UniversalBleDevice");
+
   @override
   @override
   String get deviceId => device.deviceId;
+
   @override
   List<String> get servicesUuids => _services.map((s) => s.uuid).toList();
+
   @override
   List<String> get characteristicUuids => _characteristics.map((c) => c.uuid).toList();
 
@@ -32,7 +35,7 @@ class UniversalBleDevice implements BleDeviceWrapper {
   @override
   Future<bool> init() async {
     _services = await UniversalBle.discoverServices(deviceId);
-    print(_services.length);
+    log.fine("service length: ${_services.length}");
     _characteristics = _services.expand((s) => s.characteristics).toList();
 
     return initialized;
@@ -41,7 +44,7 @@ class UniversalBleDevice implements BleDeviceWrapper {
   @override
   Future<void> discoverServices() async {
     var servics = await UniversalBle.discoverServices(deviceId);
-    print("xcb ${servics.length} $servics");
+    log.fine("discoverServices ${servics.length} $servics");
   }
 
   @override
@@ -83,6 +86,7 @@ class BleUniversalRepository implements BleRepository {
   final _log = Logger("BleUniversalRepository");
 
   final Map<String, UniversalBleDevice> _discoveredBleDevices = {};
+
   @override
   Map<String, BleDeviceWrapper> get discoveredBleDevices => _discoveredBleDevices;
   final _bleDeviceSubscription = StreamController<Map<String, BleDeviceWrapper>>.broadcast();
@@ -94,6 +98,7 @@ class BleUniversalRepository implements BleRepository {
 
   @override
   Stream<Map<String, BleDeviceWrapper>> subscribeBleDevices() => _bleDeviceSubscription.stream;
+
   @override
   Stream<bool> subscribeBleEnabled() => _bleEnabledSubscription.stream;
 
@@ -140,7 +145,9 @@ class BleUniversalRepository implements BleRepository {
         )
         .timeout(timeout, onTimeout: () => throw TimeoutException('Bluetooth enablement timeout after 10 seconds'));
   }
+
   final Map<String, int> _deviceReconnects = {};
+
   @override
   Future<void> scan({List<String>? services, Duration? timeout = const Duration(seconds: 5)}) async {
     if (!supported || !enabled) {
@@ -151,7 +158,8 @@ class BleUniversalRepository implements BleRepository {
       await UniversalBle.connect(bleDevice.deviceId);
       UniversalBle.connectionStream(bleDevice.deviceId).listen((bool isConnected) async {
         if (!isConnected) {
-          if (_discoveredBleDevices.containsKey(bleDevice.deviceId)) {  // not manually disconnected, try reconnect
+          if (_discoveredBleDevices.containsKey(bleDevice.deviceId)) {
+            // not manually disconnected, try reconnect
             int reconnects = _deviceReconnects.putIfAbsent(bleDevice.deviceId, () => 0);
             if (reconnects < 0) {
               //attempt reconnect, but disabled for now

@@ -23,8 +23,11 @@ class DieDomain {
     });
   }
 
-  void addVirtualDie({required faceCount, String? dieId, String? name}) {
-    var vd = VirtualDie(faceCount: faceCount, name: name);
+  void addVirtualDie({required int faceCount, String? dieId, String? name}) {
+    var dType =
+        GenericDTypeFactory.fromIntId(faceCount) ??
+        GenericDType("d${faceCount.toString()}", faceCount, faceCount, 0, 1);
+    var vd = VirtualDie(dType: dType, name: name);
     _foundDie[vd.dieId] = vd;
     _diceSubscription.add(_foundDie);
   }
@@ -33,6 +36,10 @@ class DieDomain {
     var res = _foundDie.values.toList().where((d) => d.type == GenericDieType.virtual).toList();
     var res2 = res.map((d) => d as VirtualDie).toList();
     return res2;
+  }
+
+  GenericDie? getDieById(String dieId) {
+    return _foundDie[dieId];
   }
 
   Future<Map<String, GenericDie>> asyncConvertToDie(Map<String, BleDeviceWrapper> data) async {
@@ -100,21 +107,23 @@ class DieDomain {
     _diceSubscription.add(_foundDie);
   }
 
-  void blink(Color blinkColor, GenericDie die) async {
+  Future<void> blink(Color blinkColor, GenericDie die, {bool withHa = true}) async {
     Blinker? blinker;
     switch (die.type) {
       case GenericDieType.godice:
-        blinker = MessageToggleLeds(toggleColor: blinkColor);
-        (die as GoDiceBle).sendMessage(blinker);
+        MessageToggleLeds blinkMsg = MessageToggleLeds(toggleColor: blinkColor);
+        blinker = blinkMsg;
+        await (die as GoDiceBle).sendMessage(blinkMsg);
       case GenericDieType.pixel:
-        blinker = MessageBlink(blinkColor: blinkColor);
-        (die as PixelDie).sendMessage(blinker);
-      default:
-        {}
+        MessageBlink blinkMsg = MessageBlink(blinkColor: blinkColor);
+        blinker = blinkMsg;
+        await (die as PixelDie).sendMessage(blinkMsg);
+      case GenericDieType.virtual:
+        blinker = BasicBlinker(1, Duration(milliseconds: 500), Duration(milliseconds: 500), blinkColor);
     }
 
-    if (blinker != null) {
-      _haRepository.blinkEntity(blink: blinker, entity: die.haEntityTargets.firstOrNull);
+    if (withHa) {
+      await _haRepository.blinkEntity(blink: blinker, entity: die.haEntityTargets.firstOrNull);
     }
   }
 }

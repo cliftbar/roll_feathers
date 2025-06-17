@@ -1,9 +1,8 @@
 import 'dart:io';
 
 import 'package:home_assistant/home_assistant.dart';
+import 'package:logging/logging.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
-
-
 import '../../dice_sdks/message_sdk.dart';
 
 enum LightServiceActions {
@@ -16,6 +15,7 @@ enum LightServiceActions {
 }
 
 class HaService {
+  final _log = Logger("HaService");
   final HaConfigService _haConfig;
   late HomeAssistant _homeAssistant;
 
@@ -41,7 +41,7 @@ class HaService {
       var currentState = await _homeAssistant.fetchState(entity);
       revertPayload = {"rgb_color": currentState.attributes.rgbColor, "brightness": currentState.attributes.brightness};
     } catch (e) {
-      print("error reading ha state of '$entity': $e");
+      ("error reading ha state of '$entity': $e");
       revertAction = LightServiceActions.off;
     }
 
@@ -57,6 +57,6 @@ class HaService {
     sleep(Duration(milliseconds: blink.getOffDuration().inMilliseconds));
     await _homeAssistant.executeService(entity, revertAction.action, additionalActions: revertPayload);
 
-    print("HA blink");
+    _log.fine("HA blink");
   }
 }

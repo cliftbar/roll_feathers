@@ -1,6 +1,3 @@
-import 'dart:collection';
-import 'dart:math';
-
 import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -54,8 +51,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
               child: SafeArea(
                 bottom: false,
-                child: Text('Settings',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white))
+                child: Text('Settings', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white)),
               ),
             ),
             AppSettingsWidget(ips: widget.viewModel.getIpAddress(), parentVm: widget.viewModel),
@@ -108,47 +104,46 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
             child: Column(
               children: [
                 Wrap(
-                      // TODO: second row so alignment works?
-                      children: [
-                        _makeAutoRollSwitch(),
-                        TextButton.icon(
-                          onPressed: () {
-                            _showAddVirtualDieDialog(context);
-                          },
-                          label: const Text("Add Die"),
-                          icon: const Icon(Icons.add),
-                        ), // _makeBleScanButton(),
-                        ListenableBuilder(
-                          listenable: widget.viewModel,
-                          builder: (context, _) {
-                            return TextButton.icon(
-                              onPressed:
-                                  widget.viewModel.bleIsEnabled()
-                                      ? () {
-                                        widget.viewModel.startBleScan.execute();
-                                      }
-                                      : null,
-                              label:
-                                  widget.viewModel.bleIsEnabled()
-                                      ? Text(kIsWeb ? "Pair Die" : "Scan")
-                                      : Text("BLE Disabled"),
-                              icon:
-                                  widget.viewModel.bleIsEnabled()
-                                      ? const Icon(Icons.bluetooth_searching)
-                                      : const Icon(Icons.bluetooth_disabled),
-                            );
-                          },
-                        ),
-                        TextButton.icon(
-                          onPressed: () {
-                            widget.viewModel.rollAllVirtualDice.execute(true);
-                          },
-                          label: const Text("Roll"),
-                          icon: const Icon(Icons.refresh),
-                        ),
-                      ],
+                  // TODO: second row so alignment works?
+                  children: [
+                    _makeAutoRollSwitch(),
+                    TextButton.icon(
+                      onPressed: () {
+                        _showAddVirtualDieDialog(context);
+                      },
+                      label: const Text("Add Die"),
+                      icon: const Icon(Icons.add),
+                    ), // _makeBleScanButton(),
+                    ListenableBuilder(
+                      listenable: widget.viewModel,
+                      builder: (context, _) {
+                        return TextButton.icon(
+                          onPressed:
+                              widget.viewModel.bleIsEnabled()
+                                  ? () {
+                                    widget.viewModel.startBleScan.execute();
+                                  }
+                                  : null,
+                          label:
+                              widget.viewModel.bleIsEnabled()
+                                  ? Text(kIsWeb ? "Pair Die" : "Scan")
+                                  : Text("BLE Disabled"),
+                          icon:
+                              widget.viewModel.bleIsEnabled()
+                                  ? const Icon(Icons.bluetooth_searching)
+                                  : const Icon(Icons.bluetooth_disabled),
+                        );
+                      },
                     ),
-                 // TODO: Does this need to be listenable?  does the stream already handle updates?
+                    TextButton.icon(
+                      onPressed: () {
+                        widget.viewModel.rollAllVirtualDice.execute(true);
+                      },
+                      label: const Text("Roll"),
+                      icon: const Icon(Icons.refresh),
+                    ),
+                  ],
+                ), // TODO: Does this need to be listenable?  does the stream already handle updates?
                 Expanded(
                   child: ListenableBuilder(
                     listenable: widget.viewModel,
@@ -171,16 +166,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                             itemBuilder: (context, index) {
                               final die = devices[index];
 
-                              return ListTile(
-                                textColor: _getRollingTextColor(die, context),
-                                title: Text(
-                                  die.friendlyName.isEmpty ? 'Unknown Device ${die.dieId}' : die.friendlyName,
-                                ),
-                                subtitle: Text(_getDieText(die)),
-                                onTap: () {
-                                  _singleDieSettings(context, die);
-                                },
-                              );
+                              return _makeDiceText(die, context);
                             },
                           );
                         },
@@ -293,81 +279,99 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
     );
   }
 
+  ListTile _makeDiceText(GenericDie die, BuildContext context) {
+    return ListTile(
+      textColor: _getBlinkColor(context, die),
+      title: Text(die.friendlyName.isEmpty ? 'Unknown Device ${die.dieId}' : die.friendlyName),
+      leading: Icon(Icons.hexagon),
+      iconColor: _getRollingTextColor(die, context),
+      subtitle: Text(_getDieText(die)),
+      onTap: () {
+        _singleDieSettings(context, die);
+      },
+    );
+  }
+
   void _singleDieSettings(BuildContext context, GenericDie die) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        Color currentColor = widget.viewModel.blinkColors[die.dieId] ?? Colors.white;
+        Color currentColor = die.blinkColor ?? Colors.white;
         final entityController = TextEditingController(
           text: die.haEntityTargets.firstOrNull ?? "",
         ); // Add controller for entity field
         var faceTuple = _makeFaceSelectorWidget(die);
         return ListenableBuilder(
           listenable: widget.viewModel,
-            builder: (context, _) {
-              return AlertDialog(
-                title: Text('${die.friendlyName} Settings'),
-                content: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text("Face Count"),
-                      faceTuple.item1,
-                      const Divider(),
-                      const Text('Pick a color'),
-                      ColorPicker(
-                        pickerColor: currentColor,
-                        hexInputBar: true,
-                        paletteType: PaletteType.hueWheel,
-                        onColorChanged: (Color color) {
-                          currentColor = color;
-                        },
-                        pickerAreaHeightPercent: 0.8,
+          builder: (context, _) {
+            return AlertDialog(
+              title: Text('${die.friendlyName} Settings'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text("Face Count"),
+                    faceTuple.item1,
+                    const Divider(),
+                    const Text('Pick a color'),
+                    ColorPicker(
+                      pickerColor: currentColor,
+                      hexInputBar: true,
+                      paletteType: PaletteType.hueWheel,
+                      onColorChanged: (Color color) {
+                        currentColor = color;
+                      },
+                      pickerAreaHeightPercent: 0.8,
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: entityController,
+                      enabled: widget.viewModel.getHaConfig().enabled,
+                      autocorrect: false,
+                      decoration: const InputDecoration(
+                        labelText: 'Home Assistant Entity',
+                        hintText: 'light.bedroom',
+                        helperText: 'Leave empty to use default entity',
                       ),
-                      const SizedBox(height: 16),
-                      TextField(
-                        controller: entityController,
-                        enabled: widget.viewModel.getHaConfig().enabled,
-                        autocorrect: false,
-                        decoration: const InputDecoration(
-                          labelText: 'Home Assistant Entity',
-                          hintText: 'light.bedroom',
-                          helperText: 'Leave empty to use default entity',
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                actions: <Widget>[
-                  TextButton(
-                    child: const Text('Cancel'),
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                    },
-                  ),
-                  TextButton(
-                    child: const Text('Blink'),
-                    onPressed: () {
-                      widget.viewModel.blink.execute(currentColor, die, entityController.text);
-                    },
-                  ),
-                  TextButton(
-                    child: const Text('Disconnect'),
-                    onPressed: () {
-                      widget.viewModel.disconnectDie.execute(die.dieId);
-                      Navigator.of(context).pop();
-                    },
-                  ),
-                  TextButton(
-                    child: const Text('Save'),
-                    onPressed: () {
-                      widget.viewModel.updateDieSettings.execute(die, currentColor, entityController.text, faceTuple.item2());
-                      Navigator.of(context).pop();
-                    },
-                  ),
-                ],
-              );
-            }
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                ),
+                TextButton(
+                  child: const Text('Blink'),
+                  onPressed: () {
+                    widget.viewModel.blink.execute(currentColor, die, entityController.text);
+                  },
+                ),
+                TextButton(
+                  child: const Text('Disconnect'),
+                  onPressed: () {
+                    widget.viewModel.disconnectDie.execute(die.dieId);
+                    Navigator.of(context).pop();
+                  },
+                ),
+                TextButton(
+                  child: const Text('Save'),
+                  onPressed: () {
+                    widget.viewModel.updateDieSettings.execute(
+                      die,
+                      currentColor,
+                      entityController.text,
+                      faceTuple.item2(),
+                    );
+                    Navigator.of(context).pop();
+                  },
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -387,7 +391,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
         valueString = "";
     }
 
-    return '${die.faceType.dName} ${die.state.batteryLevel}%$valueString ${die.dieId}';
+    return '${die.dType.name} ${die.state.batteryLevel}%$valueString ${die.dieId}';
   }
 
   // Helpers
@@ -407,12 +411,18 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
   }
 
   RichText _makeRollText(BuildContext context, RollResult roll) {
-    List<TextSpan> rollsWithColors = roll.rolls.entries.sortedBy((e) => e.value)
-        .map((entry) => TextSpan(
-        text: "${entry.value}",
-        style: DefaultTextStyle.of(context).style.copyWith(color: _getBlinkColor(context, entry.key)))
-    ).toList();
-
+    List<TextSpan> rollsWithColors =
+        roll.rolls.entries
+            .sortedBy((e) => e.value)
+            .map(
+              (entry) => TextSpan(
+                text: "${entry.value}",
+                style: DefaultTextStyle.of(
+                  context,
+                ).style.copyWith(color: _getBlinkColor(context, widget.viewModel.getDieById(entry.key))),
+              ),
+            )
+            .toList();
 
     TextSpan rollType;
     switch (roll.rollType) {
@@ -426,12 +436,9 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
         break;
       default:
         rollType = TextSpan(text: "<sum>:  ${roll.rollResult}");
-        // rollResult += '<sum>: ${roll.rollResult} ($rollString)';
+      // rollResult += '<sum>: ${roll.rollResult} ($rollString)';
     }
-    List<TextSpan> dynamicText = <TextSpan>[
-      rollType,
-      TextSpan(text: " (")
-    ];
+    List<TextSpan> dynamicText = <TextSpan>[rollType, TextSpan(text: " (")];
     dynamicText.add(rollsWithColors[0]);
     for (var r in rollsWithColors.sublist(1)) {
       dynamicText.add(TextSpan(text: ", "));
@@ -439,13 +446,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
     }
     dynamicText.add(TextSpan(text: ")"));
 
-    var rt = RichText(
-      text: TextSpan(
-        text: "Roll ",
-        style: DefaultTextStyle.of(context).style,
-        children: dynamicText,
-      ),
-    );
+    var rt = RichText(text: TextSpan(text: "Roll ", style: DefaultTextStyle.of(context).style, children: dynamicText));
 
     return rt;
   }
@@ -458,12 +459,12 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
       case DiceRollState.onFace:
       case DiceRollState.rolled:
       default:
-        return _getBlinkColor(context, die.dieId);
+        return _getBlinkColor(context, die);
     }
   }
 
-  Color _getBlinkColor(BuildContext context, String dieId) {
-    return widget.viewModel.blinkColors[dieId]?.withAlpha(255) ??
+  Color _getBlinkColor(BuildContext context, GenericDie? die) {
+    return die?.blinkColor?.withAlpha(255) ??
         Theme.of(context).textTheme.bodyMedium?.color! ??
         (widget.viewModel.themeMode == ThemeMode.dark ? Colors.white : Colors.black);
   }
@@ -545,22 +546,26 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
   }
 
   // this is a bad pattern x.x
-  Tuple2<Widget, ValueGetter<DieFaceContainer>>  _makeFaceSelectorWidget(GenericDie die) {
-    switch(die.type) {
+  Tuple2<Widget, ValueGetter<GenericDType>> _makeFaceSelectorWidget(GenericDie die) {
+    switch (die.type) {
       case GenericDieType.pixel:
-        faceCallback() => die.faceType;
-        return Tuple2(Text("${die.faceType.dName}"), faceCallback);
+        faceCallback() => die.dType;
+        return Tuple2(Text(die.dType.name), faceCallback);
       case GenericDieType.godice:
         final List<DropdownMenuEntry<String>> menuEntries = UnmodifiableListView<DropdownMenuEntry<String>>(
-          GodiceDieType.values.where((t) => t != GodiceDieType.d24).map<DropdownMenuEntry<String>>((GodiceDieType v) => DropdownMenuEntry<String>(value: v.name, label: v.name)),
+          GodiceDieType.values
+              .where((t) => t != GodiceDieType.d24)
+              .map<DropdownMenuEntry<String>>(
+                (GodiceDieType v) => DropdownMenuEntry<String>(value: v.name, label: v.name),
+              ),
         );
 
-        DieFaceContainer dropdownValue = die.faceType;
+        GenericDType dropdownValue = die.dType;
         var menu = DropdownMenu<String>(
-          initialSelection: GodiceDieType.fromName(die.faceType.dName)?.name ?? die.faceType.dName,
+          initialSelection: GodiceDieType.fromName(die.dType.name)?.name ?? die.dType.name,
           onSelected: (String? value) {
             if (value != null) {
-              dropdownValue = DieFaceContainer(value, GodiceDieType.fromName(value)?.faces ?? GodiceDieType.unknown.faces);
+              dropdownValue = GodiceDieType.fromName(value).toDType();
             }
           },
           dropdownMenuEntries: menuEntries,
@@ -568,10 +573,11 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
         faceCallback() => dropdownValue;
         return Tuple2(menu, faceCallback);
       case GenericDieType.virtual:
-        var faceCountUpdateController = TextEditingController(text: "${die.faceType.faceCount}");
+        var faceCountUpdateController = TextEditingController(text: "${die.dType.faces}");
         faceCallback() {
           int value = int.parse(faceCountUpdateController.text);
-          return DieFaceContainer("d$value", value);
+          var dType = GenericDTypeFactory.fromIntId(value) ?? GenericDType("d${value.toString()}", value, value, 0, 1);
+          return dType;
         }
         var col = Column(
           mainAxisSize: MainAxisSize.min,
@@ -580,10 +586,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
             TextFormField(
               controller: faceCountUpdateController,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(
-                labelText: 'Number of Faces',
-                hintText: 'Enter the number of faces',
-              ),
+              decoration: const InputDecoration(labelText: 'Number of Faces', hintText: 'Enter the number of faces'),
               keyboardType: TextInputType.number,
             ),
           ],

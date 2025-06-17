@@ -42,6 +42,7 @@ class FbpBleDevice implements BleDeviceWrapper {
   @override
   List<String> get characteristicUuids =>
       device.servicesList.expand((s) => s.characteristics).map((c) => c.uuid.str).toList();
+
   @override
   List<String> get servicesUuids => device.servicesList.map((s) => s.serviceUuid.str).toList();
 
@@ -76,6 +77,7 @@ class BleFbpCrossRepository implements BleRepository {
   final _log = Logger("BleRepository");
 
   final Map<String, FbpBleDevice> _discoveredBleDevices = {};
+
   @override
   Map<String, BleDeviceWrapper> get discoveredBleDevices => _discoveredBleDevices;
   final _bleDeviceSubscription = StreamController<Map<String, FbpBleDevice>>.broadcast();
@@ -87,6 +89,7 @@ class BleFbpCrossRepository implements BleRepository {
 
   @override
   Stream<Map<String, BleDeviceWrapper>> subscribeBleDevices() => _bleDeviceSubscription.stream;
+
   @override
   Stream<bool> subscribeBleEnabled() => _bleEnabledSubscription.stream;
 
@@ -131,7 +134,9 @@ class BleFbpCrossRepository implements BleRepository {
         )
         .timeout(timeout, onTimeout: () => throw TimeoutException('Bluetooth connection timeout after 10 seconds'));
   }
-  final Map <String, int> _reconnectTries = {};
+
+  final Map<String, int> _reconnectTries = {};
+
   @override
   Future<void> scan({List<String>? services, Duration? timeout = const Duration(seconds: 5)}) async {
     if (!supported || !enabled) {

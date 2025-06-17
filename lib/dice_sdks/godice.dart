@@ -29,22 +29,46 @@ enum GodiceDieType {
   d6(6), // Regular 6-sided die
   d20(20), // 20-sided die
   d10(10), // 10-sided die
-  d10X(0), // 10-sided percentile die (00-90)
+  d00(0), // 10-sided percentile die (00-90)
   d4(4), // 4-sided die
   d8(8), // 8-sided die
   d12(12), // 12-sided die
-  d24(24), // special form for vector transforms
+  d24(24) // special form for vector transforms
   ;
 
   final int faces;
+
   const GodiceDieType(this.faces);
 
   static GodiceDieType fromFaceCount(int faceCount) {
     return GodiceDieType.values.firstWhere((t) => t.faces == faceCount);
   }
 
-  static GodiceDieType? fromName(String name) {
-    return GodiceDieType.values.firstWhere((t) => t.name == name);
+  static GodiceDieType fromName(String name) {
+    return GodiceDieType.values.firstWhere((t) => t.name == name, orElse: () => GodiceDieType.unknown);
+  }
+
+  GenericDType toDType() {
+    switch (this) {
+      case GodiceDieType.unknown:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.unknown);
+      case GodiceDieType.d4:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d4);
+      case GodiceDieType.d6:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d6);
+      case GodiceDieType.d20:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d20);
+      case GodiceDieType.d10:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d10);
+      case GodiceDieType.d00:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d00);
+      case GodiceDieType.d8:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d8);
+      case GodiceDieType.d12:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d12);
+      case GodiceDieType.d24:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.unknown);
+    }
   }
 }
 
@@ -111,10 +135,10 @@ const Map<GodiceDieType, GodiceDieType> vectorToTransform = {
   GodiceDieType.d6: GodiceDieType.d6,
   GodiceDieType.d20: GodiceDieType.d20,
   GodiceDieType.d10: GodiceDieType.d20,
-  GodiceDieType.d10X: GodiceDieType.d20,
+  GodiceDieType.d00: GodiceDieType.d20,
   GodiceDieType.d4: GodiceDieType.d24,
   GodiceDieType.d8: GodiceDieType.d24,
-  GodiceDieType.d12: GodiceDieType.d24
+  GodiceDieType.d12: GodiceDieType.d24,
 };
 
 const Map<GodiceDieType, Map<int, int>> transforms = {
@@ -140,7 +164,7 @@ const Map<GodiceDieType, Map<int, int>> transforms = {
     19: 2,
     20: 8,
   },
-  GodiceDieType.d10X: {
+  GodiceDieType.d00: {
     1: 80,
     2: 20,
     3: 60,
@@ -277,7 +301,10 @@ enum GodiceMessageType {
   const GodiceMessageType(this.value);
 
   static GodiceMessageType getByValue(List<int> data) {
-    return GodiceMessageType.values.firstWhere((v) => ListEquality().equals(v.value, data.sublist(0, v.value.length)), orElse: () => unknown);
+    return GodiceMessageType.values.firstWhere(
+      (v) => ListEquality().equals(v.value, data.sublist(0, v.value.length)),
+      orElse: () => unknown,
+    );
   }
 }
 
@@ -311,6 +338,7 @@ class MessageInit extends TxMessage with Color255 {
   Color connectColor;
   BlinkMode blinkMode;
   BlinkLedSelector leds;
+
   MessageInit({
     this.diceSensitivity = 50,
     this.numberOfBlinks = 1,
@@ -343,13 +371,14 @@ class MessageInit extends TxMessage with Color255 {
   }
 }
 
-class MessageToggleLeds extends Blinker with Color255 {
+class MessageToggleLeds extends TxMessage with Color255 implements Blinker {
   int numberOfBlinks;
   int lightOnDuration10ms;
   int lightOffDuration10ms;
   Color toggleColor;
   BlinkMode blinkMode;
   BlinkLedSelector leds;
+
   MessageToggleLeds({
     this.numberOfBlinks = 2,
     this.lightOnDuration10ms = 25,
@@ -404,6 +433,7 @@ class MessageUpdateSampleSettings extends TxMessage {
   int weakStable;
   int movementDeg;
   int rollThreshold;
+
   MessageUpdateSampleSettings({
     this.samplesCount = 4,
     this.movementCount = 2,
@@ -483,6 +513,7 @@ class MessageDTap extends RxMessage {
 
 class MessageBatteryLevelAck extends RxMessage {
   final int batteryLevel;
+
   MessageBatteryLevelAck({required super.buffer, required this.batteryLevel})
     : super(id: GodiceMessageType.batteryLevelAck.value[0]);
 
@@ -500,6 +531,7 @@ class MessageBatteryLevelAck extends RxMessage {
 
 class MessageDiceColorAck extends RxMessage {
   final GodiceDieColor diceColor;
+
   MessageDiceColorAck({required super.buffer, required this.diceColor})
     : super(id: GodiceMessageType.batteryLevelAck.value[0]);
 
@@ -519,6 +551,7 @@ class MessageDiceColorAck extends RxMessage {
 class MessageStable extends RxMessage {
   static final int _dataOffset = GodiceMessageType.stable.value.length;
   final Vector xyzData;
+
   MessageStable({required super.buffer, required this.xyzData}) : super(id: GodiceMessageType.stable.value[0]);
 
   static MessageStable parse(List<int> data) {
@@ -538,6 +571,7 @@ class MessageStable extends RxMessage {
 class MessageFakeStable extends RxMessage {
   static final int _dataOffset = GodiceMessageType.fakeStable.value.length;
   final Vector xyzData;
+
   MessageFakeStable({required super.buffer, required this.xyzData}) : super(id: GodiceMessageType.fakeStable.value[0]);
 
   static MessageFakeStable parse(List<int> data) {
@@ -557,6 +591,7 @@ class MessageFakeStable extends RxMessage {
 class MessageTiltStable extends RxMessage {
   static final int _dataOffset = GodiceMessageType.tiltStable.value.length;
   final Vector xyzData;
+
   MessageTiltStable({required super.buffer, required this.xyzData}) : super(id: GodiceMessageType.tiltStable.value[0]);
 
   static MessageTiltStable parse(List<int> data) {
@@ -576,6 +611,7 @@ class MessageTiltStable extends RxMessage {
 class MessageMoveStable extends RxMessage {
   static final int _dataOffset = GodiceMessageType.moveStable.value.length;
   final Vector xyzData;
+
   MessageMoveStable({required super.buffer, required this.xyzData}) : super(id: GodiceMessageType.moveStable.value[0]);
 
   static MessageMoveStable parse(List<int> data) {

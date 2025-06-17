@@ -9,6 +9,7 @@ class BluetoothNotSupported implements Exception {
 abstract class BleDeviceWrapper {
   abstract bool initialized;
   abstract Logger log;
+
   String get deviceId;
 
   String get friendlyName;

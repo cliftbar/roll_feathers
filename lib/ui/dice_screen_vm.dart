@@ -44,7 +44,7 @@ class DiceScreenViewModel extends ChangeNotifier {
 
   // die control settings
   late Command3<void, Color, GenericDie, String?> blink;
-  late Command4<void, GenericDie, Color, String, DieFaceContainer> updateDieSettings;
+  late Command4<void, GenericDie, Color, String, GenericDType> updateDieSettings;
   late Command2<void, int, String> addVirtualDie;
   late Command0<void> disconnectAllDice;
   late Command0<void> disconnectAllNonVirtualDice;
@@ -127,6 +127,7 @@ class DiceScreenViewModel extends ChangeNotifier {
 
   // theme
   ThemeMode getThemeMode() => themeMode;
+
   Future<Result<void>> _toggleTheme() async {
     try {
       themeMode = themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
@@ -140,6 +141,7 @@ class DiceScreenViewModel extends ChangeNotifier {
 
   // screen wake lock
   bool getKeepScreenOn() => keepScreenOn;
+
   Future<Result<void>> _toggleKeepScreenOn() async {
     try {
       keepScreenOn = !keepScreenOn;
@@ -159,6 +161,7 @@ class DiceScreenViewModel extends ChangeNotifier {
 
   // ha config proxy
   HaConfig getHaConfig() => _haConfig;
+
   Future<Result<void>> _setHaConfig(bool enabled, String url, String token, String entity) async {
     _diWrapper.haRepository.updateSettings(enabled: enabled, url: url, token: token, entity: entity);
 
@@ -190,30 +193,36 @@ class DiceScreenViewModel extends ChangeNotifier {
   }
 
   // die control settings
-  Map<String, Color> get blinkColors => _diWrapper.rollDomain.blinkColors;
+  // Map<String, Color> get blinkColors => _diWrapper.rollDomain.blinkColors;
   Future<Result<void>> _blink(Color blinkColor, GenericDie die, String? entityOverride) async {
-    _diWrapper.rfController.blink(blinkColor, die);
+    _diWrapper.dieDomain.blink(die.blinkColor ?? Colors.white, die);
 
     return Result.value(null);
   }
 
   // TODO: Refactor needed?  I'm not sure how the UI is getting notified about this?
   Stream<Map<String, GenericDie>> getDeviceStream() {
-    return _diWrapper.rfController.getDiceStream();
+    return _diWrapper.dieDomain.getDiceStream();
   }
 
-  Future<Result<void>> _updateDieSettings(GenericDie die, Color blinkColor, String entity, DieFaceContainer faceCount) async {
-    _diWrapper.rollDomain.blinkColors[die.dieId] = blinkColor;
+  Future<Result<void>> _updateDieSettings(
+    GenericDie die,
+    Color blinkColor,
+    String entity,
+    GenericDType faceCount,
+  ) async {
+    // _diWrapper.rollDomain.blinkColors[die.dieId] = blinkColor;
+    die.blinkColor = blinkColor;
     die.haEntityTargets = [entity];
     if (die.type != GenericDieType.pixel) {
-      die.faceType = faceCount;
+      die.dType = faceCount;
     }
     notifyListeners();
     return Result.value(null);
   }
 
   Future<Result<void>> _addVirtualDie(int faceCount, String name) async {
-    _diWrapper.rfController.addVirtualDie(faceCount: faceCount, name: name);
+    _diWrapper.dieDomain.addVirtualDie(faceCount: faceCount, name: name);
     notifyListeners();
     return Result.value(null);
   }
@@ -224,21 +233,25 @@ class DiceScreenViewModel extends ChangeNotifier {
   }
 
   Future<Result<void>> _disconnectAllDice() async {
-    await _diWrapper.rfController.disconnectAllDice();
+    await _diWrapper.dieDomain.disconnectAllDice();
     notifyListeners();
     return Result.value(null);
   }
 
   Future<Result<void>> _disconnectAllNonVirtualDice() async {
-    await _diWrapper.rfController.disconnectAllNonVirtualDice();
+    await _diWrapper.dieDomain.disconnectAllNonVirtualDice();
     notifyListeners();
     return Result.value(null);
   }
 
   Future<Result<void>> _disconnectDie(String dieId) async {
-    await _diWrapper.rfController.disconnectDie(dieId);
+    await _diWrapper.dieDomain.disconnectDie(dieId);
     notifyListeners();
     return Result.value(null);
+  }
+
+  GenericDie? getDieById(String dieId) {
+    return _diWrapper.dieDomain.getDieById(dieId);
   }
 
   // Cleanup

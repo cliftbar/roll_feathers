@@ -16,7 +16,6 @@ class EmptyApiDomain extends ApiDomain {
     // TODO: implement getIpAddress
     return [];
   }
-
 }
 
 class ApiDomainServer extends ApiDomain {

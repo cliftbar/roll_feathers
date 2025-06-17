@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 
 import 'message_sdk.dart';
 
@@ -27,6 +28,31 @@ enum PixelDieType {
   final int faces;
 
   const PixelDieType(this.faces);
+
+  GenericDType toDType() {
+    switch (this) {
+      case PixelDieType.unknown:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.unknown);
+      case PixelDieType.d4:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d4);
+      case PixelDieType.d6:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d6);
+      case PixelDieType.d8:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d8);
+      case PixelDieType.d10:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d10);
+      case PixelDieType.d00:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d00);
+      case PixelDieType.d12:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d12);
+      case PixelDieType.d20:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d20);
+      case PixelDieType.d6Pipped:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d6);
+      case PixelDieType.d6Fudge:
+        return GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d6);
+    }
+  }
 }
 
 enum PixelDesignAndColor {
@@ -329,7 +355,7 @@ class MessageNone extends RxMessage {
   }
 }
 
-class MessageBlink extends Blinker with Color255 {
+class MessageBlink extends TxMessage with Color255 implements Blinker {
   final int count;
   final int duration;
   final Color blinkColor;

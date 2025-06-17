@@ -17,12 +17,14 @@ abstract class HaRepository {
   Future<void> blinkEntity({required Blinker blink, String? entity, bool force = false});
 
   bool get enabled;
+
   bool get available;
 }
 
 class HaRepositoryEmpty extends HaRepository {
   @override
   Stream<HaConfig> subscribeHaSettings() => Stream.empty();
+
   @override
   Future<HaConfig> getHaConfig() async {
     return HaConfig(enabled: false, url: "", token: "", entity: "");
@@ -30,6 +32,7 @@ class HaRepositoryEmpty extends HaRepository {
 
   @override
   Future<void> updateSettings({bool enabled = false, String url = "", String token = "", String entity = ""}) async {}
+
   @override
   Future<void> blinkEntity({required Blinker blink, String? entity, bool force = false}) async {}
 

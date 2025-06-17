@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:async/async.dart';
 import 'package:flutter/material.dart';
-
 import 'package:roll_feathers/di/di.dart';
 
 class RollFeathersAppVM extends ChangeNotifier {

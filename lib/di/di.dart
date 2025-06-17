@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:roll_feathers/domains/roll_parser/parser.dart';
 
 import '../dice_sdks/godice.dart';
 import '../dice_sdks/pixels.dart';
@@ -8,7 +9,6 @@ import '../domains/api_domain.dart';
 import '../domains/die_domain.dart';
 import '../domains/roll_domain.dart';
 import '../repositories/app_repository.dart';
-import '../repositories/ble/ble_fbp_repository.dart';
 import '../repositories/ble/ble_repository.dart';
 import '../repositories/ble/ble_universal_repository.dart';
 import '../repositories/home_assistant_repository.dart';
@@ -25,7 +25,7 @@ class DiWrapper {
   final AppRepository appRepository;
 
   final BleRepository bleRepository;
-  final DieDomain rfController;
+  final DieDomain dieDomain;
   final RollDomain rollDomain;
   final ApiDomain apiDomain;
 
@@ -55,9 +55,9 @@ class DiWrapper {
       bleRepo.init().whenComplete(() => bleRepo.scan(services: [pixelsService, godiceServiceGuid]));
     }
 
-    var rfController = DieDomain(bleRepo, haRepository);
+    var dieDomain = DieDomain(bleRepo, haRepository);
 
-    var rollDomain = await RollDomain.create(rfController);
+    var rollDomain = await RollDomain.create(dieDomain);
     late ApiDomain apiDomain;
     if (kIsWeb) {
       apiDomain = EmptyApiDomain();
@@ -65,13 +65,15 @@ class DiWrapper {
       apiDomain = await ApiDomainServer.create(rollDomain: rollDomain);
     }
 
+    var ruleParser = RuleParser(dieDomain, rollDomain);
+
     return DiWrapper._(
       haService,
       appService,
       haConfigService,
       haRepository,
       appRepo,
-      rfController,
+      dieDomain,
       bleRepo,
       rollDomain,
       apiDomain,
@@ -84,7 +86,7 @@ class DiWrapper {
     this.haConfigService,
     this.haRepository,
     this.appRepository,
-    this.rfController,
+    this.dieDomain,
     this.bleRepository,
     this.rollDomain,
     this.apiDomain,

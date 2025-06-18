@@ -1,6 +1,8 @@
 // Messages
 import 'dart:ui';
 
+import '../util/color.dart';
+
 abstract class Message {
   final int id;
 
@@ -54,24 +56,4 @@ class BasicBlinker with Color255 implements Blinker {
 
   @override
   Color getColor() => _color;
-}
-
-mixin Color255 {
-  Color getColor();
-
-  int r255() {
-    return (getColor().r * getColor().a * 255).toInt();
-  }
-
-  int g255() {
-    return (getColor().g * getColor().a * 255).toInt();
-  }
-
-  int b255() {
-    return (getColor().b * getColor().a * 255).toInt();
-  }
-
-  int a255() {
-    return (getColor().a * 255).toInt();
-  }
 }

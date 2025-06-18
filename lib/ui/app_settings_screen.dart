@@ -17,7 +17,7 @@ class AppSettingsWidget extends StatelessWidget {
     final tokenController = TextEditingController(text: haConfig.token);
     final entityController = TextEditingController(text: haConfig.entity);
     bool isEnabled = haConfig.enabled;
-    bool webDisabled = kIsWeb;
+    bool webDisabled = false;
 
     showDialog(
       context: context,
@@ -26,7 +26,7 @@ class AppSettingsWidget extends StatelessWidget {
           // Use StatefulBuilder to manage toggle state
           builder: (context, setState) {
             return AlertDialog(
-              title: Text('Home Assistant Settings${webDisabled ? "\nDisabled On Web " : ""}'),
+              title: Text('Home Assistant Settings${kIsWeb ? "\nEnsure HA accepts rollfeathers.ungwatkt.com in CORs " : ""}'),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -35,13 +35,11 @@ class AppSettingsWidget extends StatelessWidget {
                       title: const Text('Enable Home Assistant'),
                       value: isEnabled,
                       onChanged:
-                          webDisabled
-                              ? null
-                              : (bool value) {
-                                setState(() {
-                                  isEnabled = value;
-                                });
-                              },
+                          (bool value) {
+                            setState(() {
+                              isEnabled = value;
+                            });
+                          },
                     ),
                     const Divider(),
                     TextField(

@@ -1,1 +1,30 @@
-GET {{ip}}:8080/api/last-roll
+GET {{rf_ip}}:8080/api/last-roll
+
+###
+
+GET {{ha_url}}/api/states/{{ha_entity}}
+Authorization: Bearer {{ha_token}}
+Content-Type: application/json
+
+###
+
+POST {{ha_url}}/api/services/light/turn_on
+Authorization: Bearer {{ha_token}}
+Content-Type: application/json
+
+{
+  "entity_id": "{{ha_entity}}",
+  "color_temp": 2500,
+  "brightness": 255
+}
+###
+
+POST {{ha_url}}/api/services/light/turn_off
+Authorization: Bearer {{ha_token}}
+Content-Type: application/json
+
+{
+  "entity_id": "{{ha_entity}}"
+}
+###
+

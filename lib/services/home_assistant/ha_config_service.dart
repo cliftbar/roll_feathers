@@ -16,26 +16,24 @@ class HaConfigService {
   static String haTokenKey = "ha.token";
 
   Future<HaConfig> getConfig() async {
-    final prefs = await SharedPreferences.getInstance();
+    final SharedPreferencesAsync prefs = SharedPreferencesAsync();
 
-    bool enabled = prefs.getBool(haEnabledKey) ?? false;
-    String url = prefs.getString(kaUrlKey) ?? "";
-    String token = prefs.getString(haTokenKey) ?? "";
-    String entity = prefs.getString(haEntityKey) ?? "";
+    bool enabled = await prefs.getBool(haEnabledKey) ?? false;
+    String url = await prefs.getString(kaUrlKey) ?? "";
+    String token = await prefs.getString(haTokenKey) ?? "";
+    String entity = await prefs.getString(haEntityKey) ?? "";
 
     return HaConfig(enabled: enabled, url: url, token: token, entity: entity);
   }
 
   Future<bool> setConfig(HaConfig conf) async {
-    final prefs = await SharedPreferences.getInstance();
+    final SharedPreferencesAsync prefs = SharedPreferencesAsync();
 
-    List<bool> sets = await Future.wait([
-      prefs.setBool(haEnabledKey, conf.enabled),
-      prefs.setString(kaUrlKey, conf.url),
-      prefs.setString(haTokenKey, conf.token),
-      prefs.setString(haEntityKey, conf.entity),
-    ]);
+    await prefs.setBool(haEnabledKey, conf.enabled);
+    await prefs.setString(kaUrlKey, conf.url);
+    await prefs.setString(haTokenKey, conf.token);
+    await prefs.setString(haEntityKey, conf.entity);
 
-    return !sets.contains(false);
+    return true;
   }
 }

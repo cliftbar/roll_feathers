@@ -1,7 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:roll_feathers/domains/roll_parser/parser.dart';
+import 'package:http/http.dart';
+import 'package:roll_feathers/services/home_assistant/ha_api_service.dart';
 
 import '../dice_sdks/godice.dart';
 import '../dice_sdks/pixels.dart';
@@ -15,6 +16,9 @@ import '../repositories/home_assistant_repository.dart';
 import '../services/app_service.dart';
 import '../services/home_assistant/ha_config_service.dart';
 import '../services/home_assistant/ha_service.dart';
+import 'http/http_client_provider.dart'
+    if (dart.library.js_interop) 'http/web_http_client_provider.dart'
+    as http_factory;
 
 class DiWrapper {
   final HaService haService;
@@ -31,17 +35,20 @@ class DiWrapper {
 
   static Future<DiWrapper> initDi() async {
     late HaRepository haRepository;
-    var haService = await HaService.create();
-    var haConfigService = HaConfigService();
+    late HaService haService;
+    HaConfigService haConfigService = HaConfigService();
+    Client httpClient = http_factory.provideHttpClient();
+    haService = await HaApiService.create(httpClient);
     if (kIsWeb) {
-      haRepository = HaRepositoryEmpty();
+      HaConfig conf = await haConfigService.getConfig();
+      haRepository = HaRepositoryImpl(haConfigService, haService, conf.enabled);
     } else {
-      var conf = await haConfigService.getConfig();
+      HaConfig conf = await haConfigService.getConfig();
       haRepository = HaRepositoryImpl(haConfigService, haService, conf.enabled);
     }
 
-    var appService = AppService();
-    var appRepo = AppRepository(appService);
+    AppService appService = AppService();
+    AppRepository appRepo = AppRepository(appService);
 
     BleRepository bleRepo;
     if (kIsWeb) {
@@ -55,17 +62,15 @@ class DiWrapper {
       bleRepo.init().whenComplete(() => bleRepo.scan(services: [pixelsService, godiceServiceGuid]));
     }
 
-    var dieDomain = DieDomain(bleRepo, haRepository);
+    DieDomain dieDomain = DieDomain(bleRepo, haRepository);
 
-    var rollDomain = await RollDomain.create(dieDomain);
+    RollDomain rollDomain = await RollDomain.create(dieDomain);
     late ApiDomain apiDomain;
     if (kIsWeb) {
       apiDomain = EmptyApiDomain();
     } else {
       apiDomain = await ApiDomainServer.create(rollDomain: rollDomain);
     }
-
-    var ruleParser = RuleParser(dieDomain, rollDomain);
 
     return DiWrapper._(
       haService,

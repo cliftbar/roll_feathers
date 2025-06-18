@@ -32,7 +32,6 @@ final colorMap = {
   'brown': Colors.brown,
   'deepOrange': Colors.deepOrange,
   'deepPurple': Colors.deepPurple,
-
   'grey': Colors.grey,
   'indigo': Colors.indigo,
   'lightBlue': Colors.lightBlue,
@@ -59,3 +58,36 @@ final colorMap = {
   'orangeAccent': Colors.orangeAccent,
   'deepOrangeAccent': Colors.deepOrangeAccent,
 };
+
+mixin Color255 {
+  Color getColor();
+
+  int r255() {
+    return (getColor().r * getColor().a * 255).toInt();
+  }
+
+  int g255() {
+    return (getColor().g * getColor().a * 255).toInt();
+  }
+
+  int b255() {
+    return (getColor().b * getColor().a * 255).toInt();
+  }
+
+  int a255() {
+    return (getColor().a * 255).toInt();
+  }
+}
+
+class RFColor extends Color with Color255 {
+  RFColor(super.value);
+
+  static RFColor of(Color c) {
+    return RFColor(c.toARGB32());
+  }
+
+  @override
+  Color getColor() {
+    return this;
+  }
+}

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/services/home_assistant/ha_service.dart';
@@ -76,7 +77,7 @@ class HaRepositoryImpl extends HaRepository {
     var conf = await _haConfigService.getConfig();
     isEnabled = conf.enabled;
     if (enabled || force) {
-      await _haService.blinkEntity(presentOrElse(entity, conf.entity), blink);
+      await _haService.blinkLightEntity(presentOrElse(entity, conf.entity), blink);
     }
   }
 
@@ -84,5 +85,11 @@ class HaRepositoryImpl extends HaRepository {
   bool get enabled => isEnabled;
 
   @override
-  bool get available => true;
+  bool get available {
+    if (kIsWeb || kIsWasm) {
+      return false;
+    }
+
+    return true;
+  }
 }

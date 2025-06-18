@@ -562,7 +562,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
 
         GenericDType dropdownValue = die.dType;
         var menu = DropdownMenu<String>(
-          initialSelection: GodiceDieType.fromName(die.dType.name)?.name ?? die.dType.name,
+          initialSelection: GodiceDieType.fromName(die.dType.name).name,
           onSelected: (String? value) {
             if (value != null) {
               dropdownValue = GodiceDieType.fromName(value).toDType();

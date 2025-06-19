@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:universal_ble/universal_ble.dart';
@@ -115,12 +116,16 @@ class BleUniversalRepository implements BleRepository {
     if (!supported) {
       _log.severe("Bluetooth is not supported");
     }
-    Map<Permission, PermissionStatus> statuses = await [
-      // Permission.bluetooth,
-      Permission.bluetoothScan,
-      Permission.bluetoothConnect,
-    ].request();
-    if (!statuses.values.any((t) => t != PermissionStatus.granted)) {
+    if (!kIsWeb) {
+      Map<Permission, PermissionStatus> statuses = await [
+        // Permission.bluetooth,
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+      ].request();
+      if (!statuses.values.any((t) => t != PermissionStatus.granted)) {
+        permissioned = true;
+      }
+    } else {
       permissioned = true;
     }
 

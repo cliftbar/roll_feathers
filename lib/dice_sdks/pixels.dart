@@ -297,8 +297,8 @@ class MessageIAmADie extends RxMessage {
       rollState: data[18],
       currentFaceIndex: data[19],
       currentFaceValue: data[19] + 1,
-      batteryLevel: data[20],
-      batteryState: data[21],
+      batteryLevel: data.length >= 21 ? data[20] : 0,
+      batteryState: data.length >= 22 ? data[21] : BatteryState.unknown.index,
     );
   }
 

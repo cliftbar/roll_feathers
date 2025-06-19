@@ -6,11 +6,13 @@ import 'package:mocktail/mocktail.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
+import 'package:roll_feathers/services/app_service.dart';
 
 class MockRollDomain extends Mock implements RollDomain {}
 class MockDieDomain extends Mock implements DieDomain {}
 class MockGenericDie extends Mock implements GenericDie {}
 class MockColor extends Mock implements Color {}
+class MockAppService extends Mock implements AppService {}
 
 void setupLogger(Level level) {
   hierarchicalLoggingEnabled = true;

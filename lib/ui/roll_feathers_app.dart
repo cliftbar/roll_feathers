@@ -3,6 +3,8 @@ import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/ui/dice_screen.dart';
 import 'package:roll_feathers/ui/roll_feathers_app_vm.dart';
 
+import 'app_settings/app_settings_screen.dart';
+
 // Main Application
 class RollFeatherApp extends StatefulWidget {
   final RollFeathersAppVM viewModel;
@@ -15,7 +17,9 @@ class RollFeatherApp extends StatefulWidget {
   static Future<RollFeatherApp> create(DiWrapper di) async {
     var view = await RollFeathersAppVM.create(di);
 
-    var mainScreen = await DiceScreenWidget.create(di);
+    var appSettingsWidget = await AppSettingsWidget.create(di);
+
+    var mainScreen = await DiceScreenWidget.create(di, appSettingsWidget);
 
     var app = RollFeatherApp._(view, mainScreen);
 

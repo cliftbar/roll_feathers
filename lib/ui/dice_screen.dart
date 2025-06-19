@@ -10,19 +10,20 @@ import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/ui/dice_screen_vm.dart';
 import 'package:tuple/tuple.dart';
 
-import 'app_settings_screen.dart';
+import 'app_settings/app_settings_screen.dart';
 
 class DiceScreenWidget extends StatefulWidget {
-  const DiceScreenWidget._(this.viewModel);
+  const DiceScreenWidget._(this.viewModel, this.appSettingsWidget);
 
-  static Future<DiceScreenWidget> create(DiWrapper di) async {
+  static Future<DiceScreenWidget> create(DiWrapper di, AppSettingsWidget appSettings) async {
     var vm = DiceScreenViewModel(di);
-    var widget = DiceScreenWidget._(vm);
+    var widget = DiceScreenWidget._(vm, appSettings);
 
     return widget;
   }
 
   final DiceScreenViewModel viewModel;
+  final AppSettingsWidget appSettingsWidget;
 
   @override
   State<DiceScreenWidget> createState() => _DiceScreenWidgetState();
@@ -54,7 +55,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                 child: Text('Settings', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white)),
               ),
             ),
-            AppSettingsWidget(ips: widget.viewModel.getIpAddress(), parentVm: widget.viewModel),
+            widget.appSettingsWidget,
             // Why does this get notified, when the view model is the main screen view model?
             Card(
               margin: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
@@ -115,21 +116,21 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                       icon: const Icon(Icons.add),
                     ), // _makeBleScanButton(),
                     ListenableBuilder(
-                      listenable: widget.viewModel,
+                      listenable: widget.appSettingsWidget.vm,
                       builder: (context, _) {
                         return TextButton.icon(
                           onPressed:
-                              widget.viewModel.bleIsEnabled()
+                              widget.appSettingsWidget.vm.bleIsEnabled()
                                   ? () {
-                                    widget.viewModel.startBleScan.execute();
+                                    widget.appSettingsWidget.vm.startBleScan.execute();
                                   }
                                   : null,
                           label:
-                              widget.viewModel.bleIsEnabled()
+                              widget.appSettingsWidget.vm.bleIsEnabled()
                                   ? Text(kIsWeb ? "Pair Die" : "Scan")
                                   : Text("BLE Disabled"),
                           icon:
-                              widget.viewModel.bleIsEnabled()
+                              widget.appSettingsWidget.vm.bleIsEnabled()
                                   ? const Icon(Icons.bluetooth_searching)
                                   : const Icon(Icons.bluetooth_disabled),
                         );
@@ -193,51 +194,51 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                       runSpacing: 4.0, // gap between lines
                       alignment: WrapAlignment.spaceBetween,
                       children: [
-                        Wrap(
-                          spacing: 8.0,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Text('Roll Type: '),
-                                Checkbox(
-                                  value: _rollMax,
-                                  onChanged: (bool? value) {
-                                    setState(() {
-                                      _rollMax = value ?? false;
-                                      if (_rollMax) {
-                                        _rollMin = false;
-                                      }
-                                      _setRollType();
-                                    });
-                                  },
-                                ),
-                                const Text('Maximum'),
-                              ],
-                            ),
-                            SizedBox(
-                              width: 140, // Fixed width for consistency
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Checkbox(
-                                    value: _rollMin,
-                                    onChanged: (bool? value) {
-                                      setState(() {
-                                        _rollMin = value ?? false;
-                                        if (_rollMin) {
-                                          _rollMax = false;
-                                        }
-                                        _setRollType();
-                                      });
-                                    },
-                                  ),
-                                  const Text('Minimum'),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                        // Wrap(
+                        //   spacing: 8.0,
+                        //   children: [
+                        //     Row(
+                        //       mainAxisSize: MainAxisSize.min,
+                        //       children: [
+                        //         const Text('Roll Type: '),
+                        //         Checkbox(
+                        //           value: _rollMax,
+                        //           onChanged: (bool? value) {
+                        //             setState(() {
+                        //               _rollMax = value ?? false;
+                        //               if (_rollMax) {
+                        //                 _rollMin = false;
+                        //               }
+                        //               _setRollType();
+                        //             });
+                        //           },
+                        //         ),
+                        //         const Text('Maximum'),
+                        //       ],
+                        //     ),
+                        //     SizedBox(
+                        //       width: 140, // Fixed width for consistency
+                        //       child: Row(
+                        //         mainAxisSize: MainAxisSize.min,
+                        //         children: [
+                        //           Checkbox(
+                        //             value: _rollMin,
+                        //             onChanged: (bool? value) {
+                        //               setState(() {
+                        //                 _rollMin = value ?? false;
+                        //                 if (_rollMin) {
+                        //                   _rollMax = false;
+                        //                 }
+                        //                 _setRollType();
+                        //               });
+                        //             },
+                        //           ),
+                        //           const Text('Minimum'),
+                        //         ],
+                        //       ),
+                        //     ),
+                        //   ],
+                        // ),
                         TextButton.icon(
                           icon: const Icon(Icons.clear_all),
                           label: const Text('Clear'),
@@ -326,7 +327,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                     const SizedBox(height: 16),
                     TextField(
                       controller: entityController,
-                      enabled: widget.viewModel.getHaConfig().enabled,
+                      enabled: widget.appSettingsWidget.vm.getHaConfig().enabled,
                       autocorrect: false,
                       decoration: const InputDecoration(
                         labelText: 'Home Assistant Entity',
@@ -425,19 +426,24 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
             .toList();
 
     TextSpan rollType;
-    switch (roll.rollType) {
-      case RollType.max:
-        rollType = TextSpan(text: "<max>:  ${roll.rollResult}");
-        // rollResult += ' <max>: ${roll.rollResult} ($rollString)';
-        break;
-      case RollType.min:
-        rollType = TextSpan(text: "<min>:  ${roll.rollResult}");
-        // rollResult += ' <min>: ${roll.rollResult} ($rollString)';
-        break;
-      default:
-        rollType = TextSpan(text: "<sum>:  ${roll.rollResult}");
-      // rollResult += '<sum>: ${roll.rollResult} ($rollString)';
+    if (roll.ruleName == null) {
+      rollType = TextSpan(text: ": ${roll.rollResult}");
+    } else {
+      rollType = TextSpan(text: " <${roll.ruleName}>: ${roll.rollResult}");
     }
+    // switch (roll.rollType) {
+    //   case RollType.max:
+    //     rollType = TextSpan(text: "<max>:  ${roll.rollResult}");
+    //     // rollResult += ' <max>: ${roll.rollResult} ($rollString)';
+    //     break;
+    //   case RollType.min:
+    //     rollType = TextSpan(text: "<min>:  ${roll.rollResult}");
+    //     // rollResult += ' <min>: ${roll.rollResult} ($rollString)';
+    //     break;
+    //   default:
+    //     rollType = TextSpan(text: "<sum>:  ${roll.rollResult}");
+    //   // rollResult += '<sum>: ${roll.rollResult} ($rollString)';
+    // }
     List<TextSpan> dynamicText = <TextSpan>[rollType, TextSpan(text: " (")];
     dynamicText.add(rollsWithColors[0]);
     for (var r in rollsWithColors.sublist(1)) {
@@ -446,7 +452,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
     }
     dynamicText.add(TextSpan(text: ")"));
 
-    var rt = RichText(text: TextSpan(text: "Roll ", style: DefaultTextStyle.of(context).style, children: dynamicText));
+    var rt = RichText(text: TextSpan(text: "Roll", style: DefaultTextStyle.of(context).style, children: dynamicText));
 
     return rt;
   }
@@ -466,7 +472,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
   Color _getBlinkColor(BuildContext context, GenericDie? die) {
     return die?.blinkColor?.withAlpha(255) ??
         Theme.of(context).textTheme.bodyMedium?.color! ??
-        (widget.viewModel.themeMode == ThemeMode.dark ? Colors.white : Colors.black);
+        (widget.appSettingsWidget.vm.themeMode == ThemeMode.dark ? Colors.white : Colors.black);
   }
 
   Card _makeAutoRollSwitch() {

@@ -393,6 +393,7 @@ class GoDiceBle extends GenericBleDie {
 
   @override
   set dType(GenericDType df) {
+    info[_godiceFaceTypeKey] = godice.GodiceDieType.fromName(df.name);
     info[_dTypeContainerKey] = df;
   }
 

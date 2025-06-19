@@ -7,12 +7,12 @@ import 'package:shelf_router/shelf_router.dart';
 import 'package:shelf_routing/shelf_routing.dart';
 
 abstract class ApiDomain {
-  List<String> getIpAddress();
+  List<String> getIpAddresses();
 }
 
 class EmptyApiDomain extends ApiDomain {
   @override
-  List<String> getIpAddress() {
+  List<String> getIpAddresses() {
     // TODO: implement getIpAddress
     return [];
   }
@@ -55,7 +55,7 @@ class ApiDomainServer extends ApiDomain {
   }
 
   @override
-  List<String> getIpAddress() {
+  List<String> getIpAddresses() {
     return _networkInterfaces.map((e) => e.addresses[0].address).toList();
   }
 }

@@ -32,6 +32,8 @@ class DieDomain {
     _diceSubscription.add(_foundDie);
   }
 
+  int get dieCount => _foundDie.length;
+
   List<VirtualDie> getVirtualDice() {
     var res = _foundDie.values.toList().where((d) => d.type == GenericDieType.virtual).toList();
     var res2 = res.map((d) => d as VirtualDie).toList();

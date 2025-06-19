@@ -1,17 +1,20 @@
 import 'dart:async';
 
+import 'package:collection/collection.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/domains/roll_parser/parser.dart';
 import 'package:roll_feathers/domains/roll_parser/parser_rules.dart' as rule;
+import 'package:roll_feathers/services/app_service.dart';
 
 class RollResult {
   final RollType rollType;
   final int rollResult;
   final Map<String, int> rolls;
   late final DateTime _rollTime;
+  final String? ruleName;
 
-  RollResult({required this.rollType, required this.rollResult, required this.rolls}) {
+  RollResult({required this.rollType, required this.rollResult, required this.rolls, this.ruleName}) {
     _rollTime = DateTime.now();
   }
 
@@ -27,7 +30,7 @@ class RollResult {
   }
 }
 
-enum RollType { sum, max, min }
+enum RollType { sum, max, min, rule, normal }
 
 enum RollStatus { rollStarted, rolling, rollEnded }
 
@@ -49,19 +52,26 @@ class RollDomain {
 
   Timer? _rollUpdateTimer;
 
-  late final RuleParser _ruleParser;
+  late final RuleParser ruleParser;
+  late final AppService appService;
 
-  RollDomain._(this._diceDomain) {
+  RollDomain._(this._diceDomain, this.appService) {
     _deviceStreamListener = _diceDomain.getDiceStream().listen(rollStreamListener);
-    _ruleParser = RuleParser(_diceDomain, this);
+    ruleParser = RuleParser(_diceDomain, this, appService);
+  }
+
+  Future<void> init() async {
+    await ruleParser.init();
   }
 
   Stream<List<RollResult>> subscribeRollResults() => _rollResultStream.stream;
 
   Stream<RollStatus> subscribeRollStatus() => _rollStatusStream.stream;
 
-  static Future<RollDomain> create(DieDomain rfController) async {
-    return RollDomain._(rfController);
+  static Future<RollDomain> create(DieDomain dieDomain, AppService appService) async {
+    var rollDomain = RollDomain._(dieDomain, appService);
+    rollDomain.init();
+    return rollDomain;
   }
 
   bool areDieRolling(List<GenericDie> allDie) {
@@ -91,20 +101,41 @@ class RollDomain {
     _rollStatusStream.add(RollStatus.rollEnded);
   }
 
-  int _stopRollWithResult({RollType rollType = RollType.sum}) {
-    late ParseResult ruleResult;
-    switch (rollType) {
-      case RollType.max:
-        ruleResult = _ruleParser.runRule(rule.maxRoll, _rolledDie.values.toList());
-      case RollType.min:
-        ruleResult = _ruleParser.runRule(rule.minRoll, _rolledDie.values.toList());
-      default:
-        ruleResult = _ruleParser.runRule(rule.d20percentiles, _rolledDie.values.toList());
-        if (!ruleResult.ruleReturn) {
-          ruleResult = _ruleParser.runRule(rule.standardRoll, _rolledDie.values.toList());
-        }
+  int _stopRollWithResult({RollType rollType = RollType.normal}) {
+    ParseResult? ruleResult;
+    // switch (rollType) {
+    //   case RollType.max:
+    //     ruleResult = ruleParser.runRule(rule.maxRoll, _rolledDie.values.toList());
+    //   case RollType.min:
+    //     ruleResult = ruleParser.runRule(rule.minRoll, _rolledDie.values.toList());
+    //   default:
+    //     for (var r in ruleParser.getRules(enabledOnly: true)) {
+    //       ruleResult = ruleParser.runRule(r.script, _rolledDie.values.toList());
+    //       if (ruleResult.ruleReturn) {
+    //         rollType = RollType.rule;
+    //         break;
+    //       }
+    //     }
+    // }
+    for (var r in ruleParser.getRules(enabledOnly: true)) {
+      ruleResult = ruleParser.runRule(r.script, _rolledDie.values.toList());
+      if (ruleResult.ruleReturn) {
+        rollType = RollType.rule;
+        break;
+      }
     }
-    var result = RollResult(rollType: rollType, rolls: ruleResult.allRolled, rollResult: ruleResult.result);
+    late Map<String, int> resultRolls;
+    late int resultValue;
+    String? ruleName;
+    if (ruleResult != null && ruleResult.ruleReturn) {
+      resultRolls = ruleResult.allRolled;
+      resultValue = ruleResult.result;
+      ruleName = ruleResult.ruleName;
+    } else {
+      resultRolls = Map.fromEntries(_rolledDie.entries.map((e) => MapEntry(e.key, e.value.getFaceValueOrElse())));
+      resultValue = resultRolls.values.sum;
+    }
+    var result = RollResult(rollType: rollType, rolls: resultRolls, rollResult: resultValue, ruleName: ruleName);
     _rollHistory.insert(0, result);
     _rollStatusStream.add(RollStatus.rollEnded);
     _rollResultStream.add(_rollHistory);
@@ -152,7 +183,7 @@ class RollDomain {
         if (allDiceRolled && _isRolling) {
           // roll is active but all dice are done rolling
           _stopRolling();
-          _stopRollWithResult(rollType: rollType);
+          _stopRollWithResult();
         }
       });
     }
@@ -164,6 +195,9 @@ class RollDomain {
   }
 
   void rollAllVirtualDice({bool force = false}) {
+    if (_diceDomain.dieCount == 0) {
+      return;
+    }
     // Start the rolling process
     _startRolling();
     _rollStartVirtualDice(force: force);

@@ -4,35 +4,13 @@ import 'package:async/async.dart';
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
-import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/util/command.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 
 class DiceScreenViewModel extends ChangeNotifier {
   // init
   final DiWrapper _diWrapper;
   late Command0 load;
-
-  // theme
-  ThemeMode themeMode = ThemeMode.system;
-  late Command0 toggleTheme;
-
-  // screen wake lock
-  bool keepScreenOn = false;
-  late Command0 toggleKeepScreenOn;
-  late StreamSubscription<bool> _keepScreenOnSubscription;
-
-  // ble
-  late Command0 startBleScan;
-  bool _bleEnabled = false;
-  late StreamSubscription<bool> _bleEnabledSubscription;
-
-  // ha config proxy
-  late HaConfig _haConfig;
-  late Command4<void, bool, String, String, String> setHaConfig;
-  late StreamSubscription<HaConfig> _haConfigSubscription;
 
   // rolling
   late Command0 clearRollResultHistory;
@@ -47,37 +25,11 @@ class DiceScreenViewModel extends ChangeNotifier {
   late Command4<void, GenericDie, Color, String, GenericDType> updateDieSettings;
   late Command2<void, int, String> addVirtualDie;
   late Command0<void> disconnectAllDice;
-  late Command0<void> disconnectAllNonVirtualDice;
   late Command1<void, String> disconnectDie;
 
   DiceScreenViewModel(this._diWrapper) {
     // init
     load = Command0(_load)..execute();
-
-    // theme
-    toggleTheme = Command0(_toggleTheme);
-
-    // screen wake lock
-    toggleKeepScreenOn = Command0(_toggleKeepScreenOn);
-    _keepScreenOnSubscription = _diWrapper.appRepository.observeKeepScreenOn().listen((enabled) {
-      keepScreenOn = enabled;
-      WakelockPlus.toggle(enable: enabled);
-      notifyListeners();
-    });
-
-    // ble
-    startBleScan = Command0(_startBleScan);
-    _bleEnabledSubscription = _diWrapper.bleRepository.subscribeBleEnabled().listen((enabled) {
-      _bleEnabled = enabled;
-      notifyListeners();
-    });
-
-    // ha config proxy
-    setHaConfig = Command4(_setHaConfig);
-    _haConfigSubscription = _diWrapper.haRepository.subscribeHaSettings().listen((conf) {
-      _haConfig = conf;
-      notifyListeners();
-    });
 
     // rolling
     clearRollResultHistory = Command0(_clearRollResultHistory);
@@ -98,74 +50,18 @@ class DiceScreenViewModel extends ChangeNotifier {
     addVirtualDie = Command2(_addVirtualDie);
 
     disconnectAllDice = Command0(_disconnectAllDice);
-    disconnectAllNonVirtualDice = Command0(_disconnectAllNonVirtualDice);
     disconnectDie = Command1(_disconnectDie);
   }
 
   // init
   Future<Result<void>> _load() async {
     try {
-      final themeResult = await _diWrapper.appRepository.getThemeMode();
-      if (themeResult.isValue && themeResult.asValue != null) {
-        themeMode = themeResult.asValue!.value;
-      }
-
-      final keepScreenOnResult = await _diWrapper.appRepository.getKeepScreenOn();
-      if (keepScreenOnResult.isValue && keepScreenOnResult.asValue != null) {
-        keepScreenOn = keepScreenOnResult.asValue!.value;
-        WakelockPlus.toggle(enable: keepScreenOn);
-      }
-
-      _haConfig = await _diWrapper.haRepository.getHaConfig();
-      return themeResult;
+      return Result.value(null);
     } on Exception catch (e) {
       return Result.error(e);
     } finally {
       notifyListeners();
     }
-  }
-
-  // theme
-  ThemeMode getThemeMode() => themeMode;
-
-  Future<Result<void>> _toggleTheme() async {
-    try {
-      themeMode = themeMode == ThemeMode.light ? ThemeMode.dark : ThemeMode.light;
-      return await _diWrapper.appRepository.setThemeMode(themeMode);
-    } on Exception catch (e) {
-      return Result.error(e);
-    } finally {
-      notifyListeners();
-    }
-  }
-
-  // screen wake lock
-  bool getKeepScreenOn() => keepScreenOn;
-
-  Future<Result<void>> _toggleKeepScreenOn() async {
-    try {
-      keepScreenOn = !keepScreenOn;
-      return await _diWrapper.appRepository.setKeepScreenOn(keepScreenOn);
-    } on Exception catch (e) {
-      return Result.error(e);
-    } finally {
-      notifyListeners();
-    }
-  }
-
-  // ble
-  Future<Result<void>> _startBleScan() async {
-    await _diWrapper.bleRepository.scan(services: [pixelsService]);
-    return Result.value(null);
-  }
-
-  // ha config proxy
-  HaConfig getHaConfig() => _haConfig;
-
-  Future<Result<void>> _setHaConfig(bool enabled, String url, String token, String entity) async {
-    _diWrapper.haRepository.updateSettings(enabled: enabled, url: url, token: token, entity: entity);
-
-    return Result.value(null);
   }
 
   // rolling
@@ -193,7 +89,6 @@ class DiceScreenViewModel extends ChangeNotifier {
   }
 
   // die control settings
-  // Map<String, Color> get blinkColors => _diWrapper.rollDomain.blinkColors;
   Future<Result<void>> _blink(Color blinkColor, GenericDie die, String? entityOverride) async {
     _diWrapper.dieDomain.blink(die.blinkColor ?? Colors.white, die);
 
@@ -211,7 +106,6 @@ class DiceScreenViewModel extends ChangeNotifier {
     String entity,
     GenericDType faceCount,
   ) async {
-    // _diWrapper.rollDomain.blinkColors[die.dieId] = blinkColor;
     die.blinkColor = blinkColor;
     die.haEntityTargets = [entity];
     if (die.type != GenericDieType.pixel) {
@@ -238,12 +132,6 @@ class DiceScreenViewModel extends ChangeNotifier {
     return Result.value(null);
   }
 
-  Future<Result<void>> _disconnectAllNonVirtualDice() async {
-    await _diWrapper.dieDomain.disconnectAllNonVirtualDice();
-    notifyListeners();
-    return Result.value(null);
-  }
-
   Future<Result<void>> _disconnectDie(String dieId) async {
     await _diWrapper.dieDomain.disconnectDie(dieId);
     notifyListeners();
@@ -257,20 +145,8 @@ class DiceScreenViewModel extends ChangeNotifier {
   // Cleanup
   @override
   void dispose() {
-    _haConfigSubscription.cancel();
     _rollResultsSubscription.cancel();
     _rollStatusSubscription.cancel();
-    _bleEnabledSubscription.cancel();
-    _keepScreenOnSubscription.cancel();
-    _diWrapper.appRepository.setKeepScreenOn(false);
     super.dispose();
-  }
-
-  List<String> getIpAddress() {
-    return _diWrapper.apiDomain.getIpAddress();
-  }
-
-  bool bleIsEnabled() {
-    return _bleEnabled;
   }
 }

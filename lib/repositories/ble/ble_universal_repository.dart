@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:universal_ble/universal_ble.dart';
 
 import 'ble_repository.dart';
@@ -95,6 +96,7 @@ class BleUniversalRepository implements BleRepository {
   bool enabled = false;
   @override
   bool supported = false;
+  bool permissioned = false;
 
   @override
   Stream<Map<String, BleDeviceWrapper>> subscribeBleDevices() => _bleDeviceSubscription.stream;
@@ -106,15 +108,23 @@ class BleUniversalRepository implements BleRepository {
 
   @override
   Future<void> init() async {
+    await _connect();
+
     UniversalBle.timeout = const Duration(seconds: 10);
     supported = await isSupported();
     if (!supported) {
       _log.severe("Bluetooth is not supported");
     }
+    Map<Permission, PermissionStatus> statuses = await [
+      // Permission.bluetooth,
+      Permission.bluetoothScan,
+      Permission.bluetoothConnect,
+    ].request();
+    if (!statuses.values.any((t) => t != PermissionStatus.granted)) {
+      permissioned = true;
+    }
 
-    await _connect();
-
-    _bleEnabledSubscription.add(enabled && supported);
+    _bleEnabledSubscription.add(enabled && supported && permissioned);
 
     _log.info("ble_repo initialized");
   }
@@ -131,11 +141,11 @@ class BleUniversalRepository implements BleRepository {
           state == AvailabilityState.unauthorized) {
         supported = false;
         enabled = false;
-        _bleEnabledSubscription.add(enabled && supported);
+        _bleEnabledSubscription.add(enabled && supported && permissioned);
       } else if (state == AvailabilityState.poweredOn) {
         supported = true;
         enabled = true;
-        _bleEnabledSubscription.add(enabled && supported);
+        _bleEnabledSubscription.add(enabled && supported && permissioned);
       }
     });
     await UniversalBle.availabilityStream

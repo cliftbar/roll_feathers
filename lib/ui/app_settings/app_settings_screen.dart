@@ -1,23 +1,30 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
-import 'dice_screen_vm.dart';
+import '../../di/di.dart';
+import 'app_settings_screen_vm.dart';
+import 'script_screen.dart';
 
 /// A widget that displays application-level settings including Bluetooth settings.
 /// This widget can be included in screens that need to display app settings.
 class AppSettingsWidget extends StatelessWidget {
-  const AppSettingsWidget({super.key, required this.ips, required this.parentVm});
+  const AppSettingsWidget({super.key, required this.vm});
 
-  final List<String> ips;
-  final DiceScreenViewModel parentVm;
+  final AppSettingsScreenViewModel vm;
 
-  void _showHomeAssistantSettings(BuildContext context, DiceScreenViewModel vm) async {
+  static Future<AppSettingsWidget> create(DiWrapper di) async {
+    var vm = AppSettingsScreenViewModel(di);
+    var widget = AppSettingsWidget(vm: vm);
+
+    return widget;
+  }
+
+  void _showHomeAssistantSettings(BuildContext context, AppSettingsScreenViewModel vm) async {
     var haConfig = vm.getHaConfig();
     final urlController = TextEditingController(text: haConfig.url);
     final tokenController = TextEditingController(text: haConfig.token);
     final entityController = TextEditingController(text: haConfig.entity);
     bool isEnabled = haConfig.enabled;
-    bool webDisabled = false;
 
     showDialog(
       context: context,
@@ -26,7 +33,9 @@ class AppSettingsWidget extends StatelessWidget {
           // Use StatefulBuilder to manage toggle state
           builder: (context, setState) {
             return AlertDialog(
-              title: Text('Home Assistant Settings${kIsWeb ? "\nEnsure HA accepts rollfeathers.ungwatkt.com in CORs " : ""}'),
+              title: Text(
+                'Home Assistant Settings${kIsWeb ? "\nEnsure HA accepts rollfeathers.ungawatkt.com in CORs " : ""}',
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -34,12 +43,11 @@ class AppSettingsWidget extends StatelessWidget {
                     SwitchListTile(
                       title: const Text('Enable Home Assistant'),
                       value: isEnabled,
-                      onChanged:
-                          (bool value) {
-                            setState(() {
-                              isEnabled = value;
-                            });
-                          },
+                      onChanged: (bool value) {
+                        setState(() {
+                          isEnabled = value;
+                        });
+                      },
                     ),
                     const Divider(),
                     TextField(
@@ -88,20 +96,19 @@ class AppSettingsWidget extends StatelessWidget {
     );
   }
 
-  ListenableBuilder _makeBleScanButton(DiceScreenViewModel parentVm) {
+  ListenableBuilder _makeBleScanButton(AppSettingsScreenViewModel vm) {
     return ListenableBuilder(
-      listenable: parentVm,
+      listenable: vm,
       builder: (context, _) {
         return ListTile(
           onTap:
-              parentVm.bleIsEnabled()
+              vm.bleIsEnabled()
                   ? () {
-                    parentVm.startBleScan.execute();
+                    vm.startBleScan.execute();
                   }
                   : null,
-          title: parentVm.bleIsEnabled() ? Text(kIsWeb ? "Pair Die" : "Scan") : Text("BLE Disabled"),
-          leading:
-              parentVm.bleIsEnabled() ? const Icon(Icons.bluetooth_searching) : const Icon(Icons.bluetooth_disabled),
+          title: vm.bleIsEnabled() ? Text(kIsWeb ? "Pair Die" : "Scan") : Text("BLE Disabled"),
+          leading: vm.bleIsEnabled() ? const Icon(Icons.bluetooth_searching) : const Icon(Icons.bluetooth_disabled),
         );
       },
     );
@@ -121,13 +128,13 @@ class AppSettingsWidget extends StatelessWidget {
             const SizedBox(height: 8),
             // Theme toggle
             ListenableBuilder(
-              listenable: parentVm,
+              listenable: vm,
               builder: (context, _) {
                 return ListTile(
-                  leading: Icon(parentVm.themeMode == ThemeMode.light ? Icons.dark_mode : Icons.light_mode),
-                  title: Text(parentVm.themeMode == ThemeMode.light ? 'Dark Mode' : 'Light Mode'),
+                  leading: Icon(vm.themeMode == ThemeMode.light ? Icons.dark_mode : Icons.light_mode),
+                  title: Text(vm.themeMode == ThemeMode.light ? 'Dark Mode' : 'Light Mode'),
                   onTap: () {
-                    parentVm.toggleTheme.execute();
+                    vm.toggleTheme.execute();
                     Navigator.pop(context);
                   },
                 );
@@ -135,25 +142,25 @@ class AppSettingsWidget extends StatelessWidget {
             ),
             // Keep screen on toggle
             ListenableBuilder(
-              listenable: parentVm,
+              listenable: vm,
               builder: (context, _) {
                 return SwitchListTile(
-                  secondary: Icon(parentVm.getKeepScreenOn() ? Icons.visibility : Icons.visibility_off),
+                  secondary: Icon(vm.getKeepScreenOn() ? Icons.visibility : Icons.visibility_off),
                   title: const Text('Keep Screen On'),
-                  value: parentVm.getKeepScreenOn(),
+                  value: vm.getKeepScreenOn(),
                   onChanged: (bool value) {
-                    parentVm.toggleKeepScreenOn.execute();
+                    vm.toggleKeepScreenOn.execute();
                   },
                 );
               },
             ),
             const Divider(),
             ListenableBuilder(
-              listenable: parentVm,
+              listenable: vm,
               builder: (context, _) {
                 return ListTile(
                   title: Text(
-                    'Bluetooth: ${parentVm.bleIsEnabled()
+                    'Bluetooth: ${vm.bleIsEnabled()
                         ? kIsWeb
                             ? "supported"
                             : "enabled"
@@ -161,20 +168,20 @@ class AppSettingsWidget extends StatelessWidget {
                     // 'Bluetooth: ${parentVm.bleIsEnabled() ? "enabled" : "disabled${kIsWeb ? "\nBLE only supported in Chrome" : ""}"}',
                   ),
                   // trailing: Text(bleEnabled ? "enabled" : kIsWeb ? "BLE only supported on Chrome" : "disabled"),
-                  leading: parentVm.bleIsEnabled() ? const Icon(Icons.bluetooth) : const Icon(Icons.bluetooth_disabled),
-                  enabled: parentVm.bleIsEnabled(),
+                  leading: vm.bleIsEnabled() ? const Icon(Icons.bluetooth) : const Icon(Icons.bluetooth_disabled),
+                  enabled: vm.bleIsEnabled(),
                   onTap: () {
                     // About screen navigation would be handled by the ViewModel
                   },
                 );
               },
             ),
-            _makeBleScanButton(parentVm),
+            _makeBleScanButton(vm),
             ListTile(
               onTap:
-                  parentVm.bleIsEnabled()
+                  vm.bleIsEnabled()
                       ? () {
-                        parentVm.disconnectAllNonVirtualDice.execute();
+                        vm.disconnectAllNonVirtualDice.execute();
                       }
                       : null,
               title: const Text("Disconnect Dice"),
@@ -183,25 +190,33 @@ class AppSettingsWidget extends StatelessWidget {
             const Divider(),
             ListTile(
               title: const Text('API IPs'),
-              trailing: Text(ips.join("\n")),
+              trailing: Text(vm.getIpAddresses().join("\n")),
               leading: const Icon(Icons.info_outline),
-              enabled: ips.isNotEmpty,
+              enabled: vm.getIpAddresses().isNotEmpty,
               onTap: () {
                 // About screen navigation would be handled by the ViewModel
               },
             ),
             const Divider(),
             ListenableBuilder(
-              listenable: parentVm,
+              listenable: vm,
               builder: (context, _) {
                 return ListTile(
                   leading: const Icon(Icons.home),
                   title: Text('Home Assistant Settings'),
                   onTap: () {
                     Navigator.pop(context);
-                    _showHomeAssistantSettings(context, parentVm);
+                    _showHomeAssistantSettings(context, vm);
                   },
                 );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.code),
+              title: const Text('Rule Scripts'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (context) => ScriptScreenWidget(viewModel: vm)));
               },
             ),
           ],

@@ -1,3 +1,4 @@
+import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:petitparser/petitparser.dart' as pp;
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
@@ -5,8 +6,11 @@ import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/domains/roll_parser/parser_aggregates.dart';
 import 'package:roll_feathers/domains/roll_parser/parser_definitions.dart';
+import 'package:roll_feathers/domains/roll_parser/parser_rules.dart';
 import 'package:roll_feathers/domains/roll_parser/parser_transforms.dart';
 import 'package:roll_feathers/domains/roll_parser/result_targets.dart';
+
+import '../../services/app_service.dart';
 
 const String modifierKey = "\$MODIFIER";
 const String thresholdKey = "\$THRESHOLD";
@@ -48,6 +52,8 @@ class ParsedScript {
   List<ScriptTransform> transforms;
   RollAggregate aggregate;
   List<ScriptResultTarget> targets;
+  // do this better
+  String? script;
 
   ParsedScript({
     required this.name,
@@ -56,6 +62,7 @@ class ParsedScript {
     required this.transforms,
     required this.aggregate,
     required this.targets,
+    this.script,
   });
 }
 
@@ -107,14 +114,76 @@ class RuleParser {
   final DieDomain _dieDomain;
   final RollDomain _rollDomain;
 
-  RuleParser(this._dieDomain, this._rollDomain);
+  late final List<RuleScript> _userRules;
+
+  List<RuleScript> getRules({bool enabledOnly = false}) {
+    // TODO: not a great check here
+    List<RuleScript> ret = [];
+    ret.addAll(_userRules);
+    for (var r in defaultRules) {
+      if (!ret.map((e) => e.name).contains(r.name)) {
+        ret.add(r);
+      }
+    }
+    if (enabledOnly) {
+      ret.removeWhere((v) => !v.enabled);
+    }
+    return ret;
+  }
+
+  Future<void> addRuleScript(String ruleScript, {bool enabled = true}) async {
+    ParsedScript result = _parseRule(rule: ruleScript, threshold: 0, modifier: 0, rolledCount: 0);
+    var newRule = RuleScript(name: result.name, script: ruleScript, enabled: enabled);
+    int idx = _userRules.indexWhere((r) => r.name == result.name);
+    if (idx != -1) {
+      _userRules[idx] = newRule;
+    } else {
+      _userRules.insert(0, newRule);
+    }
+
+    await _appService.setSavedScripts(_userRules.map((e) => e.toJsonString()).toList());
+  }
+
+  Future<void> toggleRuleScript(String name, bool enabled) async {
+    RuleScript? inUser = _userRules.firstWhereOrNull((r) => r.name == name);
+    if (inUser != null) {
+      inUser.enabled = enabled;
+      await _appService.setSavedScripts(_userRules.map((e) => e.toJsonString()).toList());
+      return;
+    }
+
+    RuleScript? inDefault = defaultRules.firstWhereOrNull((r) => r.name == name);
+    if (inDefault != null) {
+      RuleScript toUser = RuleScript(name: inDefault.name, script: inDefault.script, enabled: true, priority: inDefault.priority);
+      _userRules.add(toUser);
+
+      await _appService.setSavedScripts(_userRules.map((e) => e.toJsonString()).toList());
+      return;
+    }
+  }
+
+  Future<void> reorderRules(int idxFrom, int idxTo) async {
+    final item = _userRules.removeAt(idxFrom);
+    _userRules.insert(idxTo, item);
+    await _appService.setSavedScripts(_userRules.map((e) => e.toJsonString()).toList());
+  }
+
+  Future<void> removeRule(int idx) async {
+    final item = _userRules.removeAt(idx);
+    await _appService.setSavedScripts(_userRules.map((e) => e.toJsonString()).toList());
+  }
+
+
+  final AppService _appService;
+
+  RuleParser(this._dieDomain, this._rollDomain, this._appService);
+
+  Future<void> init() async {
+    _userRules = (await _appService.getSavedScripts()).map((e) => RuleScript.fromJsonString(e)).toList();
+  }
 
   ParseResult runRule(String rule, List<GenericDie> rolls, {int threshold = 0, int modifier = 0}) {
-    String replacedRule = rule.replaceAll(thresholdKey, threshold.toString());
-    replacedRule = replacedRule.replaceAll(modifierKey, modifier.toString());
-    replacedRule = replacedRule.replaceAll(rolledCountKey, rolls.length.toString());
-
-    ParsedScript result = _parseRule(replacedRule);
+    ParsedScript result = _parseRule(rule: rule, threshold: threshold, modifier: modifier, rolledCount: rolls.length);
 
     return _evaluateRule(rolls, result, threshold);
   }
@@ -201,8 +270,13 @@ class RuleParser {
     );
   }
 
-  ParsedScript _parseRule(String replacedRule) {
+  ParsedScript _parseRule({required String rule, required int threshold, required int modifier, required int rolledCount}) {
+    String replacedRule = rule.replaceAll(thresholdKey, threshold.toString());
+    replacedRule = replacedRule.replaceAll(modifierKey, modifier.toString());
+    replacedRule = replacedRule.replaceAll(rolledCountKey, rolledCount.toString());
+
     pp.Result<ParsedScript> result = scriptParser.parse(replacedRule);
+    result.value.script = rule;
     _log.fine(result.value);
     return result.value;
   }

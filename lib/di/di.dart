@@ -64,7 +64,7 @@ class DiWrapper {
 
     DieDomain dieDomain = DieDomain(bleRepo, haRepository);
 
-    RollDomain rollDomain = await RollDomain.create(dieDomain);
+    RollDomain rollDomain = await RollDomain.create(dieDomain, appService);
     late ApiDomain apiDomain;
     if (kIsWeb) {
       apiDomain = EmptyApiDomain();

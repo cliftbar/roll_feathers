@@ -7,6 +7,7 @@ import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/domains/roll_parser/parser.dart';
 import 'package:roll_feathers/domains/roll_parser/parser_rules.dart';
+import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/util/color.dart';
 
 import 'test_util.dart';
@@ -17,6 +18,7 @@ void main() {
   RollDomain mockRollDomain = MockRollDomain();
   DieDomain mockDieDomain = MockDieDomain();
   GenericDie mockGenericDie = MockGenericDie();
+  AppService mockAppService = MockAppService();
 
   setUpAll(() {
     registerFallbackValue(MockColor());
@@ -43,7 +45,7 @@ void main() {
         StaticVirtualDie(dType: GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d20), index: 5),
       ];
 
-      RuleParser parser = RuleParser(mockDieDomain, mockRollDomain);
+      RuleParser parser = RuleParser(mockDieDomain, mockRollDomain, mockAppService);
 
       ParseResult result = parser.runRule(d20percentiles, rolls, modifier: 3);
       expect(result.ruleReturn, false);
@@ -57,7 +59,7 @@ void main() {
         StaticVirtualDie(dType: GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d20), index: 10),
       ];
 
-      RuleParser parser = RuleParser(mockDieDomain, mockRollDomain);
+      RuleParser parser = RuleParser(mockDieDomain, mockRollDomain, mockAppService);
       ParseResult result = parser.runRule(d20percentiles, rolls, modifier: 3);
       expect(result.ruleReturn, true);
       expect(result.result, 56); // (11 + 3) * 2 * 2.5, dice value plus modifier, 2 dice, percentile scale
@@ -76,7 +78,7 @@ void main() {
         StaticVirtualDie(dType: GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d20), index: 0),
       ];
 
-      RuleParser parser = RuleParser(mockDieDomain, mockRollDomain);
+      RuleParser parser = RuleParser(mockDieDomain, mockRollDomain, mockAppService);
       ParseResult result = parser.runRule(standardRoll, rolls);
 
       expect(result.ruleName, "standardRoll");
@@ -99,7 +101,7 @@ void main() {
         StaticVirtualDie(dType: GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d20), index: 0),
       ];
 
-      RuleParser parser = RuleParser(mockDieDomain, mockRollDomain);
+      RuleParser parser = RuleParser(mockDieDomain, mockRollDomain, mockAppService);
       ParseResult result = parser.runRule(maxRoll, rolls);
 
       expect(result.ruleName, "maxRoll");
@@ -122,7 +124,7 @@ void main() {
         StaticVirtualDie(dType: GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d20), index: 19),
       ];
 
-      RuleParser parser = RuleParser(mockDieDomain, mockRollDomain);
+      RuleParser parser = RuleParser(mockDieDomain, mockRollDomain, mockAppService);
       ParseResult result = parser.runRule(minRoll, rolls);
 
       expect(result.ruleName, "minRoll");

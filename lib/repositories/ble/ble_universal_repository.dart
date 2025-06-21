@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -116,7 +117,7 @@ class BleUniversalRepository implements BleRepository {
     if (!supported) {
       _log.severe("Bluetooth is not supported");
     }
-    if (!kIsWeb) {
+    if (Platform.isAndroid || Platform.isIOS) {
       Map<Permission, PermissionStatus> statuses = await [
         // Permission.bluetooth,
         Permission.bluetoothScan,
@@ -213,11 +214,12 @@ class BleUniversalRepository implements BleRepository {
   // Disconnect a specific device
   @override
   Future<void> disconnectDevice(String deviceId) async {
+    await UniversalBle.disconnect(deviceId);
     if (_discoveredBleDevices.containsKey(deviceId)) {
-      await UniversalBle.disconnect(deviceId);
+
       _discoveredBleDevices.remove(deviceId);
-      _bleDeviceSubscription.add(_discoveredBleDevices);
     }
+    _bleDeviceSubscription.add(_discoveredBleDevices);
   }
 
   // Disconnect all devices

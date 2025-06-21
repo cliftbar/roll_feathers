@@ -30,7 +30,7 @@ jobs:  # Telling what jobs we need to happen
       - run: flutter build apk --release
       - run: flutter build appbundle --release
       - run: flutter build macos --release
-      - run: create-dmg --hdiutil-quiet --window-size 400 200 --icon-size 100 --icon "roll_feathers.app" 50 50 --app-drop-link 200 50 rollFeathersInstaller-${{ github.ref_name }}-release.dmg build/macos/Build/Products/Release/roll_feathers.app
+      - run: create-dmg --hdiutil-quiet --window-size 400 200 --icon-size 100 --icon "roll_feathers.app" 50 50 --app-drop-link 200 50 rollFeathersInstaller-${{ github.ref_name }}-release.dmg "build/macos/Build/Products/Release/Roll Feathers.app"
       - name: Release
         uses: softprops/action-gh-release@v2
         with:

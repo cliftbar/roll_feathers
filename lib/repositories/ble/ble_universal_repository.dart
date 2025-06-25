@@ -117,7 +117,9 @@ class BleUniversalRepository implements BleRepository {
     if (!supported) {
       _log.severe("Bluetooth is not supported");
     }
-    if (Platform.isAndroid || Platform.isIOS) {
+    if (kIsWeb) {
+      permissioned = true;
+    } else if (Platform.isAndroid || Platform.isIOS) {
       Map<Permission, PermissionStatus> statuses = await [
         // Permission.bluetooth,
         Permission.bluetoothScan,

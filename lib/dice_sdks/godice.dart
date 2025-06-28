@@ -471,6 +471,10 @@ class MessageRollStart extends RxMessage {
     return MessageRollStart(buffer: data);
   }
 
+  static List<int> dataToBuffer() {
+    return [...GodiceMessageType.rollStart.value];
+  }
+
   Map<String, dynamic> toJson() {
     return {'id': id, 'buffer': buffer};
   }
@@ -525,6 +529,10 @@ class MessageBatteryLevelAck extends RxMessage {
     return MessageBatteryLevelAck(buffer: data, batteryLevel: data[3]);
   }
 
+  static List<int> dataToBuffer(int batteryLevel) {
+    return [...GodiceMessageType.batteryLevelAck.value, batteryLevel];
+  }
+
   Map<String, dynamic> toJson() {
     return {'id': id, 'buffer': buffer, 'batteryLevel': batteryLevel};
   }
@@ -542,6 +550,10 @@ class MessageDiceColorAck extends RxMessage {
     }
     GodiceDieColor color = GodiceDieColor.values[data[3]];
     return MessageDiceColorAck(buffer: data, diceColor: color);
+  }
+
+  static List<int> dataToBuffer(GodiceDieColor godiceColor) {
+    return [...GodiceMessageType.diceColorAck.value, godiceColor.index];
   }
 
   Map<String, dynamic> toJson() {
@@ -562,6 +574,10 @@ class MessageStable extends RxMessage {
     Vector xyzData = getXyzFromBytes(data, _dataOffset);
 
     return MessageStable(buffer: data, xyzData: xyzData);
+  }
+
+  static List<int> dataToBuffer(Vector xyzData) {
+    return [...GodiceMessageType.stable.value, xyzData.x, xyzData.y, xyzData.z];
   }
 
   Map<String, dynamic> toJson() {
@@ -602,6 +618,10 @@ class MessageTiltStable extends RxMessage {
     Vector xyzData = getXyzFromBytes(data, _dataOffset);
 
     return MessageTiltStable(buffer: data, xyzData: xyzData);
+  }
+
+  static List<int> dataToBuffer(Vector xyzData) {
+    return [...GodiceMessageType.tiltStable.value, xyzData.x, xyzData.y, xyzData.z];
   }
 
   Map<String, dynamic> toJson() {

@@ -229,6 +229,12 @@ class GoDiceBle extends GenericBleDie {
   final String _dTypeContainerKey = "dieFaceContainer";
   Color? _blinkColor;
 
+  static Future<GoDiceBle> create({required godice.GodiceDieType dieFaceType, required BleDeviceWrapper device}) async {
+    GoDiceBle ret = GoDiceBle(dieFaceType: dieFaceType, device: device);
+    await ret._init();
+    return ret;
+  }
+
   GoDiceBle({required godice.GodiceDieType dieFaceType, required super.device}) {
     GenericDType df = dieFaceType.toDType();
     info[_godiceFaceTypeKey] = dieFaceType;
@@ -416,6 +422,12 @@ class PixelDie extends GenericBleDie {
   pix.PixelDiceInfo? info;
 
   Color? _blinkColor;
+
+  static Future<PixelDie> create({required BleDeviceWrapper device}) async {
+    PixelDie ret = PixelDie._(device: device);
+    await ret._init();
+    return ret;
+  }
 
   PixelDie._({required super.device});
 

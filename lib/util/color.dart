@@ -11,6 +11,8 @@ final colorMap = {
   'cyan': Color.fromARGB(255, 0, 255, 255),
   'pink': Color.fromARGB(255, 255, 0, 128),
   'yellow': Color.fromARGB(255, 255, 255, 0),
+  'indigo': Color.fromARGB(255, 75, 0, 130),
+  'violet': Color.fromARGB(255, 127, 0, 255),
   // catan
   "brick": Color.fromARGB(255, 255, 0, 29),
   "hills": Color.fromARGB(255, 255, 0, 29),
@@ -33,7 +35,7 @@ final colorMap = {
   'deepOrange': Colors.deepOrange,
   'deepPurple': Colors.deepPurple,
   'grey': Colors.grey,
-  'indigo': Colors.indigo,
+
   'lightBlue': Colors.lightBlue,
   'lightGreen': Colors.lightGreen,
   'lime': Colors.lime,

@@ -39,12 +39,13 @@ for roll 2d20
 transform with mul 2.5
 aggregate sum
 with result
-on [0:10) action blink \$ALL_DICE red
-on [10:25) action blink \$ALL_DICE orange
-on [25:50) action blink \$ALL_DICE yellow
-on [50:75) action blink \$ALL_DICE green
-on [75:90) action blink \$ALL_DICE blue
-on [90:*) action blink \$ALL_DICE purple
+  on [0:10) action blink \$ALL_DICE red
+  on [10:25) action blink \$ALL_DICE orange
+  on [25:50) action blink \$ALL_DICE yellow
+  on [50:75) action blink \$ALL_DICE green
+  on [75:90) action blink \$ALL_DICE blue
+  on [90:99) action blink \$ALL_DICE purple
+  on [99:*) action sequence \$ALL_DICE 2 red orange yellow green blue indigo violet
 """;
 
 const String percentiles = """
@@ -58,7 +59,8 @@ with result
   on [25:50) action blink \$ALL_DICE yellow
   on [50:75) action blink \$ALL_DICE green
   on [75:90) action blink \$ALL_DICE blue
-  on [90:*) action blink \$ALL_DICE purple
+  on [90:99) action blink \$ALL_DICE purple
+  on [99:*) action sequence \$ALL_DICE 2 red orange yellow green blue indigo violet
 """;
 
 const String doubles = """
@@ -75,6 +77,8 @@ define advantage
 for roll 2d20
 transform with top 1
 aggregate max
+with result
+  on [*:*] action blink \$RESULT_DICE green
 """;
 
 const String disadvantage = """
@@ -82,6 +86,8 @@ define disadvantage
 for roll 2d20
 transform with bottom 1
 aggregate min
+with result
+  on [*:*] action blink \$RESULT_DICE red
 """;
 
 const String standardRoll = """
@@ -90,7 +96,7 @@ for roll *d*
 transform with offset \$MODIFIER
 aggregate sum
 with result
-on [*:*] action blink \$ALL_DICE
+`on [*:*] action blink \$ALL_DICE
 """;
 
 const String minRoll = """
@@ -100,7 +106,7 @@ transform with offset \$MODIFIER
   with bottom 1
 aggregate min
 with result
-on [*:*] action blink \$RESULT_DICE red
+  on [*:*] action blink \$RESULT_DICE red
 """;
 
 const String maxRoll = """
@@ -110,7 +116,7 @@ transform with offset \$MODIFIER
   with top 1
 aggregate max
 with result
-on [*:*] action blink \$RESULT_DICE green
+  on [*:*] action blink \$RESULT_DICE green
 """;
 
 const String simpleTest = """

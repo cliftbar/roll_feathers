@@ -17,6 +17,7 @@ typedef ResultTarget =
       required RollDomain rd,
       List<GenericDie>? allDice,
       List<GenericDie>? resultDice,
+      required List<GenericDie> defaultDice,
       List<String> args,
     });
 
@@ -118,6 +119,7 @@ Future<void> blink({
   required RollDomain rd,
   List<GenericDie>? allDice,
   List<GenericDie>? resultDice,
+  required List<GenericDie> defaultDice,
   List<String> args = const [],
 }) async {
   for (GenericDie die in (resultDice ?? allDice ?? [])) {
@@ -131,6 +133,7 @@ Future<void> sequence({
   required RollDomain rd,
   List<GenericDie>? allDice,
   List<GenericDie>? resultDice,
+  required List<GenericDie> defaultDice,
   List<String> args = const [],
 }) async {
   int loops = args.isNotEmpty ? int.tryParse(args[0]) ?? 1 : 1;

@@ -253,6 +253,7 @@ class RuleParser {
             rd: _rollDomain,
             allDice: actionAllDice,
             resultDice: actionResultDice,
+            defaultDice: rollMap.keys.toList(),
             args: res.targetFunction.args,
           );
         case ResultTargetType.webhook:

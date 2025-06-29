@@ -6,7 +6,7 @@ import 'package:roll_feathers/ui/roll_feathers_app.dart';
 
 void main() async {
   hierarchicalLoggingEnabled = true;
-  Logger.root.level = Level.INFO;
+  Logger.root.level = Level.FINE;
   Logger.root.onRecord.listen((record) {
     print('${record.level.name}: ${record.time}: ${record.loggerName}: ${record.message}');
   });

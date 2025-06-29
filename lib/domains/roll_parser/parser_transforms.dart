@@ -43,6 +43,11 @@ final pp.Parser<ScriptTransform> transformParser = [
     pp.whitespace().star(),
     numberParser.repeatSeparated(" ".toParser(), 1, 1),
   ),
+  pp.seq3(
+    "under".toParser().map((f) => under),
+    pp.whitespace().star(),
+    numberParser.repeatSeparated(" ".toParser(), 1, 1),
+  ),
 ].toChoiceParser().map3(
   (RollTransform transform, _, pp.SeparatedList<num, String> args) =>
       ScriptTransform(transformFunction: transform, args: args.elements),
@@ -86,7 +91,11 @@ Map<GenericDie, int> offset(Map<GenericDie, int> dieMap, List<num> args) {
 }
 
 Map<GenericDie, int> over(Map<GenericDie, int> dieMap, List<num> args) {
-  return Map.fromEntries(dieMap.entries.where((e) => args[0] <= e.value));
+  return Map.fromEntries(dieMap.entries.where((e) => args[0] < e.value));
+}
+
+Map<GenericDie, int> under(Map<GenericDie, int> dieMap, List<num> args) {
+  return Map.fromEntries(dieMap.entries.where((e) => e.value < args[0]));
 }
 
 Map<GenericDie, int> mul(Map<GenericDie, int> dieMap, List<num> args) {

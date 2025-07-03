@@ -30,8 +30,6 @@ class DiceScreenWidget extends StatefulWidget {
 }
 
 class _DiceScreenWidgetState extends State<DiceScreenWidget> {
-  bool _rollMax = false;
-  bool _rollMin = false;
   bool _rollVirtualDice = true;
 
   @override
@@ -194,51 +192,6 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                       runSpacing: 4.0, // gap between lines
                       alignment: WrapAlignment.spaceBetween,
                       children: [
-                        // Wrap(
-                        //   spacing: 8.0,
-                        //   children: [
-                        //     Row(
-                        //       mainAxisSize: MainAxisSize.min,
-                        //       children: [
-                        //         const Text('Roll Type: '),
-                        //         Checkbox(
-                        //           value: _rollMax,
-                        //           onChanged: (bool? value) {
-                        //             setState(() {
-                        //               _rollMax = value ?? false;
-                        //               if (_rollMax) {
-                        //                 _rollMin = false;
-                        //               }
-                        //               _setRollType();
-                        //             });
-                        //           },
-                        //         ),
-                        //         const Text('Maximum'),
-                        //       ],
-                        //     ),
-                        //     SizedBox(
-                        //       width: 140, // Fixed width for consistency
-                        //       child: Row(
-                        //         mainAxisSize: MainAxisSize.min,
-                        //         children: [
-                        //           Checkbox(
-                        //             value: _rollMin,
-                        //             onChanged: (bool? value) {
-                        //               setState(() {
-                        //                 _rollMin = value ?? false;
-                        //                 if (_rollMin) {
-                        //                   _rollMax = false;
-                        //                 }
-                        //                 _setRollType();
-                        //               });
-                        //             },
-                        //           ),
-                        //           const Text('Minimum'),
-                        //         ],
-                        //       ),
-                        //     ),
-                        //   ],
-                        // ),
                         TextButton.icon(
                           icon: const Icon(Icons.clear_all),
                           label: const Text('Clear'),
@@ -392,20 +345,10 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
         valueString = "";
     }
 
-    return '${die.dType.name} ${die.state.batteryLevel}%$valueString ${die.dieId}';
+    return '${die.dType.name} ${die.state.batteryLevel}%$valueString';
   }
 
   // Helpers
-  void _setRollType() {
-    if (_rollMax) {
-      widget.viewModel.setRollType.execute(RollType.max);
-    } else if (_rollMin) {
-      widget.viewModel.setRollType.execute(RollType.min);
-    } else {
-      widget.viewModel.setRollType.execute(RollType.sum);
-    }
-  }
-
   void _setWithVirtualDice(bool value) {
     _rollVirtualDice = value;
     widget.viewModel.setWithVirtualDice.execute(_rollVirtualDice);

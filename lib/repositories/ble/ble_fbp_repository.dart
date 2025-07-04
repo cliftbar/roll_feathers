@@ -135,8 +135,6 @@ class BleFbpCrossRepository implements BleRepository {
         .timeout(timeout, onTimeout: () => throw TimeoutException('Bluetooth connection timeout after 10 seconds'));
   }
 
-  final Map<String, int> _reconnectTries = {};
-
   @override
   Future<void> scan({List<String>? services, Duration? timeout = const Duration(seconds: 5)}) async {
     if (!supported || !enabled) {

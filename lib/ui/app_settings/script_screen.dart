@@ -164,7 +164,7 @@ class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
 
   void _showEditScriptDialog(BuildContext context, int index, List<RuleScript> scripts) {
     // Get the current script values
-    String currentName = scripts[index].name;
+    scripts[index].name;
     String currentContent = scripts[index].script;
 
     // Create controllers with the current values

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
@@ -13,7 +12,6 @@ class UniversalBleDevice implements BleDeviceWrapper {
   @override
   Logger log = Logger("UniversalBleDevice");
 
-  @override
   @override
   String get deviceId => device.deviceId;
 
@@ -120,11 +118,11 @@ class BleUniversalRepository implements BleRepository {
     if (kIsWeb) {
       permissioned = true;
     } else if (Platform.isAndroid || Platform.isIOS) {
-      Map<Permission, PermissionStatus> statuses = await [
-        // Permission.bluetooth,
-        Permission.bluetoothScan,
-        Permission.bluetoothConnect,
-      ].request();
+      Map<Permission, PermissionStatus> statuses =
+          await [
+            // Permission.bluetooth,
+            Permission.bluetoothScan, Permission.bluetoothConnect,
+          ].request();
       if (!statuses.values.any((t) => t != PermissionStatus.granted)) {
         permissioned = true;
       }
@@ -218,7 +216,6 @@ class BleUniversalRepository implements BleRepository {
   Future<void> disconnectDevice(String deviceId) async {
     await UniversalBle.disconnect(deviceId);
     if (_discoveredBleDevices.containsKey(deviceId)) {
-
       _discoveredBleDevices.remove(deviceId);
     }
     _bleDeviceSubscription.add(_discoveredBleDevices);

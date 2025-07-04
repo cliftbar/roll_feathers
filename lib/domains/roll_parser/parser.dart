@@ -169,7 +169,7 @@ class RuleParser {
   }
 
   Future<void> removeRule(int idx) async {
-    final item = _userRules.removeAt(idx);
+    _userRules.removeAt(idx);
     await _appService.setSavedScripts(_userRules.map((e) => e.toJsonString()).toList());
   }
 

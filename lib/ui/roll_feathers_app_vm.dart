@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:async/async.dart';
 import 'package:flutter/material.dart';
+import 'package:logging/logging.dart';
 import 'package:roll_feathers/di/di.dart';
 
 class RollFeathersAppVM extends ChangeNotifier {
+  final _log = Logger("RollFeathersAppVM");
   final DiWrapper _diWrapper;
   StreamSubscription<ThemeMode>? _themeSubscription;
 
@@ -33,7 +35,7 @@ class RollFeathersAppVM extends ChangeNotifier {
       _themeMode = result.asValue!.value;
     } else {
       // handle error
-      print(result.asError?.error);
+      _log.severe(result.asError?.error);
     }
     notifyListeners();
     return Result.value(null);

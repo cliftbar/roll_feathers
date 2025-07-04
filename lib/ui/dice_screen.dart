@@ -521,6 +521,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
         );
         faceCallback() => dropdownValue;
         return Tuple2(menu, faceCallback);
+      case GenericDieType.static:
       case GenericDieType.virtual:
         var faceCountUpdateController = TextEditingController(text: "${die.dType.faces}");
         faceCallback() {

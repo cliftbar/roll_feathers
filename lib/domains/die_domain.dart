@@ -33,6 +33,7 @@ class DieDomain {
   }
 
   int get dieCount => _foundDie.length;
+  List<GenericDie> get dice => _foundDie.values.toList();
 
   List<VirtualDie> getVirtualDice() {
     var res = _foundDie.values.toList().where((d) => d.type == GenericDieType.virtual).toList();
@@ -121,6 +122,7 @@ class DieDomain {
         blinker = blinkMsg;
         await (die as PixelDie).sendMessage(blinkMsg);
       case GenericDieType.virtual:
+      case GenericDieType.static:
         blinker = BasicBlinker(1, Duration(milliseconds: 500), Duration(milliseconds: 500), blinkColor);
     }
 

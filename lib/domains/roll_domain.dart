@@ -4,7 +4,6 @@ import 'package:collection/collection.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/domains/roll_parser/parser.dart';
-import 'package:roll_feathers/domains/roll_parser/parser_rules.dart' as rule;
 import 'package:roll_feathers/services/app_service.dart';
 
 class RollResult {
@@ -48,7 +47,6 @@ class RollDomain {
 
   final DieDomain _diceDomain;
   late StreamSubscription<Map<String, GenericDie>> _deviceStreamListener; // used for notifications, better way?
-  // final Map<String, Color> blinkColors = {};
 
   Timer? _rollUpdateTimer;
 
@@ -89,7 +87,6 @@ class RollDomain {
     _rollStatusStream.add(RollStatus.rollStarted);
 
     // periodically tell everyone that we're still rolling;
-
     _rollUpdateTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
       _rollStatusStream.add(RollStatus.rolling);
     });
@@ -103,20 +100,6 @@ class RollDomain {
 
   int _stopRollWithResult({RollType rollType = RollType.normal}) {
     ParseResult? ruleResult;
-    // switch (rollType) {
-    //   case RollType.max:
-    //     ruleResult = ruleParser.runRule(rule.maxRoll, _rolledDie.values.toList());
-    //   case RollType.min:
-    //     ruleResult = ruleParser.runRule(rule.minRoll, _rolledDie.values.toList());
-    //   default:
-    //     for (var r in ruleParser.getRules(enabledOnly: true)) {
-    //       ruleResult = ruleParser.runRule(r.script, _rolledDie.values.toList());
-    //       if (ruleResult.ruleReturn) {
-    //         rollType = RollType.rule;
-    //         break;
-    //       }
-    //     }
-    // }
     for (var r in ruleParser.getRules(enabledOnly: true)) {
       ruleResult = ruleParser.runRule(r.script, _rolledDie.values.toList());
       if (ruleResult.ruleReturn) {
@@ -140,10 +123,6 @@ class RollDomain {
     _rollStatusStream.add(RollStatus.rollEnded);
     _rollResultStream.add(_rollHistory);
     return result.rollResult;
-  }
-
-  int _rollTotal() {
-    return _rolledDie.values.map((d) => d.getFaceValueOrElse(orElse: 0)).fold(0, (p, c) => p + c);
   }
 
   void _rollStartVirtualDice({bool force = false}) {

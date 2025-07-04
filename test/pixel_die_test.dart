@@ -56,7 +56,7 @@ void main() {
 
   // Test initialization
   test('PixelDie initialization sets up device and sends initial message', () async {
-    final PixelDie die = await PixelDie.create(device: mockDevice);
+    await PixelDie.create(device: mockDevice);
 
     verify(() => mockDevice.setDeviceUuids(
       serviceUuid: pix.pixelsService,
@@ -158,7 +158,7 @@ void main() {
 
   // Test handling of unknown message type
   test('PixelDie handles unknown message type correctly', () async {
-    final PixelDie die = await PixelDie.create(device: mockDevice);
+    await PixelDie.create(device: mockDevice);
 
     // Create a mock message with an unknown type
     final mockUnknownData = [

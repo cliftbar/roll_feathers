@@ -6,6 +6,7 @@ import 'dart:ui';
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 
@@ -64,7 +65,7 @@ class DiceState {
 
 enum DiceRollState { unknown, rolled, handling, rolling, crooked, onFace }
 
-enum GenericDieType { pixel, godice, virtual }
+enum GenericDieType { pixel, godice, virtual, static }
 
 class GenericDType {
   final String name;
@@ -110,12 +111,29 @@ class GenericDTypeFactory {
 }
 
 abstract class GenericDie {
-  abstract final Logger _log;
   abstract final GenericDieType type;
   late DiceState state;
   List<String> haEntityTargets = [];
+  Map<String, dynamic> toJson() {
+    return {
+      "name": friendlyName,
+      "id": dieId,
+      "dieType": type.name,
+      "faces": dType.faces,
+      "blinkColor": blinkColor?.toHexString(),
+      "value": getFaceValueOrElse(),
+    };
+  }
 
   Color? get blinkColor;
+
+  String get dieId;
+
+  String get friendlyName;
+
+  GenericDType get dType;
+
+  set dType(GenericDType df);
 
   set blinkColor(Color? c);
 
@@ -136,14 +154,6 @@ abstract class GenericDie {
   int getFaceValueOrElse({int orElse = -1}) {
     return state.currentFaceValue ?? orElse;
   }
-
-  String get dieId;
-
-  String get friendlyName;
-
-  GenericDType get dType;
-
-  set dType(GenericDType df);
 }
 
 abstract class GenericBleDie extends GenericDie {
@@ -220,7 +230,6 @@ class GoDiceBle extends GenericBleDie {
 
   final Map<String, dynamic> info = {};
 
-  @override
   final _log = Logger("GoDiceBle");
   @override
   final GenericDieType type = GenericDieType.godice;
@@ -414,11 +423,9 @@ class GoDiceBle extends GenericBleDie {
 }
 
 class PixelDie extends GenericBleDie {
-  @override
   final _log = Logger("PixelDie");
 
-  @override
-  final GenericDieType type = GenericDieType.pixel;
+  static final GenericDieType _type = GenericDieType.pixel;
   pix.PixelDiceInfo? info;
 
   Color? _blinkColor;
@@ -430,6 +437,9 @@ class PixelDie extends GenericBleDie {
   }
 
   PixelDie._({required super.device});
+
+  @override
+  GenericDieType get type => _type;
 
   @override
   void _readNotify(List<int> data) {
@@ -554,17 +564,13 @@ class PixelDie extends GenericBleDie {
 }
 
 class VirtualDie extends GenericDie {
-  @override
-  final _log = Logger("VirtualDie");
+  static final GenericDieType _type = GenericDieType.virtual;
 
   late final String _dieId;
   late final String? _name;
   final Random rand = Random();
   late GenericDType _dType;
   Color? _blinkColor;
-
-  @override
-  final GenericDieType type = GenericDieType.virtual;
 
   VirtualDie({required GenericDType dType, String? dieId, String? name}) {
     _dieId = dieId ?? Uuid().v4();
@@ -575,6 +581,9 @@ class VirtualDie extends GenericDie {
 
   @override
   String get dieId => _dieId;
+
+  @override
+  GenericDieType get type => _type;
 
   void setRollState(DiceRollState rs) {
     if ((rs == DiceRollState.rolled || rs == DiceRollState.onFace) && state.rollState == DiceRollState.rolling.index) {
@@ -594,7 +603,7 @@ class VirtualDie extends GenericDie {
   }
 
   void setIndexValue(int index) {
-    state.currentFaceValue = (index + _dType.indexOffset) * _dType.multiplier;
+    state.currentFaceValue = (index + _dType.indexOffset) * _dType.multiplier.round();
     state.currentFaceIndex = index;
   }
 
@@ -605,9 +614,7 @@ class VirtualDie extends GenericDie {
   String get friendlyName => _name ?? dieId;
 
   @override
-  GenericDType get dType {
-    return _dType;
-  }
+  GenericDType get dType => _dType;
 
   @override
   set dType(GenericDType dType) {
@@ -623,54 +630,26 @@ class VirtualDie extends GenericDie {
   }
 }
 
-class StaticVirtualDie extends GenericDie {
-  @override
+class StaticVirtualDie extends VirtualDie {
   final _log = Logger("StaticVirtualDie");
 
-  late final String _dieId;
-  late final String? _name;
-  late GenericDType _dType;
-  Color? _blinkColor;
+  static final GenericDieType _type = GenericDieType.static;
 
-  @override
-  final GenericDieType type = GenericDieType.virtual;
-
-  StaticVirtualDie({required GenericDType dType, required int index, String? dieId, String? name}) {
+  StaticVirtualDie({required super.dType, required int index, String? dieId, String? name}) {
     _dieId = dieId ?? Uuid().v4();
     _name = name;
     _dType = dType;
     setIndexValue(index);
   }
 
-  void setIndexValue(int index) {
-    state.currentFaceValue = ((index + _dType.indexOffset) * _dType.multiplier).round();
-    state.currentFaceIndex = index;
-  }
+  @override
+  GenericDieType get type => _type;
 
   @override
-  String get dieId => _dieId;
+  void setRollState(DiceRollState rs) {}
 
   @override
-  Future<void> _init() async {}
-
-  @override
-  String get friendlyName => _name ?? dieId;
-
-  @override
-  GenericDType get dType {
-    return _dType;
-  }
-
-  @override
-  set dType(GenericDType dType) {
-    _dType = dType;
-  }
-
-  @override
-  Color? get blinkColor => _blinkColor;
-
-  @override
-  set blinkColor(Color? c) {
-    _blinkColor = c;
+  void _runRollCallbacks(DiceRollState rs) {
+    _log.finest("$dieId rolled ${getFaceValueOrElse()}");
   }
 }

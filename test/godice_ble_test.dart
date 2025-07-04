@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,17 +27,18 @@ void main() {
     when(() => mockDevice.deviceId).thenReturn('test-device-id');
     when(() => mockDevice.friendlyName).thenReturn('Test Device');
     when(() => mockDevice.servicesUuids).thenReturn([godice.godiceServiceGuid]);
-    when(() => mockDevice.characteristicUuids).thenReturn([
-      godice.godiceWriteCharacteristic,
-      godice.godiceNotifyCharacteristic
-    ]);
+    when(
+      () => mockDevice.characteristicUuids,
+    ).thenReturn([godice.godiceWriteCharacteristic, godice.godiceNotifyCharacteristic]);
     when(() => mockDevice.init()).thenAnswer((_) async => true);
     when(() => mockDevice.notifyStream).thenAnswer((_) => notifyStreamController.stream);
-    when(() => mockDevice.setDeviceUuids(
-      serviceUuid: any(named: 'serviceUuid'),
-      notifyUuid: any(named: 'notifyUuid'),
-      writeUuid: any(named: 'writeUuid')
-    )).thenAnswer((_) async {});
+    when(
+      () => mockDevice.setDeviceUuids(
+        serviceUuid: any(named: 'serviceUuid'),
+        notifyUuid: any(named: 'notifyUuid'),
+        writeUuid: any(named: 'writeUuid'),
+      ),
+    ).thenAnswer((_) async {});
     when(() => mockDevice.writeMessage(any())).thenAnswer((_) async {});
   });
 
@@ -50,7 +50,7 @@ void main() {
   test('GoDiceBle constructor initializes with correct values', () {
     // Test that the constructor initializes the object with the correct values
     final die = GoDiceBle(dieFaceType: godice.GodiceDieType.d6, device: mockDevice);
-    
+
     expect(die.type, equals(GenericDieType.godice));
     expect(die.dieId, equals('test-device-id'));
     expect(die.dType.name, equals('d6'));
@@ -60,14 +60,16 @@ void main() {
   // Test initialization method
   test('GoDiceBle _init method sets up device and sends initial messages', () async {
     // Test that the _init method sets up the device and sends initial messages
-    final GoDiceBle die = await GoDiceBle.create(dieFaceType: godice.GodiceDieType.d6, device: mockDevice);
+    await GoDiceBle.create(dieFaceType: godice.GodiceDieType.d6, device: mockDevice);
 
-    verify(() => mockDevice.setDeviceUuids(
-      serviceUuid: godice.godiceServiceGuid,
-      notifyUuid: godice.godiceNotifyCharacteristic,
-      writeUuid: godice.godiceWriteCharacteristic
-    )).called(1);
-    
+    verify(
+      () => mockDevice.setDeviceUuids(
+        serviceUuid: godice.godiceServiceGuid,
+        notifyUuid: godice.godiceNotifyCharacteristic,
+        writeUuid: godice.godiceWriteCharacteristic,
+      ),
+    ).called(1);
+
     verify(() => mockDevice.writeMessage(any())).called(2);
   });
 
@@ -75,15 +77,15 @@ void main() {
   test('getClosestRollByVector returns correct value for d6', () {
     // Test that getClosestRollByVector returns the correct value for a d6 die
     final die = GoDiceBle(dieFaceType: godice.GodiceDieType.d6, device: mockDevice);
-    
+
     // Test with vector for face 1 (should return 1)
     final vector1 = godice.Vector(x: -64, y: 0, z: 0);
     expect(die.getClosestRollByVector(vector1, godice.GodiceDieType.d6), equals(1));
-    
+
     // Test with vector for face 6 (should return 6)
     final vector6 = godice.Vector(x: 64, y: 0, z: 0);
     expect(die.getClosestRollByVector(vector6, godice.GodiceDieType.d6), equals(6));
-    
+
     // Test with a vector that's close to face 3 (should return 3)
     final vector3 = godice.Vector(x: 0, y: 63, z: 0);
     expect(die.getClosestRollByVector(vector3, godice.GodiceDieType.d6), equals(3));
@@ -93,17 +95,17 @@ void main() {
     for (var element in godice.vectors[godice.GodiceDieType.d6]!.entries) {
       // Test _handleRollUpdate method
       test('Roll message updates state correctly face ${element.key}:', () async {
-      // Test that _handleRollUpdate updates the state correctly, via
+        // Test that _handleRollUpdate updates the state correctly, via
 
-      final godice.Vector vector = element.value;
-      final GoDiceBle die = await GoDiceBle.create(dieFaceType: godice.GodiceDieType.d6, device: mockDevice);
-      notifyStreamController.add(godice.MessageStable.dataToBuffer(vector));
+        final godice.Vector vector = element.value;
+        final GoDiceBle die = await GoDiceBle.create(dieFaceType: godice.GodiceDieType.d6, device: mockDevice);
+        notifyStreamController.add(godice.MessageStable.dataToBuffer(vector));
 
-      // Test with vector for face 4
-      expect(die.state.rollState, equals(DiceRollState.rolled.index));
-      expect(die.state.currentFaceIndex, equals(element.key - 1)); // 0-based index for face 4
-      expect(die.state.currentFaceValue, equals(element.key));
-      expect(die.state.lastRolled, isNotNull);
+        // Test with vector for face 4
+        expect(die.state.rollState, equals(DiceRollState.rolled.index));
+        expect(die.state.currentFaceIndex, equals(element.key - 1)); // 0-based index for face 4
+        expect(die.state.currentFaceValue, equals(element.key));
+        expect(die.state.lastRolled, isNotNull);
       });
     }
   });
@@ -165,13 +167,13 @@ void main() {
   test('dType getter and setter work correctly', () {
     // Test that the dType getter and setter work correctly
     final die = GoDiceBle(dieFaceType: godice.GodiceDieType.d6, device: mockDevice);
-    
+
     // Initial type should be d6
     expect(die.dType.name, equals('d6'));
-    
+
     // Change to d20
     die.dType = GenericDTypeFactory.getKnownChecked(GenericDTypeFactory.d20);
-    
+
     // Verify type changed
     expect(die.dType.name, equals('d20'));
     expect(die.info["dieFaceType"], equals(godice.GodiceDieType.d20));
@@ -181,13 +183,13 @@ void main() {
   test('blinkColor getter and setter work correctly', () {
     // Test that the blinkColor getter and setter work correctly
     final die = GoDiceBle(dieFaceType: godice.GodiceDieType.d6, device: mockDevice);
-    
+
     // Initial blinkColor should be null
     expect(die.blinkColor, isNull);
-    
+
     // Set blinkColor to red
     die.blinkColor = Colors.red;
-    
+
     // Verify blinkColor changed
     expect(die.blinkColor, equals(Colors.red));
   });

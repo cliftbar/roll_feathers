@@ -96,7 +96,7 @@ for roll *d*
 transform with offset \$MODIFIER
 aggregate sum
 with result
-`on [*:*] action blink \$ALL_DICE
+  on [*:*] action blink \$ALL_DICE
 """;
 
 const String minRoll = """

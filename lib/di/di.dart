@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart';
 import 'package:roll_feathers/services/home_assistant/ha_api_service.dart';
+import 'package:universal_ble/universal_ble.dart' as ub;
 
 import '../dice_sdks/godice.dart';
 import '../dice_sdks/pixels.dart';
@@ -57,6 +58,19 @@ class DiWrapper {
     } else if (Platform.isWindows) {
       bleRepo = BleUniversalRepository();
       bleRepo.init().whenComplete(() => bleRepo.scan(services: [pixelsService, godiceServiceGuid]));
+    } else if (Platform.isIOS) {
+      // iOS-specific: wait for poweredOn and avoid service filters
+      bleRepo = BleUniversalRepository();
+      await bleRepo.init();
+
+      // Listen to the adapter state and start scanning once powered on
+      bool iosScanStarted = false;
+      ub.UniversalBle.availabilityStream.listen((state) {
+        if (state == ub.AvailabilityState.poweredOn && !iosScanStarted) {
+          iosScanStarted = true;
+          bleRepo.scan(services: const []);
+        }
+      });
     } else {
       bleRepo = BleUniversalRepository();
       bleRepo.init().whenComplete(() => bleRepo.scan(services: [pixelsService, godiceServiceGuid]));

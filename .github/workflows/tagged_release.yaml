@@ -29,6 +29,13 @@ jobs:  # Telling what jobs we need to happen
       - run: flutter test
       - run: flutter build apk --release
       - run: flutter build appbundle --release
+      - name: Rename Android artifacts
+        run: |
+         mkdir -p build/app/outputs/apk/release
+         mv build/app/outputs/flutter-apk/app-release.apk \
+            build/app/outputs/apk/release/roll_feathers-${GITHUB_REF_NAME}-release.apk
+         mv build/app/outputs/bundle/release/app-release.aab \
+            build/app/outputs/bundle/release/roll_feathers-${GITHUB_REF_NAME}-release.aab
       - run: flutter build macos --release
       - run: create-dmg --hdiutil-quiet --window-size 400 200 --icon-size 100 --icon "Roll Feathers.app" 50 50 --app-drop-link 200 50 rollFeathersInstaller-${{ github.ref_name }}-release.dmg "build/macos/Build/Products/Release/Roll Feathers.app"
       - name: Release

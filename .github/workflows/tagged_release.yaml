@@ -13,6 +13,11 @@ jobs:  # Telling what jobs we need to happen
   build-macos-mobile:      # Specify the building name and machine
     name: Build & Release macOs & mobile  # you can name the build whatever you want
     runs-on: macos-latest # here we selected macos-latest to be able to get ios build
+    env:
+      ANDROID_KEYSTORE: ${{ github.workspace }}/android/keystore/rollfeathers-release.keystore
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
@@ -21,14 +26,23 @@ jobs:  # Telling what jobs we need to happen
         with:
           channel: stable
           flutter-version-file: pubspec.yaml # path to pubspec.yaml
+      - run: flutter pub get
+      - run: flutter test
+      - name: Prepare Android signing
+        run: |
+          mkdir -p android/keystore
+          echo "$ANDROID_KEYSTORE_B64" | base64 -D > android/keystore/rollfeathers-release.keystore
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+
+      - name: Build Android (signed)
+        run: |
+          flutter build apk --release --build-number "$GITHUB_RUN_NUMBER"
+          flutter build appbundle --release --build-number "$GITHUB_RUN_NUMBER"
       - name: create-dmg install
         run: |
           echo "Install create-dmg"
           brew install create-dmg
-      - run: flutter pub get
-      - run: flutter test
-      - run: flutter build apk --release
-      - run: flutter build appbundle --release
       - name: Rename Android artifacts
         run: |
          mkdir -p build/app/outputs/apk/release
@@ -42,7 +56,7 @@ jobs:  # Telling what jobs we need to happen
           prerelease: true
           files: |
             build/app/outputs/apk/release/roll_feathers-${{ github.ref_name }}-release.apk
-            build/app/outputs/bundle/release/roll_feathers-${{ github.ref_name }}-release.aab
+            build/app/outputs/bundle/release/app-release.aab
             rollFeathersInstaller-${{ github.ref_name }}-release.dmg
 
   build-windows:

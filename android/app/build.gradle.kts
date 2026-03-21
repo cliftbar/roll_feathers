@@ -33,11 +33,27 @@ android {
         setProperty("archivesBaseName", "roll_feathers-$versionName")
     }
 
+    signingConfigs {
+        create("release") {
+            fun prop(name: String): String? = providers.gradleProperty(name).orNull
+            val ksPath = prop("ANDROID_KEYSTORE")
+                ?: System.getenv("ANDROID_KEYSTORE")
+                ?: "android/keystore/rollfeathers-release.keystore" // optional fallback
+            storeFile = file(ksPath)
+            storePassword = prop("ANDROID_KEYSTORE_PASSWORD") ?: System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            keyAlias = prop("ANDROID_KEY_ALIAS") ?: System.getenv("ANDROID_KEY_ALIAS")
+            keyPassword = prop("ANDROID_KEY_PASSWORD") ?: System.getenv("ANDROID_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            signingConfig = signingConfigs.getByName("release")
+        }
+        debug {
+            // Optional: make debug installable alongside release
+            applicationIdSuffix = ".debug"
         }
     }
 }

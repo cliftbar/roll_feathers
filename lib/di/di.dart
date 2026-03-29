@@ -57,7 +57,8 @@ class DiWrapper {
       bleRepo.init();
     } else if (Platform.isWindows) {
       bleRepo = BleUniversalRepository();
-      bleRepo.init().whenComplete(() => bleRepo.scan(services: [pixelsService, godiceServiceGuid]));
+      // Windows: avoid service filters during scan to improve discovery reliability
+      bleRepo.init().whenComplete(() => bleRepo.scan(services: const []));
     } else if (Platform.isIOS) {
       // iOS-specific: wait for poweredOn and avoid service filters
       bleRepo = BleUniversalRepository();

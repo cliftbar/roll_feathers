@@ -111,8 +111,12 @@ class BleUniversalRepository implements BleRepository {
   @override
   Future<void> init() async {
     await _connect();
-
-    UniversalBle.timeout = const Duration(seconds: 10);
+    // Increase BLE operation timeout on desktop platforms to improve stability
+    if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+      UniversalBle.timeout = const Duration(seconds: 25);
+    } else {
+      UniversalBle.timeout = const Duration(seconds: 10);
+    }
     supported = await isSupported();
     if (!supported) {
       _log.severe("Bluetooth is not supported");
@@ -165,6 +169,7 @@ class BleUniversalRepository implements BleRepository {
   }
 
   final Map<String, int> _deviceReconnects = {};
+  final Map<String, DateTime> _deviceLastSeen = {};
 
   @override
   Future<void> scan({List<String>? services, Duration? timeout = const Duration(seconds: 5)}) async {
@@ -173,34 +178,46 @@ class BleUniversalRepository implements BleRepository {
     }
     _log.info("ble scan start");
     var scanSub = UniversalBle.scanStream.listen((BleDevice bleDevice) async {
+      // Simple per-device debounce to avoid rapid rediscoveries
+      final now = DateTime.now();
+      final last = _deviceLastSeen[bleDevice.deviceId];
+      if (last != null && now.difference(last) < const Duration(seconds: 2)) {
+        return;
+      }
+      _deviceLastSeen[bleDevice.deviceId] = now;
+
+      // Emit device immediately on discovery (before connect) and keep it listed
+      _discoveredBleDevices[bleDevice.deviceId] = UniversalBleDevice(device: bleDevice);
+      _bleDeviceSubscription.add(_discoveredBleDevices);
+
+      // Small per-device throttle before connecting to reduce scan/connect collisions on Windows
+      if (Platform.isWindows) {
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
+
       await UniversalBle.connect(bleDevice.deviceId);
       UniversalBle.connectionStream(bleDevice.deviceId).listen((bool isConnected) async {
         if (!isConnected) {
           if (_discoveredBleDevices.containsKey(bleDevice.deviceId)) {
-            // not manually disconnected, try reconnect
+            // Keep the device listed; optional reconnect policy can be implemented later
             int reconnects = _deviceReconnects.putIfAbsent(bleDevice.deviceId, () => 0);
             if (reconnects < 0) {
-              //attempt reconnect, but disabled for now
               await Future.delayed(Duration(seconds: 1 * reconnects));
               await UniversalBle.connect(bleDevice.deviceId);
               _log.warning("attempting reconnect on ${bleDevice.deviceId} ${await bleDevice.connectionState}");
-              _discoveredBleDevices[bleDevice.deviceId] = UniversalBleDevice(device: bleDevice);
             } else {
-              _log.warning("disconnecting ${bleDevice.deviceId} ${await bleDevice.connectionState}");
-              _discoveredBleDevices.remove(bleDevice.deviceId);
+              _log.warning("device disconnected ${bleDevice.deviceId} ${await bleDevice.connectionState}");
             }
           }
           _bleDeviceSubscription.add(_discoveredBleDevices);
         }
       });
-      _discoveredBleDevices[bleDevice.deviceId] = UniversalBleDevice(device: bleDevice);
-      _bleDeviceSubscription.add(_discoveredBleDevices);
     });
 
     // Start scanning
     await UniversalBle.startScan(scanFilter: ScanFilter(withServices: services ?? []));
 
-    Timer(Duration(seconds: 10), () {
+    Timer(timeout ?? const Duration(seconds: 5), () {
       UniversalBle.stopScan();
       scanSub.cancel();
       _log.info("Scan finished");

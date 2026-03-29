@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/dice_sdks/godice.dart';
@@ -33,10 +34,25 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
   bool _rollMax = false;
   bool _rollMin = false;
   bool _rollVirtualDice = true;
+  String? _appVersion;
 
   @override
   void initState() {
     super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      setState(() {
+        _appVersion = info.buildNumber.isNotEmpty
+            ? '${info.version}+${info.buildNumber}'
+            : info.version;
+      });
+    } catch (_) {
+      // ignore errors; version is optional UI detail
+    }
   }
 
   // First, add a drawer to the Scaffold
@@ -48,11 +64,30 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
           padding: EdgeInsets.zero,
           children: [
             Container(
-              decoration: BoxDecoration(color: Colors.blue),
+              decoration: const BoxDecoration(color: Colors.blue),
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
               child: SafeArea(
                 bottom: false,
-                child: Text('Settings', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Settings',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
+                    ),
+                    if (_appVersion != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4.0),
+                        child: Text(
+                          'v$_appVersion',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: Colors.white70),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
             widget.appSettingsWidget,

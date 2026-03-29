@@ -17,7 +17,7 @@ homepage: https://git.cliftbar.site/cliftbar/roll_feathers
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 0.12.0
+version: 0.12.1
 #msix_config:
 #  display_name: Roll Feathers
 #  publisher_display_name: Cliftbar
@@ -76,6 +76,7 @@ dependencies:
   format: ^1.6.0
   fetch_client: ^1.1.4
   permission_handler: ^12.0.0+1
+  package_info_plus: ^8.0.0
 
 dev_dependencies:
   flutter_test:

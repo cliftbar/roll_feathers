@@ -60,7 +60,7 @@ void main() {
     final thr = int.tryParse(env['THRESHOLD'] ?? '0') ?? 0;
 
     final runner = await harness.DslTestRunner.create();
-    final res = await runner.run(rule: rule!, dice: dice, threshold: thr, modifier: mod);
+    final res = await runner.run(rule: rule, dice: dice, threshold: thr, modifier: mod);
 
     // Print a simple report to stdout that tools can parse.
     // Format lines:

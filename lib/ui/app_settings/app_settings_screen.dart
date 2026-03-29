@@ -100,15 +100,15 @@ class AppSettingsWidget extends StatelessWidget {
     return ListenableBuilder(
       listenable: vm,
       builder: (context, _) {
+        final bool enableScan = kIsWeb || vm.bleIsEnabled();
         return ListTile(
-          onTap:
-              vm.bleIsEnabled()
-                  ? () {
-                    vm.startBleScan.execute();
-                  }
-                  : null,
-          title: vm.bleIsEnabled() ? Text(kIsWeb ? "Pair Die" : "Scan") : Text("BLE Disabled"),
-          leading: vm.bleIsEnabled() ? const Icon(Icons.bluetooth_searching) : const Icon(Icons.bluetooth_disabled),
+          onTap: enableScan
+              ? () {
+                  vm.startBleScan.execute();
+                }
+              : null,
+          title: enableScan ? Text(kIsWeb ? "Pair Die" : "Scan") : const Text("BLE Disabled"),
+          leading: enableScan ? const Icon(Icons.bluetooth_searching) : const Icon(Icons.bluetooth_disabled),
         );
       },
     );

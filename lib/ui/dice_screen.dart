@@ -31,8 +31,8 @@ class DiceScreenWidget extends StatefulWidget {
 }
 
 class _DiceScreenWidgetState extends State<DiceScreenWidget> {
-  bool _rollMax = false;
-  bool _rollMin = false;
+  final bool _rollMax = false;
+  final bool _rollMin = false;
   bool _rollVirtualDice = true;
   String? _appVersion;
 

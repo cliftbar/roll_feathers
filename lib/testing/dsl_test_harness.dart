@@ -6,8 +6,6 @@ import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 import 'package:roll_feathers/repositories/home_assistant_repository.dart';
-import 'package:roll_feathers/dice_sdks/message_sdk.dart';
-import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
 

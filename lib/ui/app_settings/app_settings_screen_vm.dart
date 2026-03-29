@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:async/async.dart';
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/domains/roll_parser/parser_rules.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -29,6 +30,7 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
   late Command0 startBleScan;
   late StreamSubscription<bool> _bleEnabledSubscription;
   late Command0<void> disconnectAllNonVirtualDice;
+  bool _scanInProgress = false;
 
   // ha config proxy
   late HaConfig _haConfig;
@@ -56,7 +58,8 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
       _bleEnabled = enabled;
       notifyListeners();
     });
-    _bleEnabled = _diWrapper.bleRepository.enabled && _diWrapper.bleRepository.enabled;
+    // initialize from current repo state; stream will keep it updated
+    _bleEnabled = _diWrapper.bleRepository.enabled && _diWrapper.bleRepository.supported;
     disconnectAllNonVirtualDice = Command0(_disconnectAllNonVirtualDice);
 
     // ha config proxy
@@ -120,8 +123,25 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
 
   // ble
   Future<Result<void>> _startBleScan() async {
-    await _diWrapper.bleRepository.scan(services: [pixelsService]);
-    return Result.value(null);
+    if (_scanInProgress) {
+      // Debounce rapid taps
+      return Result.value(null);
+    }
+    _scanInProgress = true;
+    try {
+      // Put filters back on Web as requested; use Pixels service by default.
+      // Other platforms can also use the same filter.
+      await _diWrapper.bleRepository.scan(services: [pixelsService]);
+      return Result.value(null);
+    } catch (e, st) {
+      // On Web, repository may suppress rethrow; this catch is mostly for native.
+      debugPrint('[BLE] scan error: $e');
+      // Do not rethrow; surface as a Result error so UI remains responsive.
+      return Result.error(Exception(e.toString()));
+    } finally {
+      _scanInProgress = false;
+      notifyListeners();
+    }
   }
 
   Future<Result<void>> _disconnectAllNonVirtualDice() async {

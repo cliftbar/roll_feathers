@@ -132,7 +132,7 @@ class RuleParser {
       )
       .map((e) {
         final String name = e.$3;
-        final String? parent = e.$5 == null ? null : e.$5!.$2;
+        final String? parent = e.$5?.$2;
         final List<ScriptTransform> steps = (e.$7).elements;
         return MakeSelectionDef(name: name, parent: parent, steps: steps);
       });
@@ -191,10 +191,10 @@ class RuleParser {
       .map((e) {
         final name = e.$1.$2;
         final rolls = e.$2.$2.elements;
-        final List _blocks = e.$3;
+        final List blocks = e.$3;
         final List<MakeSelectionDef> makes = [];
         final List<UseSelectionBlockV11> uses = [];
-        for (final b in _blocks) {
+        for (final b in blocks) {
           if (b is MakeSelectionDef) {
             makes.add(b);
           } else if (b is UseSelectionBlockV11) {
@@ -512,20 +512,20 @@ class RuleParser {
     // Build named selections
     Map<String, Map<GenericDie, int>> named = {};
     // Helper to get parent map
-    Map<GenericDie, int> _resolveParent(String? parent) {
+    Map<GenericDie, int> resolveParent(String? parent) {
       if (parent == null) return baseMap;
       return named[parent] ?? baseMap;
     }
 
     for (final def in result.selections) {
-      Map<GenericDie, int> cur = Map.of(_resolveParent(def.parent));
+      Map<GenericDie, int> cur = Map.of(resolveParent(def.parent));
       int stepIdx = 0;
       for (final step in def.steps) {
         cur = step.transformFunction(cur, step.args);
         _log.finer(() => "[DSL v1.1] make ${def.name} step#${stepIdx++} -> size=${cur.length}");
       }
       named[def.name] = cur;
-      _log.fine(() => "[DSL v1.1] make ${def.name} built size=${cur.length}${def.parent != null ? ' from '+def.parent! : ''}");
+      _log.fine(() => "[DSL v1.1] make ${def.name} built size=${cur.length}${def.parent != null ? ' from ${def.parent!}' : ''}");
     }
 
     int rollResultAggregate = 0; // not used globally in v1.1, but kept for reporting
@@ -544,7 +544,7 @@ class RuleParser {
       // aggregate over selection values
       final int aggValue = block.aggregate(selMap.values.toList());
       rollResultAggregate = aggValue;
-      _log.fine(() => "[DSL v1.1] use#${blockIdx++} sel=${block.selectionToken} size=${selMap.length} agg=${aggValue}");
+      _log.fine(() => "[DSL v1.1] use#${blockIdx++} sel=${block.selectionToken} size=${selMap.length} agg=$aggValue");
 
       for (final res in block.targets) {
         if (!res.resultRange.valueIn(aggValue)) continue;
@@ -638,20 +638,20 @@ class RuleParser {
 
     // Build named selections
     Map<String, Map<GenericDie, int>> named = {};
-    Map<GenericDie, int> _resolveParent(String? parent) {
+    Map<GenericDie, int> resolveParent(String? parent) {
       if (parent == null) return baseMap;
       return named[parent] ?? baseMap;
     }
 
     for (final def in result.selections) {
-      Map<GenericDie, int> cur = Map.of(_resolveParent(def.parent));
+      Map<GenericDie, int> cur = Map.of(resolveParent(def.parent));
       int stepIdx = 0;
       for (final step in def.steps) {
         cur = step.transformFunction(cur, step.args);
         _log.finer(() => "[DSL v1.1] (async) make ${def.name} step#${stepIdx++} -> size=${cur.length}");
       }
       named[def.name] = cur;
-      _log.fine(() => "[DSL v1.1] (async) make ${def.name} built size=${cur.length}${def.parent != null ? ' from '+def.parent! : ''}");
+      _log.fine(() => "[DSL v1.1] (async) make ${def.name} built size=${cur.length}${def.parent != null ? ' from ${def.parent!}' : ''}");
     }
 
     int rollResultAggregate = 0;
@@ -667,7 +667,7 @@ class RuleParser {
       }
       final int aggValue = block.aggregate(selMap.values.toList());
       rollResultAggregate = aggValue;
-      _log.fine(() => "[DSL v1.1] (async) use#${blockIdx++} sel=${block.selectionToken} size=${selMap.length} agg=${aggValue}");
+      _log.fine(() => "[DSL v1.1] (async) use#${blockIdx++} sel=${block.selectionToken} size=${selMap.length} agg=$aggValue");
 
       for (final res in block.targets) {
         // Debug: log range evaluation details

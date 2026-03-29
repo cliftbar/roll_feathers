@@ -109,15 +109,30 @@ class DieDomain {
     _diceSubscription.add(_foundDie);
   }
 
-  Future<void> blink(Color blinkColor, GenericDie die, {bool withHa = true}) async {
+  Future<void> blink(
+    Color blinkColor,
+    GenericDie die, {
+    bool withHa = true,
+    int blinkCount = 2,
+    Duration blinkInterval = const Duration(milliseconds: 500),
+  }) async {
     Blinker? blinker;
     switch (die.type) {
       case GenericDieType.godice:
-        MessageToggleLeds blinkMsg = MessageToggleLeds(toggleColor: blinkColor);
+        MessageToggleLeds blinkMsg = MessageToggleLeds(
+          toggleColor: blinkColor,
+          numberOfBlinks: blinkCount,
+          lightOffDuration10ms: blinkInterval.inMilliseconds ~/ 2,
+          lightOnDuration10ms: blinkInterval.inMilliseconds ~/ 2,
+        );
         blinker = blinkMsg;
         await (die as GoDiceBle).sendMessage(blinkMsg);
       case GenericDieType.pixel:
-        MessageBlink blinkMsg = MessageBlink(blinkColor: blinkColor);
+        MessageBlink blinkMsg = MessageBlink(
+          blinkColor: blinkColor,
+          duration: blinkInterval.inMilliseconds,
+          loopCount: blinkCount,
+        );
         blinker = blinkMsg;
         await (die as PixelDie).sendMessage(blinkMsg);
       case GenericDieType.virtual:

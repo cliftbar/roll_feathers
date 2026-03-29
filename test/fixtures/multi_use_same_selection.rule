@@ -1,0 +1,13 @@
+define multi_use_same_selection
+for roll *d*
+
+make selection @PASS
+  with match [10:*]
+
+use selection @PASS
+  aggregate over selection sum
+  on result [10:14] action blink green
+
+use selection @PASS
+  aggregate over selection sum
+  on result [15:*] action sequence red blue

@@ -1,0 +1,15 @@
+define deep_derivation_chain
+for roll *d*
+
+make selection @BASE
+  with match [*:20]
+
+make selection @MID from @BASE
+  with over 5
+
+make selection @TOP from @MID
+  with top 2
+
+use selection @TOP
+  aggregate over selection sum
+  on result [*:*] action blink purple

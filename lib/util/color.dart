@@ -5,14 +5,24 @@ final colorMap = {
   'blue': Color.fromARGB(255, 0, 0, 255),
   'green': Color.fromARGB(255, 0, 255, 0),
   'red': Color.fromARGB(255, 255, 0, 0),
-  'orange': Color.fromARGB(255, 255, 128, 0),
+  'orange': Color.fromARGB(255, 255, 77, 0),
   'magenta': Color.fromARGB(255, 255, 0, 255),
   'purple': Color.fromARGB(255, 128, 0, 255),
   'cyan': Color.fromARGB(255, 0, 255, 255),
   'pink': Color.fromARGB(255, 255, 0, 128),
-  'yellow': Color.fromARGB(255, 255, 255, 0),
-  'indigo': Color.fromARGB(255, 75, 0, 130),
+  'yellow': Color.fromARGB(255, 220, 255, 0),
+  'indigo': Color.fromARGB(255, 55, 0, 130),
   'violet': Color.fromARGB(255, 127, 0, 255),
+  // common aliases
+  'gray': Colors.grey, // alias for grey
+  'aqua': Colors.cyan, // alias for cyan
+  'fuchsia': Colors.pinkAccent, // closest to magenta/fuchsia
+  'bluegray': Colors.blueGrey, // alias for blueGrey
+  'bluegrey': Colors.blueGrey, // alternate spelling
+  'deeppurple': Colors.deepPurple,
+  'deeporange': Colors.deepOrange,
+  'lightblue': Colors.lightBlue,
+  'lightgreen': Colors.lightGreen,
   // catan
   "brick": Color.fromARGB(255, 255, 0, 29),
   "hills": Color.fromARGB(255, 255, 0, 29),

@@ -1,0 +1,23 @@
+define percentile_bands
+for roll 1d10,1d00
+
+make selection @BAND1
+  with match [* : 9]
+
+make selection @BAND2
+  with match [10:24]
+
+make selection @BAND3
+  with match [25:49]
+
+use selection @BAND1
+  aggregate over selection max
+  on result [*:*] action blink red
+
+use selection @BAND2
+  aggregate over selection max
+  on result [*:*] action blink orange
+
+use selection @BAND3
+  aggregate over selection max
+  on result [*:*] action blink yellow

@@ -35,6 +35,13 @@ or requests.
 - API to get the latest roll
   - GET http://<device-ip>:8080/api/last-roll
   - Not available on web
+ 
+### DSL and Local Testing
+
+- Authoring guide and reference: docs/dsl/roll_feathers_dsl_v1_1_guide.md
+- Rule examples (including high/low variants): docs/dsl/
+- CLI-style tester usage: docs/dsl/dsl_test_harness_usage.md
+- Quick start: run `flutter test test/tools/dsl_tester_cli_test.dart --` with env vars `RULE_TEXT` and `DICE` (and optional `MODIFIER`, `THRESHOLD`). See the usage doc for details and examples.
 
 ## Platforms
 

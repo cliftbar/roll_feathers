@@ -1,0 +1,16 @@
+define extremes
+for roll *d*
+
+make selection @HIGHEST
+  with top 1
+
+make selection @LOWEST
+  with bottom 1
+
+use selection @HIGHEST
+  aggregate over selection max
+  on result [*:*] action blink green
+
+use selection @LOWEST
+  aggregate over selection min
+  on result [*:*] action blink red

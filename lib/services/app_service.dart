@@ -6,6 +6,7 @@ class AppService {
   static String themeKey = 'theme_mode';
   static String keepScreenOnKey = 'keep_screen_on';
   static String ruleScriptsKey = 'rule_scripts';
+  static String useAsyncEvaluatorKey = 'use_async_evaluator';
 
   Future<void> setThemeMode(ThemeMode mode) async {
     final prefs = await SharedPreferences.getInstance();
@@ -37,5 +38,17 @@ class AppService {
   Future<void> setSavedScripts(List<String> scripts) async {
     final prefs = await SharedPreferences.getInstance();
     prefs.setStringList(ruleScriptsKey, scripts);
+  }
+
+  // Evaluator toggle: gate async evaluator usage behind a preference
+  Future<void> setUseAsyncEvaluator(bool useAsync) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(useAsyncEvaluatorKey, useAsync);
+  }
+
+  Future<bool> getUseAsyncEvaluator() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Default to false in production; tests can opt-in explicitly
+    return prefs.getBool(useAsyncEvaluatorKey) ?? false;
   }
 }

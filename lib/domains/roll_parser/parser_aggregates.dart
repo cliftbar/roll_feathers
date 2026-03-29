@@ -10,6 +10,7 @@ final pp.Parser<RollAggregate> aggregateParsers =
       "min".toParser().map((f) => min),
       "max".toParser().map((f) => max),
       "avg".toParser().map((f) => avg),
+      "count".toParser().map((f) => count),
     ].toChoiceParser();
 
 int sum(List<int> list) {
@@ -30,4 +31,8 @@ int max(List<int> list) {
 int avg(List<int> list) {
   // return list.reduce((a, b) => a <= b ? b : a);
   return list.average.round();
+}
+
+int count(List<int> list) {
+  return list.length;
 }

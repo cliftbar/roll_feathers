@@ -1,0 +1,10 @@
+define scaled_top
+for roll *d*
+
+make selection @SCALED_TOP
+  with mul 2
+  with top 1
+
+use selection @SCALED_TOP
+  aggregate over selection max
+  on result [*:*] action blink purple

@@ -4,7 +4,6 @@ import 'package:collection/collection.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/domains/roll_parser/parser.dart';
-import 'package:roll_feathers/domains/roll_parser/parser_rules.dart' as rule;
 import 'package:roll_feathers/services/app_service.dart';
 
 class RollResult {
@@ -54,6 +53,7 @@ class RollDomain {
 
   late final RuleParser ruleParser;
   late final AppService appService;
+  bool useAsyncEvaluator = false; // gated via AppService pref
 
   RollDomain._(this._diceDomain, this.appService) {
     _deviceStreamListener = _diceDomain.getDiceStream().listen(rollStreamListener);
@@ -62,6 +62,12 @@ class RollDomain {
 
   Future<void> init() async {
     await ruleParser.init();
+    // Load evaluator preference (default false to avoid changing runtime behavior)
+    try {
+      useAsyncEvaluator = await appService.getUseAsyncEvaluator();
+    } catch (_) {
+      useAsyncEvaluator = false;
+    }
   }
 
   Stream<List<RollResult>> subscribeRollResults() => _rollResultStream.stream;
@@ -101,7 +107,7 @@ class RollDomain {
     _rollStatusStream.add(RollStatus.rollEnded);
   }
 
-  int _stopRollWithResult({RollType rollType = RollType.normal}) {
+  Future<int> _stopRollWithResult({RollType rollType = RollType.normal}) async {
     ParseResult? ruleResult;
     // switch (rollType) {
     //   case RollType.max:
@@ -118,7 +124,8 @@ class RollDomain {
     //     }
     // }
     for (var r in ruleParser.getRules(enabledOnly: true)) {
-      ruleResult = ruleParser.runRule(r.script, _rolledDie.values.toList());
+      // Migrate to async evaluator for deterministic, awaited action execution
+      ruleResult = await ruleParser.runRuleAsync(r.script, _rolledDie.values.toList());
       if (ruleResult.ruleReturn) {
         rollType = RollType.rule;
         break;
@@ -175,7 +182,7 @@ class RollDomain {
         }
       });
 
-      die.addRollCallback(DiceRollState.rolled, "$hashCode.rolled", (DiceRollState rollState) {
+      die.addRollCallback(DiceRollState.rolled, "$hashCode.rolled", (DiceRollState rollState) async {
         bool allDiceRolled = areDieRolling(data.values.where((d) => d.type != GenericDieType.virtual).toList());
         _rolledDie[die.dieId] = die;
         _rollEndVirtualDie();
@@ -183,7 +190,7 @@ class RollDomain {
         if (allDiceRolled && _isRolling) {
           // roll is active but all dice are done rolling
           _stopRolling();
-          _stopRollWithResult();
+          await _stopRollWithResult();
         }
       });
     }

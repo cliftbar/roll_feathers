@@ -1,0 +1,9 @@
+define doubles_or_matches
+for roll *d*
+
+make selection @DOUBLES
+  with match 2
+
+use selection @DOUBLES
+  aggregate over selection sum
+  on result [*:*] action blink blue

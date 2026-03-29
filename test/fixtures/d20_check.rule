@@ -1,0 +1,16 @@
+define d20_check
+for roll 1d20
+
+make selection @SUCCESS
+  with match [10:*]
+
+make selection @FAIL
+  with match [*:9]
+
+use selection @SUCCESS
+  aggregate over selection sum
+  on result [*:*] action blink blue
+
+use selection @FAIL
+  aggregate over selection sum
+  on result [*:*] action blink orange

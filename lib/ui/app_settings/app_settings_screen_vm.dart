@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:async/async.dart';
-import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/domains/roll_parser/parser_rules.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -133,7 +132,7 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
       // Other platforms can also use the same filter.
       await _diWrapper.bleRepository.scan(services: [pixelsService]);
       return Result.value(null);
-    } catch (e, st) {
+    } catch (e) {
       // On Web, repository may suppress rethrow; this catch is mostly for native.
       debugPrint('[BLE] scan error: $e');
       // Do not rethrow; surface as a Result error so UI remains responsive.

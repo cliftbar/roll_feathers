@@ -48,6 +48,11 @@ class DieDomain {
     for (var device in List.of(data.values)) {
       if (!_foundDie.containsKey(device.deviceId)) {
         var pd = await GenericBleDie.fromDevice(device);
+        pd.onStateChanged = () {
+          if (_foundDie.containsKey(pd.dieId)) {
+            _diceSubscription.add(Map.of(_foundDie));
+          }
+        };
         _foundDie[pd.dieId] = pd;
       }
     }

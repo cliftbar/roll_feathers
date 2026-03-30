@@ -148,6 +148,7 @@ abstract class GenericDie {
 
 abstract class GenericBleDie extends GenericDie {
   BleDeviceWrapper device;
+  VoidCallback? onStateChanged;
 
   Future<void> resetDevice(BleDeviceWrapper device) async {
     await device.init();
@@ -175,7 +176,6 @@ abstract class GenericBleDie extends GenericDie {
         throw Exception("Bluetooth Device Not Implemented");
       }
 
-      await die._init();
       return die;
     } catch (e) {
       throw Exception('Failed to setup Die: $e');
@@ -190,7 +190,7 @@ abstract class GenericBleDie extends GenericDie {
 
   Future<void> _sendMessageBuffer(List<int> data) async {
     try {
-      device.writeMessage(data);
+      await device.writeMessage(data);
     } catch (e) {
       throw Exception('Failed to send message: $e');
     }
@@ -279,6 +279,7 @@ class GoDiceBle extends GenericBleDie {
         _updateStateBattery(msg);
         _log.fine('$friendlyName Received msg ${msgType.name}: ${json.encode(msg)}');
         _runMessageCallbacks(msg, msgType);
+        onStateChanged?.call();
         break;
       case godice.GodiceMessageType.diceColorAck:
         godice.MessageDiceColorAck msg;
@@ -291,6 +292,7 @@ class GoDiceBle extends GenericBleDie {
         info["diceColor"] = msg.diceColor.name;
         _log.fine('$friendlyName Received msg ${msgType.name}: ${json.encode(msg)}');
         _runMessageCallbacks(msg, msgType);
+        onStateChanged?.call();
         break;
       case godice.GodiceMessageType.stable:
         try {
@@ -387,8 +389,8 @@ class GoDiceBle extends GenericBleDie {
     );
     device.notifyStream.listen(_readNotify);
 
-    _sendMessageBuffer(godice.MessageInit().toBuffer());
-    _sendMessageBuffer(godice.MessageDiceColor().toBuffer());
+    await _sendMessageBuffer(godice.MessageInit().toBuffer());
+    await _sendMessageBuffer(godice.MessageDiceColor().toBuffer());
   }
 
   @override
@@ -440,6 +442,7 @@ class PixelDie extends GenericBleDie {
         _updateStateIAmADie(msg);
         _log.fine('Received msg ${msgType.name}: ${json.encode(msg)}');
         _runMessageCallbacks(msg, msgType);
+        onStateChanged?.call();
         break;
       case pix.PixelMessageType.batteryLevel:
         var msg = pix.MessageBatteryLevel.parse(data);

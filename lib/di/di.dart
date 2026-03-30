@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart';
 import 'package:roll_feathers/services/home_assistant/ha_api_service.dart';
-import 'package:universal_ble/universal_ble.dart' as ub;
 
 import '../dice_sdks/godice.dart';
 import '../dice_sdks/pixels.dart';
@@ -51,30 +50,12 @@ class DiWrapper {
     AppService appService = AppService();
     AppRepository appRepo = AppRepository(appService);
 
-    BleRepository bleRepo;
-    if (kIsWeb) {
-      bleRepo = BleUniversalRepository();
-      bleRepo.init();
-    } else if (Platform.isWindows) {
-      bleRepo = BleUniversalRepository();
-      // Windows: avoid service filters during scan to improve discovery reliability
-      bleRepo.init().whenComplete(() => bleRepo.scan(services: const []));
-    } else if (Platform.isIOS) {
-      // iOS-specific: wait for poweredOn and avoid service filters
-      bleRepo = BleUniversalRepository();
-      await bleRepo.init();
-
-      // Listen to the adapter state and start scanning once powered on
-      bool iosScanStarted = false;
-      ub.UniversalBle.availabilityStream.listen((state) {
-        if (state == ub.AvailabilityState.poweredOn && !iosScanStarted) {
-          iosScanStarted = true;
-          bleRepo.scan(services: const []);
-        }
-      });
-    } else {
-      bleRepo = BleUniversalRepository();
-      bleRepo.init().whenComplete(() => bleRepo.scan(services: [pixelsService, godiceServiceGuid]));
+    BleRepository bleRepo = BleUniversalRepository();
+    await bleRepo.init();
+    if (!kIsWeb) {
+      // Windows: no service filter — improves discovery reliability on WinRT
+      final services = Platform.isWindows ? const <String>[] : [pixelsService, godiceServiceGuid];
+      bleRepo.scan(services: services);
     }
 
     DieDomain dieDomain = DieDomain(bleRepo, haRepository);

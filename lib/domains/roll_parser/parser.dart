@@ -598,7 +598,7 @@ class RuleParser {
       allRolled: Map.fromEntries(rolls.map((e) => MapEntry(e.dieId, e.getFaceValueOrElse()))),
       rolledEvaluated: Map.fromEntries(baseMap.entries.map((e) => MapEntry(e.key.dieId, e.value))),
       ruleName: result.name,
-      ruleReturn: true,
+      ruleReturn: passed,
     );
   }
 
@@ -719,7 +719,7 @@ class RuleParser {
       allRolled: Map.fromEntries(rolls.map((e) => MapEntry(e.dieId, e.getFaceValueOrElse()))),
       rolledEvaluated: Map.fromEntries(baseMap.entries.map((e) => MapEntry(e.key.dieId, e.value))),
       ruleName: result.name,
-      ruleReturn: true,
+      ruleReturn: passed,
     );
   }
 

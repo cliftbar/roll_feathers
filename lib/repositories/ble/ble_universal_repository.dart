@@ -152,7 +152,7 @@ class BleUniversalRepository implements BleRepository {
     // Permissions — use universal_ble 1.x built-in API
     if (kIsWeb) {
       permissioned = true;
-    } else {
+    } else if (supported) {
       if (!await UniversalBle.hasPermissions()) {
         await UniversalBle.requestPermissions();
       }
@@ -173,15 +173,21 @@ class BleUniversalRepository implements BleRepository {
       _updateAvailability(state);
       _bleEnabledSubscription.add(enabled && supported && permissioned);
     });
-    await UniversalBle.availabilityStream
-        .firstWhere((state) => state == AvailabilityState.poweredOn)
-        .timeout(timeout, onTimeout: () => throw TimeoutException('Bluetooth did not power on within timeout'));
+    try {
+      await UniversalBle.availabilityStream
+          .firstWhere((state) => state == AvailabilityState.poweredOn)
+          .timeout(timeout);
+    } on TimeoutException {
+      _log.warning('BLE adapter did not power on within timeout; continuing without BLE');
+    }
   }
 
   void _updateAvailability(AvailabilityState state) {
     if (state == AvailabilityState.poweredOn) {
       supported = true;
       enabled = true;
+    } else if (state == AvailabilityState.poweredOff) {
+      enabled = false;
     } else if (state == AvailabilityState.unsupported ||
         state == AvailabilityState.unknown ||
         state == AvailabilityState.unauthorized) {

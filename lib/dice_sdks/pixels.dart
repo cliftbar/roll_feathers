@@ -295,8 +295,8 @@ class MessageIAmADie extends RxMessage {
       availableFlash: Message.bytesToIntList(data.sublist(12, 14)),
       buildTimestamp: Message.bytesToIntList(data.sublist(14, 18)),
       rollState: data[18],
-      currentFaceIndex: data[19],
-      currentFaceValue: data[19] + 1,
+      currentFaceIndex: data.length > 19 ? data[19] : 0,
+      currentFaceValue: data.length > 19 ? data[19] + 1 : 0,
       batteryLevel: data.length >= 21 ? data[20] : 0,
       batteryState: data.length >= 22 ? data[21] : BatteryState.unknown.index,
     );

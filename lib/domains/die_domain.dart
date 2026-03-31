@@ -16,9 +16,10 @@ class DieDomain {
   final Map<String, GenericDie> _foundDie = {};
 
   final _diceSubscription = StreamController<Map<String, GenericDie>>.broadcast();
+  late StreamSubscription<Map<String, GenericDie>> _bleDevicesSub;
 
   DieDomain(this._bleRepository, this._haRepository) {
-    _bleRepository.subscribeBleDevices().asyncMap(asyncConvertToDie).listen((data) {
+    _bleDevicesSub = _bleRepository.subscribeBleDevices().asyncMap(asyncConvertToDie).listen((data) {
       _diceSubscription.add(data);
     });
   }
@@ -58,6 +59,7 @@ class DieDomain {
     }
     for (GenericDie d in List.of(_foundDie.values.where((d) => d.type != GenericDieType.virtual))) {
       if (!data.containsKey(d.dieId)) {
+        if (d is GenericBleDie) d.dispose();
         _foundDie.remove(d.dieId);
       }
     }
@@ -65,6 +67,7 @@ class DieDomain {
   }
 
   void dispose() {
+    _bleDevicesSub.cancel();
     _bleRepository.dispose();
   }
 

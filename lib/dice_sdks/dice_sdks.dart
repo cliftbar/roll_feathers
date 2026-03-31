@@ -149,6 +149,11 @@ abstract class GenericDie {
 abstract class GenericBleDie extends GenericDie {
   BleDeviceWrapper device;
   VoidCallback? onStateChanged;
+  StreamSubscription<List<int>>? _notifySubscription;
+
+  void dispose() {
+    _notifySubscription?.cancel();
+  }
 
   Future<void> resetDevice(BleDeviceWrapper device) async {
     await device.init();
@@ -361,7 +366,7 @@ class GoDiceBle extends GenericBleDie {
 
   void _runMessageCallbacks(RxMessage msg, godice.GodiceMessageType msgType) {
     if (messageRxCallbacks.containsKey(msgType.index)) {
-      for (Function(RxMessage) func in (messageRxCallbacks[msgType.index]?.values ?? [])) {
+      for (Function(RxMessage) func in List.of(messageRxCallbacks[msgType.index]?.values ?? [])) {
         func(msg);
       }
     }
@@ -387,7 +392,11 @@ class GoDiceBle extends GenericBleDie {
       notifyUuid: godice.godiceNotifyCharacteristic,
       writeUuid: godice.godiceWriteCharacteristic,
     );
-    device.notifyStream.listen(_readNotify);
+    _notifySubscription = device.notifyStream.listen(
+      _readNotify,
+      onError: (e) => _log.severe('notify stream error: $e'),
+      cancelOnError: true,
+    );
 
     await _sendMessageBuffer(godice.MessageInit().toBuffer());
     await _sendMessageBuffer(godice.MessageDiceColor().toBuffer());
@@ -450,7 +459,7 @@ class PixelDie extends GenericBleDie {
         _log.fine('Received msg ${msgType.name}: ${json.encode(msg)}');
         if (messageRxCallbacks.containsKey(pix.PixelMessageType.batteryLevel.index)) {
           for (Function(RxMessage) func
-              in (messageRxCallbacks[pix.PixelMessageType.batteryLevel.index]?.values ?? [])) {
+              in List.of(messageRxCallbacks[pix.PixelMessageType.batteryLevel.index]?.values ?? [])) {
             func(msg);
           }
         }
@@ -475,7 +484,7 @@ class PixelDie extends GenericBleDie {
 
   void _runMessageCallbacks(RxMessage msg, pix.PixelMessageType msgType) {
     if (messageRxCallbacks.containsKey(msgType.index)) {
-      for (Function(RxMessage) func in (messageRxCallbacks[msgType.index]?.values ?? [])) {
+      for (Function(RxMessage) func in List.of(messageRxCallbacks[msgType.index]?.values ?? [])) {
         func(msg);
       }
     }
@@ -526,7 +535,11 @@ class PixelDie extends GenericBleDie {
       notifyUuid: pix.pixelNotifyCharacteristic,
       writeUuid: pix.pixelWriteCharacteristic,
     );
-    device.notifyStream.listen(_readNotify);
+    _notifySubscription = device.notifyStream.listen(
+      _readNotify,
+      onError: (e) => _log.severe('notify stream error: $e'),
+      cancelOnError: true,
+    );
     await Future.delayed(Duration(milliseconds: 100)); // sleep needed on web??
     await _sendMessageBuffer(pix.MessageWhoAreYou().toBuffer());
   }

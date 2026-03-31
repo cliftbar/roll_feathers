@@ -319,6 +319,7 @@ class BleUniversalRepository implements BleRepository {
     await _scanSubscription?.cancel();
     _scanSubscription = null;
     _pendingConnect.clear();
+    _deviceLastSeen.clear();
   }
 
   @override

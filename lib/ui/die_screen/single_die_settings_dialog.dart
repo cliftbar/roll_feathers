@@ -5,11 +5,10 @@ import 'package:flutter/widget_previews.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/dice_sdks/godice.dart';
-import 'package:tuple/tuple.dart';
 
 enum _ColorMode {
   hexWheel('Hex / Wheel'),
-  rgbSliders('ARGB / Sliders'),
+  rgbSliders('RGB / Sliders'),
   hsvSquare('HSV / Square'),
   hslSquare('HSL / Square');
 
@@ -39,22 +38,20 @@ class SingleDieSettingsDialog extends StatefulWidget {
 
 class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   // Color state — HSVColor is the single source of truth
-  late HSVColor _hsvColor;
+  late HSVColor _currentColor;
   _ColorMode _colorMode = _ColorMode.hexWheel;
 
   // Hex
   final _hexCtrl = TextEditingController();
   final _hexFocus = FocusNode();
 
-  // RGB + Alpha
+  // RGB
   final _rCtrl = TextEditingController();
   final _gCtrl = TextEditingController();
   final _bCtrl = TextEditingController();
-  final _aCtrl = TextEditingController();
   final _rFocus = FocusNode();
   final _gFocus = FocusNode();
   final _bFocus = FocusNode();
-  final _aFocus = FocusNode();
 
   // HSV
   final _hsvHCtrl = TextEditingController();
@@ -73,15 +70,23 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   final _hslLFocus = FocusNode();
 
   late TextEditingController _entityController;
-  late Tuple2<Widget, ValueGetter<GenericDType>> _faceTuple;
+  late GenericDType _currentFaceType;
 
   @override
   void initState() {
     super.initState();
-    _hsvColor = HSVColor.fromColor(widget.die.blinkColor ?? Colors.white);
+    _currentColor = HSVColor.fromColor(widget.die.blinkColor ?? Colors.white);
     _entityController = TextEditingController(text: widget.die.haEntityTargets.firstOrNull ?? '');
-    _faceTuple = _makeFaceSelectorWidget(widget.die);
+    _currentFaceType = widget.die.dType;
     _updateControllers();
+    // Restore any field left empty/invalid when focus leaves it.
+    for (final node in [
+      _hexFocus, _rFocus, _gFocus, _bFocus,
+      _hsvHFocus, _hsvSFocus, _hsvVFocus,
+      _hslHFocus, _hslSFocus, _hslLFocus,
+    ]) {
+      node.addListener(() { if (!node.hasFocus) _updateControllers(); });
+    }
   }
 
   @override
@@ -91,11 +96,9 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
     _rCtrl.dispose();
     _gCtrl.dispose();
     _bCtrl.dispose();
-    _aCtrl.dispose();
     _rFocus.dispose();
     _gFocus.dispose();
     _bFocus.dispose();
-    _aFocus.dispose();
     _hsvHCtrl.dispose();
     _hsvSCtrl.dispose();
     _hsvVCtrl.dispose();
@@ -115,15 +118,15 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   // ── Color sync ────────────────────────────────────────────────────────────
 
   void _onHsvColorChanged(HSVColor hsv) {
-    setState(() => _hsvColor = hsv);
+    setState(() => _currentColor = hsv);
     _updateControllers();
   }
 
   /// Updates every controller that doesn't currently have focus, so
   /// the user's in-progress edits are never overwritten mid-keystroke.
   void _updateControllers() {
-    final color = _hsvColor.toColor();
-    final hsl = hsvToHsl(_hsvColor);
+    final color = _currentColor.toColor();
+    final hsl = hsvToHsl(_currentColor);
     final r = (color.r * 255).round();
     final g = (color.g * 255).round();
     final b = (color.b * 255).round();
@@ -134,10 +137,9 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
     if (!_rFocus.hasFocus) _rCtrl.text = r.toString();
     if (!_gFocus.hasFocus) _gCtrl.text = g.toString();
     if (!_bFocus.hasFocus) _bCtrl.text = b.toString();
-    if (!_aFocus.hasFocus) _aCtrl.text = (_hsvColor.alpha * 255).round().toString();
-    if (!_hsvHFocus.hasFocus) _hsvHCtrl.text = _hsvColor.hue.round().toString();
-    if (!_hsvSFocus.hasFocus) _hsvSCtrl.text = (_hsvColor.saturation * 100).round().toString();
-    if (!_hsvVFocus.hasFocus) _hsvVCtrl.text = (_hsvColor.value * 100).round().toString();
+    if (!_hsvHFocus.hasFocus) _hsvHCtrl.text = _currentColor.hue.round().toString();
+    if (!_hsvSFocus.hasFocus) _hsvSCtrl.text = (_currentColor.saturation * 100).round().toString();
+    if (!_hsvVFocus.hasFocus) _hsvVCtrl.text = (_currentColor.value * 100).round().toString();
     if (!_hslHFocus.hasFocus) _hslHCtrl.text = hsl.hue.round().toString();
     if (!_hslSFocus.hasFocus) _hslSCtrl.text = (hsl.saturation * 100).round().toString();
     if (!_hslLFocus.hasFocus) _hslLCtrl.text = (hsl.lightness * 100).round().toString();
@@ -153,7 +155,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   void _onRFieldChanged(String val) {
     final r = int.tryParse(val);
     if (r != null && r <= 255) {
-      final c = _hsvColor.toColor();
+      final c = _currentColor.toColor();
       _onHsvColorChanged(HSVColor.fromColor(Color.fromRGBO(r, (c.g * 255).round(), (c.b * 255).round(), 1)));
     }
   }
@@ -161,7 +163,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   void _onGFieldChanged(String val) {
     final g = int.tryParse(val);
     if (g != null && g <= 255) {
-      final c = _hsvColor.toColor();
+      final c = _currentColor.toColor();
       _onHsvColorChanged(HSVColor.fromColor(Color.fromRGBO((c.r * 255).round(), g, (c.b * 255).round(), 1)));
     }
   }
@@ -169,44 +171,39 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   void _onBFieldChanged(String val) {
     final b = int.tryParse(val);
     if (b != null && b <= 255) {
-      final c = _hsvColor.toColor();
+      final c = _currentColor.toColor();
       _onHsvColorChanged(HSVColor.fromColor(Color.fromRGBO((c.r * 255).round(), (c.g * 255).round(), b, 1)));
     }
   }
 
-  void _onAFieldChanged(String val) {
-    final a = int.tryParse(val);
-    if (a != null && a <= 255) _onHsvColorChanged(_hsvColor.withAlpha(a / 255));
-  }
-
   void _onHsvHFieldChanged(String val) {
     final h = double.tryParse(val);
-    if (h != null && h <= 360) _onHsvColorChanged(_hsvColor.withHue(h));
+    if (h != null && h <= 360) _onHsvColorChanged(_currentColor.withHue(h));
   }
 
   void _onHsvSFieldChanged(String val) {
     final s = int.tryParse(val);
-    if (s != null && s <= 100) _onHsvColorChanged(_hsvColor.withSaturation(s / 100));
+    if (s != null && s <= 100) _onHsvColorChanged(_currentColor.withSaturation(s / 100));
   }
 
   void _onHsvVFieldChanged(String val) {
     final v = int.tryParse(val);
-    if (v != null && v <= 100) _onHsvColorChanged(_hsvColor.withValue(v / 100));
+    if (v != null && v <= 100) _onHsvColorChanged(_currentColor.withValue(v / 100));
   }
 
   void _onHslHFieldChanged(String val) {
     final h = double.tryParse(val);
-    if (h != null && h <= 360) _onHsvColorChanged(hslToHsv(hsvToHsl(_hsvColor).withHue(h)));
+    if (h != null && h <= 360) _onHsvColorChanged(hslToHsv(hsvToHsl(_currentColor).withHue(h)));
   }
 
   void _onHslSFieldChanged(String val) {
     final s = int.tryParse(val);
-    if (s != null && s <= 100) _onHsvColorChanged(hslToHsv(hsvToHsl(_hsvColor).withSaturation(s / 100)));
+    if (s != null && s <= 100) _onHsvColorChanged(hslToHsv(hsvToHsl(_currentColor).withSaturation(s / 100)));
   }
 
   void _onHslLFieldChanged(String val) {
     final l = int.tryParse(val);
-    if (l != null && l <= 100) _onHsvColorChanged(hslToHsv(hsvToHsl(_hsvColor).withLightness(l / 100)));
+    if (l != null && l <= 100) _onHsvColorChanged(hslToHsv(hsvToHsl(_currentColor).withLightness(l / 100)));
   }
 
   // ── Picker widgets ────────────────────────────────────────────────────────
@@ -217,7 +214,9 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
       case _ColorMode.hsvSquare:
       case _ColorMode.hslSquare:
         return ColorPicker(
-          pickerColor: _hsvColor.toColor(),
+          pickerColor: _currentColor.toColor(),
+          // flutter_colorpicker requires onColorChanged but we use onHsvColorChanged
+          // as the single source of truth to avoid a double-conversion round-trip.
           onColorChanged: (_) {},
           onHsvColorChanged: _onHsvColorChanged,
           paletteType: switch (_colorMode) {
@@ -232,13 +231,10 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
           portraitOnly: true,
         );
       case _ColorMode.rgbSliders:
-        final color = _hsvColor.toColor();
+        final color = _currentColor.toColor();
         final r = (color.r * 255).round().toDouble();
         final g = (color.g * 255).round().toDouble();
         final b = (color.b * 255).round().toDouble();
-        final a = (_hsvColor.alpha * 255).round().toDouble();
-        // Opaque current color (for alpha slider end and thumb)
-        final opaqueColor = _hsvColor.withAlpha(1.0).toColor();
         return Column(
           children: [
             _gradientSlider(value: r, startColor: Colors.black, endColor: Colors.red,
@@ -247,8 +243,6 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                 thumbColor: color, onChanged: (v) => _onGFieldChanged(v.round().toString())),
             _gradientSlider(value: b, startColor: Colors.black, endColor: Colors.blue,
                 thumbColor: color, onChanged: (v) => _onBFieldChanged(v.round().toString())),
-            _gradientSlider(value: a, startColor: Colors.transparent, endColor: opaqueColor,
-                thumbColor: color, onChanged: (v) => _onAFieldChanged(v.round().toString())),
           ],
         );
     }
@@ -276,7 +270,6 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
           _field(label: 'R', controller: _rCtrl, focusNode: _rFocus, onChanged: _onRFieldChanged, formatters: _intFormatters),
           _field(label: 'G', controller: _gCtrl, focusNode: _gFocus, onChanged: _onGFieldChanged, formatters: _intFormatters),
           _field(label: 'B', controller: _bCtrl, focusNode: _bFocus, onChanged: _onBFieldChanged, formatters: _intFormatters),
-          _field(label: 'A', controller: _aCtrl, focusNode: _aFocus, onChanged: _onAFieldChanged, formatters: _intFormatters),
         ]);
       case _ColorMode.hsvSquare:
         return _inputRow([
@@ -332,7 +325,6 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
               isDense: true,
             ),
             inputFormatters: formatters,
-            keyboardType: TextInputType.number,
           ),
         ),
       );
@@ -357,57 +349,6 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
     );
   }
 
-  // ── Face selector (unchanged) ─────────────────────────────────────────────
-
-  // this is a bad pattern x.x
-  Tuple2<Widget, ValueGetter<GenericDType>> _makeFaceSelectorWidget(GenericDie die) {
-    switch (die.type) {
-      case GenericDieType.pixel:
-        faceCallback() => die.dType;
-        return Tuple2(Text(die.dType.name), faceCallback);
-      case GenericDieType.godice:
-        final List<DropdownMenuEntry<String>> menuEntries = UnmodifiableListView<DropdownMenuEntry<String>>(
-          GodiceDieType.values
-              .where((t) => t != GodiceDieType.d24)
-              .map<DropdownMenuEntry<String>>(
-                (GodiceDieType v) => DropdownMenuEntry<String>(value: v.name, label: v.name),
-              ),
-        );
-        GenericDType dropdownValue = die.dType;
-        var menu = DropdownMenu<String>(
-          initialSelection: GodiceDieType.fromName(die.dType.name).name,
-          onSelected: (String? value) {
-            if (value != null) {
-              dropdownValue = GodiceDieType.fromName(value).toDType();
-            }
-          },
-          dropdownMenuEntries: menuEntries,
-        );
-        faceCallback() => dropdownValue;
-        return Tuple2(menu, faceCallback);
-      case GenericDieType.virtual:
-        var faceCountUpdateController = TextEditingController(text: '${die.dType.faces}');
-        faceCallback() {
-          int value = int.parse(faceCountUpdateController.text);
-          var dType = GenericDTypeFactory.fromIntId(value) ?? GenericDType('d${value.toString()}', value, value, 0, 1);
-          return dType;
-        }
-        var col = Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: faceCountUpdateController,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: 'Number of Faces', hintText: 'Enter the number of faces'),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        );
-        return Tuple2(col, faceCallback);
-    }
-  }
-
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -427,47 +368,64 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '${widget.die.friendlyName} Settings',
-                style: Theme.of(context).textTheme.headlineSmall,
+              // Title row — Disconnect icon lives here, far from Save.
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '${widget.die.friendlyName} Settings',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.link_off),
+                    tooltip: 'Disconnect',
+                    color: Theme.of(context).colorScheme.error,
+                    onPressed: () {
+                      widget.onDisconnect(widget.die.dieId);
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 4),
               Flexible(
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Face Count'),
-                      _faceTuple.item1,
-                      const Divider(),
+                      // Color first — it's the primary action.
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          // Option A: color dot inline with the label.
-                          // Options B/C/D: thin bar, chip in ARGB row, or accent divider.
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Text('Color'),
-                              const SizedBox(width: 8),
-                              Container(
-                                width: 24,
-                                height: 24,
-                                decoration: BoxDecoration(
-                                  color: _hsvColor.toColor(),
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: Colors.grey.shade400),
-                                ),
+                          // Swatch fills remaining space — always as wide as possible.
+                          Expanded(
+                            child: Container(
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: _currentColor.toColor(),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade400),
                               ),
-                            ],
+                            ),
+                          ),
+                          // Preview: flash the die with the current color.
+                          TextButton.icon(
+                            icon: const Icon(Icons.flash_on),
+                            label: const Text('Preview'),
+                            onPressed: () => widget.onBlink(
+                                _currentColor.toColor(), widget.die, _entityController.text),
                           ),
                           DropdownMenu<_ColorMode>(
                             initialSelection: _colorMode,
-                            width: 185,
+                            width: 165,
                             enableSearch: false,
                             onSelected: (mode) {
-                              if (mode != null) setState(() => _colorMode = mode);
+                              if (mode != null) {
+                                setState(() => _colorMode = mode);
+                                FocusScope.of(context).unfocus();
+                              }
                             },
                             dropdownMenuEntries: _ColorMode.values
                                 .map((m) => DropdownMenuEntry(value: m, label: m.label))
@@ -478,22 +436,29 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                       _buildVisualPicker(),
                       _buildNumericInputs(),
                       const Divider(),
-                      TextField(
-                        controller: _entityController,
-                        enabled: widget.haEnabled,
-                        autocorrect: false,
-                        decoration: const InputDecoration(
-                          labelText: 'Home Assistant Entity',
-                          hintText: 'light.bedroom',
-                          helperText: 'Leave empty to use default entity',
-                        ),
+                      // Face count below the color section.
+                      const Text('Face Count'),
+                      _FaceSelector(
+                        die: widget.die,
+                        onChanged: (t) => _currentFaceType = t,
                       ),
+                      // HA entity only rendered when integration is enabled.
+                      if (widget.haEnabled) ...[
+                        const Divider(),
+                        TextField(
+                          controller: _entityController,
+                          autocorrect: false,
+                          decoration: const InputDecoration(
+                            labelText: 'Home Assistant Entity',
+                            hintText: 'light.bedroom',
+                            helperText: 'Leave empty to use default entity',
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
-              // Actions — OverflowBar wraps buttons onto multiple lines when
-              // the dialog is narrow, matching AlertDialog's default behavior.
               OverflowBar(
                 alignment: MainAxisAlignment.end,
                 children: [
@@ -502,20 +467,9 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                   TextButton(
-                    child: const Text('Blink'),
-                    onPressed: () => widget.onBlink(_hsvColor.toColor(), widget.die, _entityController.text),
-                  ),
-                  TextButton(
-                    child: const Text('Disconnect'),
-                    onPressed: () {
-                      widget.onDisconnect(widget.die.dieId);
-                      Navigator.of(context).pop();
-                    },
-                  ),
-                  TextButton(
                     child: const Text('Save'),
                     onPressed: () {
-                      widget.onSave(widget.die, _hsvColor.toColor(), _entityController.text, _faceTuple.item2());
+                      widget.onSave(widget.die, _currentColor.toColor(), _entityController.text, _currentFaceType);
                       Navigator.of(context).pop();
                     },
                   ),
@@ -526,6 +480,84 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
         ),
       ),
     );
+  }
+}
+
+// ── Face selector ─────────────────────────────────────────────────────────────
+
+class _FaceSelector extends StatefulWidget {
+  const _FaceSelector({required this.die, required this.onChanged});
+
+  final GenericDie die;
+  final ValueChanged<GenericDType> onChanged;
+
+  @override
+  State<_FaceSelector> createState() => _FaceSelectorState();
+}
+
+class _FaceSelectorState extends State<_FaceSelector> {
+  // Only allocated for virtual dice; null for all other types.
+  TextEditingController? _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.die.type == GenericDieType.virtual) {
+      _controller = TextEditingController(text: '${widget.die.dType.faces}');
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    switch (widget.die.type) {
+      case GenericDieType.pixel:
+        return Text(widget.die.dType.name);
+
+      case GenericDieType.godice:
+        return DropdownMenu<String>(
+          initialSelection: GodiceDieType.fromName(widget.die.dType.name).name,
+          onSelected: (value) {
+            if (value != null) {
+              widget.onChanged(GodiceDieType.fromName(value).toDType());
+            }
+          },
+          dropdownMenuEntries: GodiceDieType.values
+              .where((t) => t != GodiceDieType.d24)
+              .map((v) => DropdownMenuEntry<String>(value: v.name, label: v.name))
+              .toList(),
+        );
+
+      case GenericDieType.virtual:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _controller,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(
+                labelText: 'Number of Faces',
+                hintText: 'Enter the number of faces',
+              ),
+              keyboardType: TextInputType.number,
+              onChanged: (val) {
+                final faces = int.tryParse(val);
+                if (faces != null) {
+                  final dType = GenericDTypeFactory.fromIntId(faces) ??
+                      GenericDType('d$faces', faces, faces, 0, 1);
+                  widget.onChanged(dType);
+                }
+              },
+            ),
+          ],
+        );
+    }
   }
 }
 

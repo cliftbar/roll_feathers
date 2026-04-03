@@ -90,7 +90,7 @@ class DiceScreenViewModel extends ChangeNotifier {
 
   // die control settings
   Future<Result<void>> _blink(Color blinkColor, GenericDie die, String? entityOverride) async {
-    _diWrapper.dieDomain.blink(die.blinkColor ?? Colors.white, die);
+    _diWrapper.dieDomain.blink(blinkColor, die);
 
     return Result.value(null);
   }

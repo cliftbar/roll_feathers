@@ -9,7 +9,7 @@ import 'package:tuple/tuple.dart';
 
 enum _ColorMode {
   hexWheel('Hex / Wheel'),
-  rgbSliders('RGB / Sliders'),
+  rgbSliders('ARGB / Sliders'),
   hsvSquare('HSV / Square'),
   hslSquare('HSL / Square');
 
@@ -46,13 +46,15 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   final _hexCtrl = TextEditingController();
   final _hexFocus = FocusNode();
 
-  // RGB
+  // RGB + Alpha
   final _rCtrl = TextEditingController();
   final _gCtrl = TextEditingController();
   final _bCtrl = TextEditingController();
+  final _aCtrl = TextEditingController();
   final _rFocus = FocusNode();
   final _gFocus = FocusNode();
   final _bFocus = FocusNode();
+  final _aFocus = FocusNode();
 
   // HSV
   final _hsvHCtrl = TextEditingController();
@@ -89,9 +91,11 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
     _rCtrl.dispose();
     _gCtrl.dispose();
     _bCtrl.dispose();
+    _aCtrl.dispose();
     _rFocus.dispose();
     _gFocus.dispose();
     _bFocus.dispose();
+    _aFocus.dispose();
     _hsvHCtrl.dispose();
     _hsvSCtrl.dispose();
     _hsvVCtrl.dispose();
@@ -130,6 +134,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
     if (!_rFocus.hasFocus) _rCtrl.text = r.toString();
     if (!_gFocus.hasFocus) _gCtrl.text = g.toString();
     if (!_bFocus.hasFocus) _bCtrl.text = b.toString();
+    if (!_aFocus.hasFocus) _aCtrl.text = (_hsvColor.alpha * 255).round().toString();
     if (!_hsvHFocus.hasFocus) _hsvHCtrl.text = _hsvColor.hue.round().toString();
     if (!_hsvSFocus.hasFocus) _hsvSCtrl.text = (_hsvColor.saturation * 100).round().toString();
     if (!_hsvVFocus.hasFocus) _hsvVCtrl.text = (_hsvColor.value * 100).round().toString();
@@ -167,6 +172,11 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
       final c = _hsvColor.toColor();
       _onHsvColorChanged(HSVColor.fromColor(Color.fromRGBO((c.r * 255).round(), (c.g * 255).round(), b, 1)));
     }
+  }
+
+  void _onAFieldChanged(String val) {
+    final a = int.tryParse(val);
+    if (a != null && a <= 255) _onHsvColorChanged(_hsvColor.withAlpha(a / 255));
   }
 
   void _onHsvHFieldChanged(String val) {
@@ -219,15 +229,26 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
           hexInputBar: false,
           enableAlpha: false,
           pickerAreaHeightPercent: 0.7,
+          portraitOnly: true,
         );
       case _ColorMode.rgbSliders:
+        final color = _hsvColor.toColor();
+        final r = (color.r * 255).round().toDouble();
+        final g = (color.g * 255).round().toDouble();
+        final b = (color.b * 255).round().toDouble();
+        final a = (_hsvColor.alpha * 255).round().toDouble();
+        // Opaque current color (for alpha slider end and thumb)
+        final opaqueColor = _hsvColor.withAlpha(1.0).toColor();
         return Column(
           children: [
-            ColorPickerSlider(TrackType.red, _hsvColor, _onHsvColorChanged, displayThumbColor: true),
-            const SizedBox(height: 8),
-            ColorPickerSlider(TrackType.green, _hsvColor, _onHsvColorChanged, displayThumbColor: true),
-            const SizedBox(height: 8),
-            ColorPickerSlider(TrackType.blue, _hsvColor, _onHsvColorChanged, displayThumbColor: true),
+            _gradientSlider(value: r, startColor: Colors.black, endColor: Colors.red,
+                thumbColor: color, onChanged: (v) => _onRFieldChanged(v.round().toString())),
+            _gradientSlider(value: g, startColor: Colors.black, endColor: Colors.green,
+                thumbColor: color, onChanged: (v) => _onGFieldChanged(v.round().toString())),
+            _gradientSlider(value: b, startColor: Colors.black, endColor: Colors.blue,
+                thumbColor: color, onChanged: (v) => _onBFieldChanged(v.round().toString())),
+            _gradientSlider(value: a, startColor: Colors.transparent, endColor: opaqueColor,
+                thumbColor: color, onChanged: (v) => _onAFieldChanged(v.round().toString())),
           ],
         );
     }
@@ -238,11 +259,12 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
       case _ColorMode.hexWheel:
         return _inputRow([
           _field(
-            label: '#',
+            label: 'Hex',
+            prefix: '#',
             controller: _hexCtrl,
             focusNode: _hexFocus,
             onChanged: _onHexFieldChanged,
-            width: 90,
+            width: 110,
             formatters: [
               FilteringTextInputFormatter.allow(RegExp(r'[0-9a-fA-F]')),
               LengthLimitingTextInputFormatter(6),
@@ -254,6 +276,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
           _field(label: 'R', controller: _rCtrl, focusNode: _rFocus, onChanged: _onRFieldChanged, formatters: _intFormatters),
           _field(label: 'G', controller: _gCtrl, focusNode: _gFocus, onChanged: _onGFieldChanged, formatters: _intFormatters),
           _field(label: 'B', controller: _bCtrl, focusNode: _bFocus, onChanged: _onBFieldChanged, formatters: _intFormatters),
+          _field(label: 'A', controller: _aCtrl, focusNode: _aFocus, onChanged: _onAFieldChanged, formatters: _intFormatters),
         ]);
       case _ColorMode.hsvSquare:
         return _inputRow([
@@ -290,6 +313,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
     required void Function(String) onChanged,
     required List<TextInputFormatter> formatters,
     String? suffix,
+    String? prefix,
     double width = 65,
   }) =>
       Padding(
@@ -304,6 +328,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
             decoration: InputDecoration(
               labelText: label,
               suffixText: suffix,
+              prefixText: prefix,
               isDense: true,
             ),
             inputFormatters: formatters,
@@ -311,6 +336,26 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
           ),
         ),
       );
+
+  // ── Gradient slider ───────────────────────────────────────────────────────
+
+  Widget _gradientSlider({
+    required double value,
+    required Color startColor,
+    required Color endColor,
+    required Color thumbColor,
+    required ValueChanged<double> onChanged,
+  }) {
+    return SliderTheme(
+      data: SliderThemeData(
+        trackShape: _GradientTrackShape(start: startColor, end: endColor),
+        thumbColor: thumbColor,
+        overlayColor: thumbColor.withValues(alpha: 0.2),
+        trackHeight: 16,
+      ),
+      child: Slider(value: value, min: 0, max: 255, onChanged: onChanged),
+    );
+  }
 
   // ── Face selector (unchanged) ─────────────────────────────────────────────
 
@@ -367,70 +412,155 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('${widget.die.friendlyName} Settings'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Face Count'),
-            _faceTuple.item1,
-            const Divider(),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Color'),
-                DropdownButton<_ColorMode>(
-                  value: _colorMode,
-                  onChanged: (mode) {
-                    if (mode != null) setState(() => _colorMode = mode);
-                  },
-                  items: _ColorMode.values
-                      .map((m) => DropdownMenuItem(value: m, child: Text(m.label)))
-                      .toList(),
-                ),
-              ],
-            ),
-            _buildVisualPicker(),
-            _buildNumericInputs(),
-            const Divider(),
-            TextField(
-              controller: _entityController,
-              enabled: widget.haEnabled,
-              autocorrect: false,
-              decoration: const InputDecoration(
-                labelText: 'Home Assistant Entity',
-                hintText: 'light.bedroom',
-                helperText: 'Leave empty to use default entity',
+    // Use Dialog + ConstrainedBox rather than AlertDialog, because AlertDialog
+    // wraps content in IntrinsicWidth which propagates intrinsic dimension
+    // queries down to DropdownMenu's LayoutBuilder — crashing in debug mode.
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: 420,
+          maxHeight: MediaQuery.of(context).size.height * 0.85,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${widget.die.friendlyName} Settings',
+                style: Theme.of(context).textTheme.headlineSmall,
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Face Count'),
+                      _faceTuple.item1,
+                      const Divider(),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Option A: color dot inline with the label.
+                          // Options B/C/D: thin bar, chip in ARGB row, or accent divider.
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('Color'),
+                              const SizedBox(width: 8),
+                              Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                  color: _hsvColor.toColor(),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.grey.shade400),
+                                ),
+                              ),
+                            ],
+                          ),
+                          DropdownMenu<_ColorMode>(
+                            initialSelection: _colorMode,
+                            width: 185,
+                            enableSearch: false,
+                            onSelected: (mode) {
+                              if (mode != null) setState(() => _colorMode = mode);
+                            },
+                            dropdownMenuEntries: _ColorMode.values
+                                .map((m) => DropdownMenuEntry(value: m, label: m.label))
+                                .toList(),
+                          ),
+                        ],
+                      ),
+                      _buildVisualPicker(),
+                      _buildNumericInputs(),
+                      const Divider(),
+                      TextField(
+                        controller: _entityController,
+                        enabled: widget.haEnabled,
+                        autocorrect: false,
+                        decoration: const InputDecoration(
+                          labelText: 'Home Assistant Entity',
+                          hintText: 'light.bedroom',
+                          helperText: 'Leave empty to use default entity',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Actions — OverflowBar wraps buttons onto multiple lines when
+              // the dialog is narrow, matching AlertDialog's default behavior.
+              OverflowBar(
+                alignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    child: const Text('Cancel'),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                  TextButton(
+                    child: const Text('Blink'),
+                    onPressed: () => widget.onBlink(_hsvColor.toColor(), widget.die, _entityController.text),
+                  ),
+                  TextButton(
+                    child: const Text('Disconnect'),
+                    onPressed: () {
+                      widget.onDisconnect(widget.die.dieId);
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                  TextButton(
+                    child: const Text('Save'),
+                    onPressed: () {
+                      widget.onSave(widget.die, _hsvColor.toColor(), _entityController.text, _faceTuple.item2());
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          child: const Text('Cancel'),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        TextButton(
-          child: const Text('Blink'),
-          onPressed: () => widget.onBlink(_hsvColor.toColor(), widget.die, _entityController.text),
-        ),
-        TextButton(
-          child: const Text('Disconnect'),
-          onPressed: () {
-            widget.onDisconnect(widget.die.dieId);
-            Navigator.of(context).pop();
-          },
-        ),
-        TextButton(
-          child: const Text('Save'),
-          onPressed: () {
-            widget.onSave(widget.die, _hsvColor.toColor(), _entityController.text, _faceTuple.item2());
-            Navigator.of(context).pop();
-          },
-        ),
-      ],
+    );
+  }
+}
+
+// ── Gradient track shape for RGB sliders ──────────────────────────────────────
+
+class _GradientTrackShape extends SliderTrackShape with BaseSliderTrackShape {
+  final Color start;
+  final Color end;
+
+  const _GradientTrackShape({required this.start, required this.end});
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset offset, {
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required Animation<double> enableAnimation,
+    required Offset thumbCenter,
+    Offset? secondaryOffset,
+    bool isDiscrete = false,
+    bool isEnabled = false,
+    required TextDirection textDirection,
+  }) {
+    final trackRect = getPreferredRect(
+      parentBox: parentBox,
+      offset: offset,
+      sliderTheme: sliderTheme,
+      isEnabled: isEnabled,
+      isDiscrete: isDiscrete,
+    );
+    context.canvas.drawRRect(
+      RRect.fromRectAndRadius(trackRect, Radius.circular(trackRect.height / 2)),
+      Paint()
+        ..shader = LinearGradient(colors: [start, end]).createShader(trackRect),
     );
   }
 }

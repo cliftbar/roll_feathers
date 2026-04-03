@@ -29,8 +29,6 @@ class DiceScreenWidget extends StatefulWidget {
 }
 
 class _DiceScreenWidgetState extends State<DiceScreenWidget> {
-  final bool _rollMax = false;
-  final bool _rollMin = false;
   bool _rollVirtualDice = true;
   String? _appVersion;
 
@@ -334,16 +332,6 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
   }
 
   // Helpers
-  void _setRollType() {
-    if (_rollMax) {
-      widget.viewModel.setRollType.execute(RollType.max);
-    } else if (_rollMin) {
-      widget.viewModel.setRollType.execute(RollType.min);
-    } else {
-      widget.viewModel.setRollType.execute(RollType.sum);
-    }
-  }
-
   void _setWithVirtualDice(bool value) {
     _rollVirtualDice = value;
     widget.viewModel.setWithVirtualDice.execute(_rollVirtualDice);

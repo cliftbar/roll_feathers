@@ -259,17 +259,15 @@ class RuleParser {
   late final List<RuleScript> _userRules;
 
   List<RuleScript> getRules({bool enabledOnly = false}) {
-    // TODO: not a great check here
-    List<RuleScript> ret = [];
-    ret.addAll(_userRules);
-    for (var r in defaultRules) {
-      if (!ret.map((e) => e.name).contains(r.name)) {
-        ret.add(r);
-      }
-    }
-    if (enabledOnly) {
-      ret.removeWhere((v) => !v.enabled);
-    }
+    final defaultNames = defaultRules.map((r) => r.name).toSet();
+    final userByName = {for (final r in _userRules) r.name: r};
+    final List<RuleScript> ret = [
+      // Custom user scripts (not in defaults) in user-defined order
+      ..._userRules.where((r) => !defaultNames.contains(r.name)),
+      // Defaults in their natural order, substituted if the user has an override
+      ...defaultRules.map((r) => userByName[r.name] ?? r),
+    ];
+    if (enabledOnly) ret.removeWhere((v) => !v.enabled);
     return ret;
   }
 
@@ -296,7 +294,7 @@ class RuleParser {
 
     RuleScript? inDefault = defaultRules.firstWhereOrNull((r) => r.name == name);
     if (inDefault != null) {
-      RuleScript toUser = RuleScript(name: inDefault.name, script: inDefault.script, enabled: true, priority: inDefault.priority);
+      RuleScript toUser = RuleScript(name: inDefault.name, script: inDefault.script, enabled: enabled, priority: inDefault.priority);
       _userRules.add(toUser);
 
       await _appService.setSavedScripts(_userRules.map((e) => e.toJsonString()).toList());

@@ -58,6 +58,8 @@ class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
                 return scripts.isEmpty
                     ? const Center(child: Text('No scripts added'))
                     : ReorderableListView.builder(
+                      padding: EdgeInsets.only(
+                          bottom: MediaQuery.of(context).padding.bottom),
                       itemCount: scripts.length,
                       onReorder: (oldIndex, newIndex) {
                         if (oldIndex < newIndex) {

@@ -148,19 +148,22 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                     ListenableBuilder(
                       listenable: widget.settingsVm,
                       builder: (context, _) {
+                        final bleOn = widget.settingsVm.bleIsEnabled();
+                        final scanning = widget.settingsVm.isScanning;
                         return TextButton.icon(
-                          onPressed:
-                              widget.settingsVm.bleIsEnabled()
-                                  ? () {
-                                    widget.settingsVm.startBleScan.execute();
-                                  }
-                                  : null,
-                          label:
-                              widget.settingsVm.bleIsEnabled()
-                                  ? Text(kIsWeb ? "Pair Die" : "Scan")
-                                  : Text("BLE Disabled"),
-                          icon:
-                              widget.settingsVm.bleIsEnabled()
+                          onPressed: bleOn && !scanning
+                              ? () { widget.settingsVm.startBleScan.execute(); }
+                              : null,
+                          label: bleOn
+                              ? Text(kIsWeb ? "Pair Die" : "Scan")
+                              : const Text("BLE Disabled"),
+                          icon: scanning
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : bleOn
                                   ? const Icon(Icons.bluetooth_searching)
                                   : const Icon(Icons.bluetooth_disabled),
                         );

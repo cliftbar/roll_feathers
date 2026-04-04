@@ -37,8 +37,10 @@ class SingleDieSettingsDialog extends StatefulWidget {
 }
 
 class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
-  // Color state — HSVColor is the single source of truth
+  // Color state — HSVColor is the single source of truth for hue/sat/value.
+  // Brightness (LED intensity) is tracked separately and stored as alpha on save.
   late HSVColor _currentColor;
+  late double _brightness; // 0.0 – 1.0
   _ColorMode _colorMode = _ColorMode.hexWheel;
 
   // Hex
@@ -75,7 +77,9 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   @override
   void initState() {
     super.initState();
-    _currentColor = HSVColor.fromColor(widget.die.blinkColor ?? Colors.white);
+    final initialColor = widget.die.blinkColor ?? Colors.white;
+    _currentColor = HSVColor.fromColor(initialColor);
+    _brightness = initialColor.a.clamp(0.0, 1.0);
     _entityController = TextEditingController(text: widget.die.haEntityTargets.firstOrNull ?? '');
     _currentFaceType = widget.die.dType;
     _updateControllers();
@@ -215,6 +219,10 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
       case _ColorMode.hslSquare:
         return ColorPicker(
           pickerColor: _currentColor.toColor(),
+          // Pass the HSV color directly so the hue slider tracks correctly even
+          // when saturation=0 or value=0 (degenerate corners where toColor()
+          // always returns white/black, losing hue information).
+          pickerHsvColor: _currentColor,
           // flutter_colorpicker requires onColorChanged but we use onHsvColorChanged
           // as the single source of truth to avoid a double-conversion round-trip.
           onColorChanged: (_) {},
@@ -332,6 +340,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   // ── Gradient slider ───────────────────────────────────────────────────────
 
   Widget _gradientSlider({
+    Key? key,
     required double value,
     required Color startColor,
     required Color endColor,
@@ -345,7 +354,40 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
         overlayColor: thumbColor.withValues(alpha: 0.2),
         trackHeight: 16,
       ),
-      child: Slider(value: value, min: 0, max: 255, onChanged: onChanged),
+      child: Slider(key: key, value: value, min: 0, max: 255, onChanged: onChanged),
+    );
+  }
+
+  // ── Brightness slider ─────────────────────────────────────────────────────
+
+  Widget _buildBrightnessSlider() {
+    final dimColor = _currentColor.withValue(_currentColor.value * _brightness).toColor();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          const Icon(Icons.brightness_low, size: 20),
+          Expanded(
+            child: _gradientSlider(
+              key: const Key('brightness_slider'),
+              value: _brightness * 255,
+              startColor: Colors.black,
+              endColor: _currentColor.toColor(),
+              thumbColor: dimColor,
+              onChanged: (v) => setState(() => _brightness = v / 255),
+            ),
+          ),
+          const Icon(Icons.brightness_high, size: 20),
+          SizedBox(
+            width: 40,
+            child: Text(
+              '${(_brightness * 100).round()}%',
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -404,7 +446,9 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                             child: Container(
                               height: 36,
                               decoration: BoxDecoration(
-                                color: _currentColor.toColor(),
+                                color: _currentColor
+                                    .withValue(_currentColor.value * _brightness)
+                                    .toColor(),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(color: Colors.grey.shade400),
                               ),
@@ -415,7 +459,9 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                             icon: const Icon(Icons.flash_on),
                             label: const Text('Preview'),
                             onPressed: () => widget.onBlink(
-                                _currentColor.toColor(), widget.die, _entityController.text),
+                                _currentColor.toColor().withValues(alpha: _brightness),
+                                widget.die,
+                                _entityController.text),
                           ),
                           DropdownMenu<_ColorMode>(
                             initialSelection: _colorMode,
@@ -435,6 +481,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                       ),
                       _buildVisualPicker(),
                       _buildNumericInputs(),
+                      _buildBrightnessSlider(),
                       const Divider(),
                       // Face count below the color section.
                       const Text('Face Count'),
@@ -469,7 +516,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                   TextButton(
                     child: const Text('Save'),
                     onPressed: () {
-                      widget.onSave(widget.die, _currentColor.toColor(), _entityController.text, _currentFaceType);
+                      widget.onSave(widget.die, _currentColor.toColor().withValues(alpha: _brightness), _entityController.text, _currentFaceType);
                       Navigator.of(context).pop();
                     },
                   ),

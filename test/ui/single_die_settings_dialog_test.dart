@@ -315,6 +315,64 @@ void main() {
       expect(find.text('90'), findsOneWidget);
     });
 
+    // ── Brightness slider ─────────────────────────────────────────────────────
+
+    testWidgets('brightness slider is present', (tester) async {
+      await _pumpDialog(tester);
+      expect(find.byKey(const Key('brightness_slider')), findsOneWidget);
+    });
+
+    testWidgets('brightness defaults to 100% when die has no color', (tester) async {
+      await _pumpDialog(tester, die: _virtualDie(color: null));
+      expect(find.text('100%'), findsOneWidget);
+    });
+
+    testWidgets('brightness initializes from die color alpha', (tester) async {
+      // Color(0x80FF0000) has alpha 0x80 = 128, i.e. ~50%
+      await _pumpDialog(tester, die: _virtualDie(color: const Color(0x80FF0000)));
+      // 128/255 rounds to 50%
+      expect(find.text('50%'), findsOneWidget);
+    });
+
+    testWidgets('Save includes brightness as color alpha', (tester) async {
+      Color? savedColor;
+      await _pumpDialog(
+        tester,
+        die: _virtualDie(color: const Color(0x80FF0000)), // 50% brightness
+        onSave: (_, c, __, ___) => savedColor = c,
+      );
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(savedColor, isNotNull);
+      // Alpha should be ~50% (0x80/0xFF ≈ 0.502, rounded to 2 decimal places)
+      expect(savedColor!.a, closeTo(0x80 / 0xFF, 0.01));
+    });
+
+    testWidgets('Preview includes brightness as color alpha', (tester) async {
+      Color? blinkColor;
+      await _pumpDialog(
+        tester,
+        die: _virtualDie(color: const Color(0x40FF0000)), // 25% brightness
+        onBlink: (c, _, __) => blinkColor = c,
+      );
+      await tester.tap(find.text('Preview'));
+      await tester.pump();
+      expect(blinkColor, isNotNull);
+      expect(blinkColor!.a, closeTo(0x40 / 0xFF, 0.01));
+    });
+
+    testWidgets('Save uses full brightness when die has no color', (tester) async {
+      Color? savedColor;
+      await _pumpDialog(
+        tester,
+        die: _virtualDie(color: null),
+        onSave: (_, c, __, ___) => savedColor = c,
+      );
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(savedColor?.a, closeTo(1.0, 0.01));
+    });
+
     // ── Face selector ─────────────────────────────────────────────────────────
 
     testWidgets('virtual die shows face count pre-populated', (tester) async {

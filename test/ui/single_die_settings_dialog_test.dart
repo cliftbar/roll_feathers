@@ -249,7 +249,7 @@ void main() {
       await tester.enterText(rField, '');
       await tester.pump();
       // Verify R field is currently empty
-      final rTextField = () => tester.widgetList<TextField>(find.byType(TextField))
+      TextField rTextField() => tester.widgetList<TextField>(find.byType(TextField))
           .firstWhere((f) => f.decoration?.labelText == 'R');
       expect(rTextField().controller?.text, isEmpty);
       // Programmatically unfocus — tapping other fields is unreliable when they

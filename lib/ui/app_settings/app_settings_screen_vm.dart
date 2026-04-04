@@ -30,6 +30,8 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
   late StreamSubscription<bool> _bleEnabledSubscription;
   late Command0<void> disconnectAllNonVirtualDice;
   bool _scanInProgress = false;
+  bool get isScanning => _scanInProgress;
+  Timer? _scanProgressTimer;
 
   // ha config proxy
   late HaConfig _haConfig;
@@ -127,19 +129,26 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
       return Result.value(null);
     }
     _scanInProgress = true;
+    _scanProgressTimer?.cancel();
+    notifyListeners();
     try {
       // Put filters back on Web as requested; use Pixels service by default.
       // Other platforms can also use the same filter.
       await _diWrapper.bleRepository.scan(services: [pixelsService]);
+      // scan() returns immediately — it starts a background scan with a 5-second
+      // timer. Reset the spinner after the same window so it stays visible.
+      _scanProgressTimer = Timer(const Duration(seconds: 6), () {
+        _scanInProgress = false;
+        notifyListeners();
+      });
       return Result.value(null);
     } catch (e) {
       // On Web, repository may suppress rethrow; this catch is mostly for native.
       debugPrint('[BLE] scan error: $e');
-      // Do not rethrow; surface as a Result error so UI remains responsive.
-      return Result.error(Exception(e.toString()));
-    } finally {
       _scanInProgress = false;
       notifyListeners();
+      // Do not rethrow; surface as a Result error so UI remains responsive.
+      return Result.error(Exception(e.toString()));
     }
   }
 
@@ -194,6 +203,7 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
   // Cleanup
   @override
   void dispose() {
+    _scanProgressTimer?.cancel();
     _haConfigSubscription.cancel();
     _keepScreenOnSubscription.cancel();
     _bleEnabledSubscription.cancel();

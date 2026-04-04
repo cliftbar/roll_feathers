@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/di/di.dart';
-import 'package:roll_feathers/ui/dice_screen.dart';
+import 'package:roll_feathers/ui/die_screen/dice_screen.dart';
 import 'package:roll_feathers/ui/roll_feathers_app_vm.dart';
 
-import 'app_settings/app_settings_screen.dart';
+import 'app_settings/app_settings_screen_vm.dart';
 
 // Main Application
 class RollFeatherApp extends StatefulWidget {
@@ -17,9 +17,9 @@ class RollFeatherApp extends StatefulWidget {
   static Future<RollFeatherApp> create(DiWrapper di) async {
     var view = await RollFeathersAppVM.create(di);
 
-    var appSettingsWidget = await AppSettingsWidget.create(di);
+    var settingsVm = AppSettingsScreenViewModel(di);
 
-    var mainScreen = await DiceScreenWidget.create(di, appSettingsWidget);
+    var mainScreen = await DiceScreenWidget.create(di, settingsVm);
 
     var app = RollFeatherApp._(view, mainScreen);
 

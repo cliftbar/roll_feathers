@@ -2,37 +2,33 @@ import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
-import 'package:roll_feathers/dice_sdks/godice.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
-import 'package:roll_feathers/ui/dice_screen_vm.dart';
-import 'package:tuple/tuple.dart';
+import 'package:roll_feathers/ui/die_screen/dice_screen_vm.dart';
+import 'package:roll_feathers/ui/die_screen/die_list_tile.dart';
+import 'package:roll_feathers/ui/die_screen/single_die_settings_dialog.dart';
 
-import 'app_settings/app_settings_screen.dart';
+import '../app_settings/app_settings_screen.dart';
+import '../app_settings/app_settings_screen_vm.dart';
 
 class DiceScreenWidget extends StatefulWidget {
-  const DiceScreenWidget._(this.viewModel, this.appSettingsWidget);
+  const DiceScreenWidget._(this.viewModel, this.settingsVm);
 
-  static Future<DiceScreenWidget> create(DiWrapper di, AppSettingsWidget appSettings) async {
+  static Future<DiceScreenWidget> create(DiWrapper di, AppSettingsScreenViewModel settingsVm) async {
     var vm = DiceScreenViewModel(di);
-    var widget = DiceScreenWidget._(vm, appSettings);
-
-    return widget;
+    return DiceScreenWidget._(vm, settingsVm);
   }
 
   final DiceScreenViewModel viewModel;
-  final AppSettingsWidget appSettingsWidget;
+  final AppSettingsScreenViewModel settingsVm;
 
   @override
   State<DiceScreenWidget> createState() => _DiceScreenWidgetState();
 }
 
 class _DiceScreenWidgetState extends State<DiceScreenWidget> {
-  final bool _rollMax = false;
-  final bool _rollMin = false;
   bool _rollVirtualDice = true;
   String? _appVersion;
 
@@ -55,7 +51,6 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
     }
   }
 
-  // First, add a drawer to the Scaffold
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -90,7 +85,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                 ),
               ),
             ),
-            widget.appSettingsWidget,
+            AppSettingsWidget(vm: widget.settingsVm),
             // Why does this get notified, when the view model is the main screen view model?
             Card(
               margin: const EdgeInsets.symmetric(vertical: 0, horizontal: 8),
@@ -151,21 +146,24 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                       icon: const Icon(Icons.add),
                     ), // _makeBleScanButton(),
                     ListenableBuilder(
-                      listenable: widget.appSettingsWidget.vm,
+                      listenable: widget.settingsVm,
                       builder: (context, _) {
+                        final bleOn = widget.settingsVm.bleIsEnabled();
+                        final scanning = widget.settingsVm.isScanning;
                         return TextButton.icon(
-                          onPressed:
-                              widget.appSettingsWidget.vm.bleIsEnabled()
-                                  ? () {
-                                    widget.appSettingsWidget.vm.startBleScan.execute();
-                                  }
-                                  : null,
-                          label:
-                              widget.appSettingsWidget.vm.bleIsEnabled()
-                                  ? Text(kIsWeb ? "Pair Die" : "Scan")
-                                  : Text("BLE Disabled"),
-                          icon:
-                              widget.appSettingsWidget.vm.bleIsEnabled()
+                          onPressed: bleOn && !scanning
+                              ? () { widget.settingsVm.startBleScan.execute(); }
+                              : null,
+                          label: bleOn
+                              ? Text(kIsWeb ? "Pair Die" : "Scan")
+                              : const Text("BLE Disabled"),
+                          icon: scanning
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : bleOn
                                   ? const Icon(Icons.bluetooth_searching)
                                   : const Icon(Icons.bluetooth_disabled),
                         );
@@ -201,8 +199,11 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                             itemCount: devices.length,
                             itemBuilder: (context, index) {
                               final die = devices[index];
-
-                              return _makeDiceText(die, context);
+                              return DieListTile(
+                                die: die,
+                                themeMode: widget.settingsVm.themeMode,
+                                onTap: () => _showDieSettings(context, die),
+                              );
                             },
                           );
                         },
@@ -315,132 +316,25 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
     );
   }
 
-  ListTile _makeDiceText(GenericDie die, BuildContext context) {
-    return ListTile(
-      textColor: _getBlinkColor(context, die),
-      title: Text(die.friendlyName.isEmpty ? 'Unknown Device ${die.dieId}' : die.friendlyName),
-      leading: Icon(Icons.hexagon),
-      iconColor: _getRollingTextColor(die, context),
-      subtitle: Text(_getDieText(die)),
-      onTap: () {
-        _singleDieSettings(context, die);
-      },
-    );
-  }
-
-  void _singleDieSettings(BuildContext context, GenericDie die) {
+  void _showDieSettings(BuildContext context, GenericDie die) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        Color currentColor = die.blinkColor ?? Colors.white;
-        final entityController = TextEditingController(
-          text: die.haEntityTargets.firstOrNull ?? "",
-        ); // Add controller for entity field
-        var faceTuple = _makeFaceSelectorWidget(die);
         return ListenableBuilder(
           listenable: widget.viewModel,
-          builder: (context, _) {
-            return AlertDialog(
-              title: Text('${die.friendlyName} Settings'),
-              content: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text("Face Count"),
-                    faceTuple.item1,
-                    const Divider(),
-                    const Text('Pick a color'),
-                    ColorPicker(
-                      pickerColor: currentColor,
-                      hexInputBar: true,
-                      paletteType: PaletteType.hueWheel,
-                      onColorChanged: (Color color) {
-                        currentColor = color;
-                      },
-                      pickerAreaHeightPercent: 0.8,
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: entityController,
-                      enabled: widget.appSettingsWidget.vm.getHaConfig().enabled,
-                      autocorrect: false,
-                      decoration: const InputDecoration(
-                        labelText: 'Home Assistant Entity',
-                        hintText: 'light.bedroom',
-                        helperText: 'Leave empty to use default entity',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: <Widget>[
-                TextButton(
-                  child: const Text('Cancel'),
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                ),
-                TextButton(
-                  child: const Text('Blink'),
-                  onPressed: () {
-                    widget.viewModel.blink.execute(currentColor, die, entityController.text);
-                  },
-                ),
-                TextButton(
-                  child: const Text('Disconnect'),
-                  onPressed: () {
-                    widget.viewModel.disconnectDie.execute(die.dieId);
-                    Navigator.of(context).pop();
-                  },
-                ),
-                TextButton(
-                  child: const Text('Save'),
-                  onPressed: () {
-                    widget.viewModel.updateDieSettings.execute(
-                      die,
-                      currentColor,
-                      entityController.text,
-                      faceTuple.item2(),
-                    );
-                    Navigator.of(context).pop();
-                  },
-                ),
-              ],
-            );
-          },
+          builder: (context, _) => SingleDieSettingsDialog(
+            die: die,
+            haEnabled: widget.settingsVm.getHaConfig().enabled,
+            onBlink: widget.viewModel.blink.execute,
+            onDisconnect: widget.viewModel.disconnectDie.execute,
+            onSave: widget.viewModel.updateDieSettings.execute,
+          ),
         );
       },
     );
   }
 
-  String _getDieText(GenericDie die) {
-    String valueString;
-    DiceRollState rollState = DiceRollState.values[die.state.rollState ?? DiceRollState.unknown.index];
-    switch (rollState) {
-      case DiceRollState.rolling:
-      case DiceRollState.handling:
-        valueString = " rolling";
-      case DiceRollState.rolled:
-      case DiceRollState.onFace:
-        valueString = " Value: ${die.state.currentFaceValue}";
-      default:
-        valueString = "";
-    }
-
-    return '${die.dType.name} ${die.state.batteryLevel}%$valueString ${die.dieId}';
-  }
-
   // Helpers
-  void _setRollType() {
-    if (_rollMax) {
-      widget.viewModel.setRollType.execute(RollType.max);
-    } else if (_rollMin) {
-      widget.viewModel.setRollType.execute(RollType.min);
-    } else {
-      widget.viewModel.setRollType.execute(RollType.sum);
-    }
-  }
-
   void _setWithVirtualDice(bool value) {
     _rollVirtualDice = value;
     widget.viewModel.setWithVirtualDice.execute(_rollVirtualDice);
@@ -466,19 +360,6 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
     } else {
       rollType = TextSpan(text: " <${roll.ruleName}>: ${roll.rollResult}");
     }
-    // switch (roll.rollType) {
-    //   case RollType.max:
-    //     rollType = TextSpan(text: "<max>:  ${roll.rollResult}");
-    //     // rollResult += ' <max>: ${roll.rollResult} ($rollString)';
-    //     break;
-    //   case RollType.min:
-    //     rollType = TextSpan(text: "<min>:  ${roll.rollResult}");
-    //     // rollResult += ' <min>: ${roll.rollResult} ($rollString)';
-    //     break;
-    //   default:
-    //     rollType = TextSpan(text: "<sum>:  ${roll.rollResult}");
-    //   // rollResult += '<sum>: ${roll.rollResult} ($rollString)';
-    // }
     List<TextSpan> dynamicText = <TextSpan>[rollType, TextSpan(text: " (")];
     dynamicText.add(rollsWithColors[0]);
     for (var r in rollsWithColors.sublist(1)) {
@@ -492,22 +373,10 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
     return rt;
   }
 
-  Color _getRollingTextColor(GenericDie die, BuildContext context) {
-    switch (DiceRollState.values[die.state.rollState ?? 0]) {
-      case DiceRollState.rolling:
-      case DiceRollState.handling:
-        return Colors.orange;
-      case DiceRollState.onFace:
-      case DiceRollState.rolled:
-      default:
-        return _getBlinkColor(context, die);
-    }
-  }
-
   Color _getBlinkColor(BuildContext context, GenericDie? die) {
     return die?.blinkColor?.withAlpha(255) ??
         Theme.of(context).textTheme.bodyMedium?.color! ??
-        (widget.appSettingsWidget.vm.themeMode == ThemeMode.dark ? Colors.white : Colors.black);
+        (widget.settingsVm.themeMode == ThemeMode.dark ? Colors.white : Colors.black);
   }
 
   Card _makeAutoRollSwitch() {
@@ -584,57 +453,6 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
         );
       },
     );
-  }
-
-  // this is a bad pattern x.x
-  Tuple2<Widget, ValueGetter<GenericDType>> _makeFaceSelectorWidget(GenericDie die) {
-    switch (die.type) {
-      case GenericDieType.pixel:
-        faceCallback() => die.dType;
-        return Tuple2(Text(die.dType.name), faceCallback);
-      case GenericDieType.godice:
-        final List<DropdownMenuEntry<String>> menuEntries = UnmodifiableListView<DropdownMenuEntry<String>>(
-          GodiceDieType.values
-              .where((t) => t != GodiceDieType.d24)
-              .map<DropdownMenuEntry<String>>(
-                (GodiceDieType v) => DropdownMenuEntry<String>(value: v.name, label: v.name),
-              ),
-        );
-
-        GenericDType dropdownValue = die.dType;
-        var menu = DropdownMenu<String>(
-          initialSelection: GodiceDieType.fromName(die.dType.name).name,
-          onSelected: (String? value) {
-            if (value != null) {
-              dropdownValue = GodiceDieType.fromName(value).toDType();
-            }
-          },
-          dropdownMenuEntries: menuEntries,
-        );
-        faceCallback() => dropdownValue;
-        return Tuple2(menu, faceCallback);
-      case GenericDieType.virtual:
-        var faceCountUpdateController = TextEditingController(text: "${die.dType.faces}");
-        faceCallback() {
-          int value = int.parse(faceCountUpdateController.text);
-          var dType = GenericDTypeFactory.fromIntId(value) ?? GenericDType("d${value.toString()}", value, value, 0, 1);
-          return dType;
-        }
-        var col = Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: faceCountUpdateController,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: 'Number of Faces', hintText: 'Enter the number of faces'),
-              keyboardType: TextInputType.number,
-            ),
-          ],
-        );
-
-        return Tuple2(col, faceCallback);
-    }
   }
 
   @override

@@ -30,7 +30,9 @@ class UniversalBleDevice implements BleDeviceWrapper {
   String? _writeCharacteristicId;
   String? _notifyCharacteristicId;
 
-  UniversalBleDevice({required this.device});
+  final String? _cachedName;
+
+  UniversalBleDevice({required this.device, String? cachedName}) : _cachedName = cachedName;
 
   /// Discover services and characteristics. Connection must already be established
   /// by [BleUniversalRepository] before calling this.
@@ -90,7 +92,7 @@ class UniversalBleDevice implements BleDeviceWrapper {
   }
 
   @override
-  String get friendlyName => device.name ?? deviceId;
+  String get friendlyName => _cachedName ?? device.name ?? deviceId;
 }
 
 class BleUniversalRepository implements BleRepository {
@@ -98,6 +100,11 @@ class BleUniversalRepository implements BleRepository {
 
   final Map<String, UniversalBleDevice> _discoveredBleDevices = {};
   final Map<String, StreamSubscription<bool>> _connectionSubscriptions = {};
+  // Cache device names across scans. Android BLE sometimes returns a null name
+  // even when the device matched by namePrefix (name is in the OS cache but not
+  // in the current advertisement packet). We populate this whenever we see a
+  // non-null name so that re-scans can still identify the device correctly.
+  final Map<String, String> _deviceNameCache = {};
 
   StreamSubscription<BleDevice>? _scanSubscription;
   Timer? _scanTimer;
@@ -218,9 +225,14 @@ class BleUniversalRepository implements BleRepository {
       if (last != null && now.difference(last) < const Duration(seconds: 2)) return;
       _deviceLastSeen[bleDevice.deviceId] = now;
 
+      // Cache the name whenever the advertisement includes it.
+      if (bleDevice.name != null && bleDevice.name!.isNotEmpty) {
+        _deviceNameCache[bleDevice.deviceId] = bleDevice.name!;
+      }
+
       final alreadyPending = _pendingConnect.any((d) => d.deviceId == bleDevice.deviceId);
       if (!_discoveredBleDevices.containsKey(bleDevice.deviceId) && !alreadyPending) {
-        _log.info("discovered: ${bleDevice.name ?? bleDevice.deviceId}");
+        _log.info("discovered: ${_deviceNameCache[bleDevice.deviceId] ?? bleDevice.deviceId}");
         _pendingConnect.add(bleDevice);
         // On non-Windows native, connect immediately while scan continues.
         // iOS/macOS CoreBluetooth and Android BLE support connecting during scan.
@@ -260,10 +272,10 @@ class BleUniversalRepository implements BleRepository {
     _pendingConnect.removeWhere((d) => d.deviceId == bleDevice.deviceId);
     try {
       await UniversalBle.connect(bleDevice.deviceId);
-      _discoveredBleDevices[bleDevice.deviceId] = UniversalBleDevice(device: bleDevice);
+      _discoveredBleDevices[bleDevice.deviceId] = UniversalBleDevice(device: bleDevice, cachedName: _deviceNameCache[bleDevice.deviceId]);
       _bleDeviceSubscription.add(Map.of(_discoveredBleDevices));
       _setupConnectionListener(bleDevice.deviceId);
-      _log.info("connected: ${bleDevice.name ?? bleDevice.deviceId}");
+      _log.info("connected: ${_deviceNameCache[bleDevice.deviceId] ?? bleDevice.name ?? bleDevice.deviceId}");
     } catch (e, st) {
       _log.severe("connect error for ${bleDevice.deviceId}: $e", e, st);
     }
@@ -287,10 +299,10 @@ class BleUniversalRepository implements BleRepository {
         await UniversalBle.connect(bleDevice.deviceId);
         // Emit only after connection is established — DieDomain will then call
         // device.init() → discoverServices() on an already-connected device.
-        _discoveredBleDevices[bleDevice.deviceId] = UniversalBleDevice(device: bleDevice);
+        _discoveredBleDevices[bleDevice.deviceId] = UniversalBleDevice(device: bleDevice, cachedName: _deviceNameCache[bleDevice.deviceId]);
         _bleDeviceSubscription.add(Map.of(_discoveredBleDevices));
         _setupConnectionListener(bleDevice.deviceId);
-        _log.info("connected: ${bleDevice.name ?? bleDevice.deviceId}");
+        _log.info("connected: ${_deviceNameCache[bleDevice.deviceId] ?? bleDevice.name ?? bleDevice.deviceId}");
       } catch (e, st) {
         _log.severe("connect error for ${bleDevice.deviceId}: $e", e, st);
       }

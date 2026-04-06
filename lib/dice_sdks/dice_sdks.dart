@@ -161,21 +161,29 @@ abstract class GenericBleDie extends GenericDie {
     await _init();
   }
 
+  static final _fromDeviceLog = Logger("GenericBleDie");
+
   static Future<GenericBleDie> fromDevice(BleDeviceWrapper device) async {
     try {
       await device.init();
       GenericBleDie die;
       List<String> serviceIds = device.servicesUuids;
       List<String> chars = device.characteristicUuids;
-      if (serviceIds.contains(pix.pixelsService) &&
-          chars.contains(pix.pixelWriteCharacteristic) &&
-          chars.contains(pix.pixelNotifyCharacteristic)) {
-        die = PixelDie._(device: device);
-        await die._init();
-      } else if (serviceIds.contains(godice.godiceServiceGuid) &&
+      _fromDeviceLog.info('fromDevice ${device.friendlyName}: services=${serviceIds.join(',')} chars=${chars.join(',')}');
+      // GoDice and Pixels share the same NUS service and characteristic UUIDs,
+      // so use device name to disambiguate. The BLE repository caches names
+      // across scans so that Android re-scans (which may return null names even
+      // for namePrefix-matched devices) still resolve correctly.
+      if (//device.friendlyName.startsWith('GoDice_') &&
+          serviceIds.contains(godice.godiceServiceGuid) &&
           chars.contains(godice.godiceWriteCharacteristic) &&
           chars.contains(godice.godiceNotifyCharacteristic)) {
         die = GoDiceBle(device: device, dieFaceType: godice.GodiceDieType.d6);
+        await die._init();
+      } else if (serviceIds.contains(pix.pixelsService) &&
+          chars.contains(pix.pixelWriteCharacteristic) &&
+          chars.contains(pix.pixelNotifyCharacteristic)) {
+        die = PixelDie._(device: device);
         await die._init();
       } else {
         throw Exception("Bluetooth Device Not Implemented");
@@ -443,6 +451,10 @@ class PixelDie extends GenericBleDie {
 
   @override
   void _readNotify(List<int> data) {
+    if (data.isEmpty || data[0] >= pix.PixelMessageType.values.length) {
+      _log.fine('Received unknown Pixels message type: ${data.isEmpty ? 'empty' : data[0]}, ignoring');
+      return;
+    }
     var msgType = pix.PixelMessageType.values[data[0]];
     switch (msgType) {
       case pix.PixelMessageType.iAmADie:

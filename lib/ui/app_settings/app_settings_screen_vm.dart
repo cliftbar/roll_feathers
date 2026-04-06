@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:async/async.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/domains/roll_parser/parser_rules.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -134,13 +135,20 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
     try {
       // Put filters back on Web as requested; use Pixels service by default.
       // Other platforms can also use the same filter.
-      await _diWrapper.bleRepository.scan(services: [pixelsService]);
-      // scan() returns immediately — it starts a background scan with a 5-second
-      // timer. Reset the spinner after the same window so it stays visible.
-      _scanProgressTimer = Timer(const Duration(seconds: 6), () {
+      await _diWrapper.bleRepository.scan(services: [pixelsService], namePrefix: ['GoDice_']);
+      if (kIsWeb) {
+        // On web, scan() blocks until the browser dialog closes and the device
+        // connects — by the time it returns the scan is already complete.
         _scanInProgress = false;
         notifyListeners();
-      });
+      } else {
+        // On native, scan() returns immediately and runs a background timer.
+        // Keep the spinner visible for the same window so the user sees progress.
+        _scanProgressTimer = Timer(const Duration(seconds: 6), () {
+          _scanInProgress = false;
+          notifyListeners();
+        });
+      }
       return Result.value(null);
     } catch (e) {
       // On Web, repository may suppress rethrow; this catch is mostly for native.

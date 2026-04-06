@@ -218,16 +218,13 @@ Future<void> blink({
   required List<GenericDie> defaultDice,
   List<String> args = const [],
 }) async {
-  for (GenericDie die in (resultDice ?? allDice ?? [])) {
-    final String? argColorName = args.firstOrNull;
-    final Color resolvedArgColor = argColorName != null ? (colorMap[argColorName] ?? Colors.white) : Colors.white;
-    final Color blinkColor = argColorName != null
-        ? resolvedArgColor
-        : (die.blinkColor ?? Colors.white);
+  final String? argColorName = args.firstOrNull;
+  final Color resolvedArgColor = argColorName != null ? (colorMap[argColorName] ?? Colors.white) : Colors.white;
+  await Future.wait((resultDice ?? allDice ?? []).map((die) {
+    final Color blinkColor = argColorName != null ? resolvedArgColor : (die.blinkColor ?? Colors.white);
     _rtLog.finer(() => "[blink] die=${die.dieId} arg=${argColorName ?? '-'} color=${blinkColor.toARGB32()}");
-    // Ensure the blink is actually executed before proceeding.
-    await dd.blink(blinkColor, die);
-  }
+    return dd.blink(blinkColor, die);
+  }));
 }
 
 Future<void> sequence({

@@ -55,7 +55,7 @@ class DiWrapper {
     if (!kIsWeb) {
       // Windows: no service filter — improves discovery reliability on WinRT
       final services = Platform.isWindows ? const <String>[] : [pixelsService, godiceServiceGuid];
-      bleRepo.scan(services: services);
+      bleRepo.scan(services: services, namePrefix: ['GoDice_']);
     }
 
     DieDomain dieDomain = DieDomain(bleRepo, haRepository);

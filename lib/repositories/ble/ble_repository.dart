@@ -45,7 +45,7 @@ abstract class BleRepository {
 
   Future<bool> isSupported();
 
-  Future<void> scan({List<String>? services, Duration? timeout = const Duration(seconds: 5)});
+  Future<void> scan({List<String>? services, List<String>? namePrefix, Duration? timeout = const Duration(seconds: 5)});
 
   // Stop scanning for devices
   Future<void> stopScan();

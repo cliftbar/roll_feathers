@@ -199,7 +199,7 @@ class BleUniversalRepository implements BleRepository {
   final Map<String, DateTime> _deviceLastSeen = {};
 
   @override
-  Future<void> scan({List<String>? services, Duration? timeout = const Duration(seconds: 5)}) async {
+  Future<void> scan({List<String>? services, List<String>? namePrefix, Duration? timeout = const Duration(seconds: 5)}) async {
     if (!kIsWeb && (!supported || !enabled)) {
       _log.fine("scan() skipped: BLE not ready");
       return;
@@ -233,7 +233,7 @@ class BleUniversalRepository implements BleRepository {
 
     _log.info("ble scan start (services: ${services?.join(',') ?? 'any'})");
     try {
-      await UniversalBle.startScan(scanFilter: ScanFilter(withServices: services ?? []));
+      await UniversalBle.startScan(scanFilter: ScanFilter(withServices: services ?? [], withNamePrefix: namePrefix ?? []));
     } catch (e, st) {
       // ignore: avoid_print
       print("[BLE] startScan error: $e");

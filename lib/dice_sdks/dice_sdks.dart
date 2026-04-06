@@ -395,7 +395,6 @@ class GoDiceBle extends GenericBleDie {
     _notifySubscription = device.notifyStream.listen(
       _readNotify,
       onError: (e) => _log.severe('notify stream error: $e'),
-      cancelOnError: true,
     );
 
     await _sendMessageBuffer(godice.MessageInit().toBuffer());
@@ -538,7 +537,6 @@ class PixelDie extends GenericBleDie {
     _notifySubscription = device.notifyStream.listen(
       _readNotify,
       onError: (e) => _log.severe('notify stream error: $e'),
-      cancelOnError: true,
     );
     await Future.delayed(Duration(milliseconds: 100)); // sleep needed on web??
     await _sendMessageBuffer(pix.MessageWhoAreYou().toBuffer());

@@ -130,8 +130,8 @@ class DieDomain {
         MessageToggleLeds blinkMsg = MessageToggleLeds(
           toggleColor: blinkColor,
           numberOfBlinks: blinkCount,
-          lightOffDuration10ms: blinkInterval.inMilliseconds ~/ 2,
-          lightOnDuration10ms: blinkInterval.inMilliseconds ~/ 2,
+          lightOffDuration10ms: blinkInterval.inMilliseconds ~/ 20,
+          lightOnDuration10ms: blinkInterval.inMilliseconds ~/ 20,
         );
         blinker = blinkMsg;
         await (die as GoDiceBle).sendMessage(blinkMsg);

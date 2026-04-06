@@ -68,7 +68,7 @@ class TestBleRepository extends BleRepository {
   Future<bool> isSupported() async => true;
 
   @override
-  Future<void> scan({List<String>? services, Duration? timeout = const Duration(seconds: 5)}) async {}
+  Future<void> scan({List<String>? services, List<String>? namePrefix, Duration? timeout = const Duration(seconds: 5)}) async {}
 
   @override
   Stream<bool> subscribeBleEnabled() => const Stream.empty();

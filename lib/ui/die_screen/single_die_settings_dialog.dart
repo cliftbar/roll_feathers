@@ -5,6 +5,7 @@ import 'package:flutter/widget_previews.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/dice_sdks/godice.dart';
+import 'package:roll_feathers/services/app_service.dart';
 
 enum _ColorMode {
   hexWheel('Hex / Wheel'),
@@ -16,12 +17,15 @@ enum _ColorMode {
   final String label;
 }
 
+enum _ColorTarget { result, rolling }
+
 class SingleDieSettingsDialog extends StatefulWidget {
   const SingleDieSettingsDialog({
     super.key,
     required this.die,
     required this.haEnabled,
     required this.onBlink,
+    required this.onPreviewRolling,
     required this.onDisconnect,
     required this.onSave,
   });
@@ -29,18 +33,26 @@ class SingleDieSettingsDialog extends StatefulWidget {
   final GenericDie die;
   final bool haEnabled;
   final Future<void> Function(Color, GenericDie, String?) onBlink;
+  final Future<void> Function(Color, RollingFlashPreset, GenericDie) onPreviewRolling;
   final Future<void> Function(String) onDisconnect;
-  final Future<void> Function(GenericDie, Color, String, GenericDType) onSave;
+  final Future<void> Function(GenericDie, DieSettings) onSave;
 
   @override
   State<SingleDieSettingsDialog> createState() => _SingleDieSettingsDialogState();
 }
 
 class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
-  // Color state — HSVColor is the single source of truth for hue/sat/value.
-  // Brightness (LED intensity) is tracked separately and stored as alpha on save.
+  // Blink (result) color
   late HSVColor _currentColor;
   late double _brightness; // 0.0 – 1.0
+
+  // Rolling flash color
+  late HSVColor _rollingColor;
+  late double _rollingBrightness;
+
+  // Active picker target
+  _ColorTarget _activeTarget = _ColorTarget.result;
+
   _ColorMode _colorMode = _ColorMode.hexWheel;
 
   // Hex
@@ -74,14 +86,49 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   late TextEditingController _entityController;
   late GenericDType _currentFaceType;
 
+  // Rolling flash settings (Pixels only)
+  bool _rollingEnabled = false;
+  RollingFlashPreset _rollingPreset = RollingFlashPreset.strobe;
+
+  // ── Active color accessors ────────────────────────────────────────────────
+
+  HSVColor get _activeColor =>
+      _activeTarget == _ColorTarget.result ? _currentColor : _rollingColor;
+
+  double get _activeBrightness =>
+      _activeTarget == _ColorTarget.result ? _brightness : _rollingBrightness;
+
+  void _setActiveColor(HSVColor hsv) {
+    if (_activeTarget == _ColorTarget.result) {
+      _currentColor = hsv;
+    } else {
+      _rollingColor = hsv;
+    }
+  }
+
+  void _setActiveBrightness(double v) {
+    if (_activeTarget == _ColorTarget.result) {
+      _brightness = v;
+    } else {
+      _rollingBrightness = v;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     final initialColor = widget.die.blinkColor ?? Colors.white;
     _currentColor = HSVColor.fromColor(initialColor);
     _brightness = initialColor.a.clamp(0.0, 1.0);
+
+    final rollingInitColor = widget.die.rollingFlashColor ?? Colors.white;
+    _rollingColor = HSVColor.fromColor(rollingInitColor);
+    _rollingBrightness = rollingInitColor.a.clamp(0.0, 1.0);
+
     _entityController = TextEditingController(text: widget.die.haEntityTargets.firstOrNull ?? '');
     _currentFaceType = widget.die.dType;
+    _rollingEnabled = widget.die.rollingFlashEnabled;
+    _rollingPreset = widget.die.rollingFlashPreset;
     _updateControllers();
     // Restore any field left empty/invalid when focus leaves it.
     for (final node in [
@@ -122,15 +169,15 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   // ── Color sync ────────────────────────────────────────────────────────────
 
   void _onHsvColorChanged(HSVColor hsv) {
-    setState(() => _currentColor = hsv);
+    setState(() => _setActiveColor(hsv));
     _updateControllers();
   }
 
   /// Updates every controller that doesn't currently have focus, so
   /// the user's in-progress edits are never overwritten mid-keystroke.
   void _updateControllers() {
-    final color = _currentColor.toColor();
-    final hsl = hsvToHsl(_currentColor);
+    final color = _activeColor.toColor();
+    final hsl = hsvToHsl(_activeColor);
     final r = (color.r * 255).round();
     final g = (color.g * 255).round();
     final b = (color.b * 255).round();
@@ -141,12 +188,18 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
     if (!_rFocus.hasFocus) _rCtrl.text = r.toString();
     if (!_gFocus.hasFocus) _gCtrl.text = g.toString();
     if (!_bFocus.hasFocus) _bCtrl.text = b.toString();
-    if (!_hsvHFocus.hasFocus) _hsvHCtrl.text = _currentColor.hue.round().toString();
-    if (!_hsvSFocus.hasFocus) _hsvSCtrl.text = (_currentColor.saturation * 100).round().toString();
-    if (!_hsvVFocus.hasFocus) _hsvVCtrl.text = (_currentColor.value * 100).round().toString();
+    if (!_hsvHFocus.hasFocus) _hsvHCtrl.text = _activeColor.hue.round().toString();
+    if (!_hsvSFocus.hasFocus) _hsvSCtrl.text = (_activeColor.saturation * 100).round().toString();
+    if (!_hsvVFocus.hasFocus) _hsvVCtrl.text = (_activeColor.value * 100).round().toString();
     if (!_hslHFocus.hasFocus) _hslHCtrl.text = hsl.hue.round().toString();
     if (!_hslSFocus.hasFocus) _hslSCtrl.text = (hsl.saturation * 100).round().toString();
     if (!_hslLFocus.hasFocus) _hslLCtrl.text = (hsl.lightness * 100).round().toString();
+  }
+
+  void _switchTarget(_ColorTarget target) {
+    if (!mounted) return;
+    setState(() => _activeTarget = target);
+    _updateControllers();
   }
 
   // ── Field change handlers ─────────────────────────────────────────────────
@@ -159,7 +212,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   void _onRFieldChanged(String val) {
     final r = int.tryParse(val);
     if (r != null && r <= 255) {
-      final c = _currentColor.toColor();
+      final c = _activeColor.toColor();
       _onHsvColorChanged(HSVColor.fromColor(Color.fromRGBO(r, (c.g * 255).round(), (c.b * 255).round(), 1)));
     }
   }
@@ -167,7 +220,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   void _onGFieldChanged(String val) {
     final g = int.tryParse(val);
     if (g != null && g <= 255) {
-      final c = _currentColor.toColor();
+      final c = _activeColor.toColor();
       _onHsvColorChanged(HSVColor.fromColor(Color.fromRGBO((c.r * 255).round(), g, (c.b * 255).round(), 1)));
     }
   }
@@ -175,39 +228,39 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   void _onBFieldChanged(String val) {
     final b = int.tryParse(val);
     if (b != null && b <= 255) {
-      final c = _currentColor.toColor();
+      final c = _activeColor.toColor();
       _onHsvColorChanged(HSVColor.fromColor(Color.fromRGBO((c.r * 255).round(), (c.g * 255).round(), b, 1)));
     }
   }
 
   void _onHsvHFieldChanged(String val) {
     final h = double.tryParse(val);
-    if (h != null && h <= 360) _onHsvColorChanged(_currentColor.withHue(h));
+    if (h != null && h <= 360) _onHsvColorChanged(_activeColor.withHue(h));
   }
 
   void _onHsvSFieldChanged(String val) {
     final s = int.tryParse(val);
-    if (s != null && s <= 100) _onHsvColorChanged(_currentColor.withSaturation(s / 100));
+    if (s != null && s <= 100) _onHsvColorChanged(_activeColor.withSaturation(s / 100));
   }
 
   void _onHsvVFieldChanged(String val) {
     final v = int.tryParse(val);
-    if (v != null && v <= 100) _onHsvColorChanged(_currentColor.withValue(v / 100));
+    if (v != null && v <= 100) _onHsvColorChanged(_activeColor.withValue(v / 100));
   }
 
   void _onHslHFieldChanged(String val) {
     final h = double.tryParse(val);
-    if (h != null && h <= 360) _onHsvColorChanged(hslToHsv(hsvToHsl(_currentColor).withHue(h)));
+    if (h != null && h <= 360) _onHsvColorChanged(hslToHsv(hsvToHsl(_activeColor).withHue(h)));
   }
 
   void _onHslSFieldChanged(String val) {
     final s = int.tryParse(val);
-    if (s != null && s <= 100) _onHsvColorChanged(hslToHsv(hsvToHsl(_currentColor).withSaturation(s / 100)));
+    if (s != null && s <= 100) _onHsvColorChanged(hslToHsv(hsvToHsl(_activeColor).withSaturation(s / 100)));
   }
 
   void _onHslLFieldChanged(String val) {
     final l = int.tryParse(val);
-    if (l != null && l <= 100) _onHsvColorChanged(hslToHsv(hsvToHsl(_currentColor).withLightness(l / 100)));
+    if (l != null && l <= 100) _onHsvColorChanged(hslToHsv(hsvToHsl(_activeColor).withLightness(l / 100)));
   }
 
   // ── Picker widgets ────────────────────────────────────────────────────────
@@ -218,11 +271,11 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
       case _ColorMode.hsvSquare:
       case _ColorMode.hslSquare:
         return ColorPicker(
-          pickerColor: _currentColor.toColor(),
+          pickerColor: _activeColor.toColor(),
           // Pass the HSV color directly so the hue slider tracks correctly even
           // when saturation=0 or value=0 (degenerate corners where toColor()
           // always returns white/black, losing hue information).
-          pickerHsvColor: _currentColor,
+          pickerHsvColor: _activeColor,
           // flutter_colorpicker requires onColorChanged but we use onHsvColorChanged
           // as the single source of truth to avoid a double-conversion round-trip.
           onColorChanged: (_) {},
@@ -239,7 +292,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
           portraitOnly: true,
         );
       case _ColorMode.rgbSliders:
-        final color = _currentColor.toColor();
+        final color = _activeColor.toColor();
         final r = (color.r * 255).round().toDouble();
         final g = (color.g * 255).round().toDouble();
         final b = (color.b * 255).round().toDouble();
@@ -361,7 +414,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   // ── Brightness slider ─────────────────────────────────────────────────────
 
   Widget _buildBrightnessSlider() {
-    final dimColor = _currentColor.withValue(_currentColor.value * _brightness).toColor();
+    final dimColor = _activeColor.withValue(_activeColor.value * _activeBrightness).toColor();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -370,20 +423,63 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
           Expanded(
             child: _gradientSlider(
               key: const Key('brightness_slider'),
-              value: _brightness * 255,
+              value: _activeBrightness * 255,
               startColor: Colors.black,
-              endColor: _currentColor.toColor(),
+              endColor: _activeColor.toColor(),
               thumbColor: dimColor,
-              onChanged: (v) => setState(() => _brightness = v / 255),
+              onChanged: (v) => setState(() => _setActiveBrightness(v / 255)),
             ),
           ),
           const Icon(Icons.brightness_high, size: 20),
           SizedBox(
             width: 40,
             child: Text(
-              '${(_brightness * 100).round()}%',
+              '${(_activeBrightness * 100).round()}%',
               textAlign: TextAlign.right,
               style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Color target swatch ───────────────────────────────────────────────────
+
+  Widget _colorTargetSwatch({
+    required String label,
+    required _ColorTarget target,
+    required HSVColor color,
+    required double brightness,
+    bool enabled = true,
+  }) {
+    final isActive = _activeTarget == target;
+    final displayColor = enabled
+        ? color.withValue(color.value * brightness).toColor()
+        : Colors.grey.shade700;
+    final borderColor = isActive
+        ? Theme.of(context).colorScheme.primary
+        : Colors.grey.shade400;
+    final borderWidth = isActive ? 2.5 : 1.0;
+
+    return GestureDetector(
+      onTap: enabled ? () => _switchTarget(target) : null,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: enabled ? null : Colors.grey,
+                ),
+          ),
+          const SizedBox(height: 2),
+          Container(
+            height: 32,
+            decoration: BoxDecoration(
+              color: displayColor,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: borderColor, width: borderWidth),
             ),
           ),
         ],
@@ -437,31 +533,61 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Color first — it's the primary action.
+                      // Color section header row: swatches + preview + mode.
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          // Swatch fills remaining space — always as wide as possible.
-                          Expanded(
-                            child: Container(
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: _currentColor
-                                    .withValue(_currentColor.value * _brightness)
-                                    .toColor(),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.grey.shade400),
+                          // For Pixels: two selectable swatches (Result / Rolling).
+                          // For others: one plain swatch.
+                          if (widget.die.type == GenericDieType.pixel) ...[
+                            Expanded(
+                              child: _colorTargetSwatch(
+                                label: 'Result',
+                                target: _ColorTarget.result,
+                                color: _currentColor,
+                                brightness: _brightness,
                               ),
                             ),
-                          ),
-                          // Preview: flash the die with the current color.
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: _colorTargetSwatch(
+                                label: 'Rolling',
+                                target: _ColorTarget.rolling,
+                                color: _rollingColor,
+                                brightness: _rollingBrightness,
+                                enabled: _rollingEnabled,
+                              ),
+                            ),
+                          ] else ...[
+                            Expanded(
+                              child: Container(
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: _currentColor
+                                      .withValue(_currentColor.value * _brightness)
+                                      .toColor(),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey.shade400),
+                                ),
+                              ),
+                            ),
+                          ],
+                          // Preview: blink result color, or play rolling animation
+                          // when the rolling swatch is active.
                           TextButton.icon(
                             icon: const Icon(Icons.flash_on),
                             label: const Text('Preview'),
-                            onPressed: () => widget.onBlink(
-                                _currentColor.toColor().withValues(alpha: _brightness),
-                                widget.die,
-                                _entityController.text),
+                            onPressed: _activeTarget == _ColorTarget.rolling && _rollingEnabled
+                                ? () => widget.onPreviewRolling(
+                                      _rollingColor.toColor().withValues(alpha: _rollingBrightness),
+                                      _rollingPreset,
+                                      widget.die,
+                                    )
+                                : () => widget.onBlink(
+                                      _currentColor.toColor().withValues(alpha: _brightness),
+                                      widget.die,
+                                      _entityController.text,
+                                    ),
                           ),
                           DropdownMenu<_ColorMode>(
                             initialSelection: _colorMode,
@@ -482,13 +608,44 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                       _buildVisualPicker(),
                       _buildNumericInputs(),
                       _buildBrightnessSlider(),
-                      const Divider(),
-                      // Face count below the color section.
-                      const Text('Face Count'),
-                      _FaceSelector(
-                        die: widget.die,
-                        onChanged: (t) => _currentFaceType = t,
-                      ),
+                      // Face count: hidden for Pixels (determined by firmware).
+                      if (widget.die.type != GenericDieType.pixel) ...[
+                        const Divider(),
+                        const Text('Face Count'),
+                        _FaceSelector(
+                          die: widget.die,
+                          onChanged: (t) => _currentFaceType = t,
+                        ),
+                      ],
+                      // Rolling flash: Pixels only.
+                      if (widget.die.type == GenericDieType.pixel) ...[
+                        const Divider(),
+                        Row(
+                          children: [
+                            const Text('Rolling Flash'),
+                            const Spacer(),
+                            Switch(
+                              value: _rollingEnabled,
+                              onChanged: (v) => setState(() {
+                                _rollingEnabled = v;
+                                // Reset to result target when rolling is disabled.
+                                if (!v) _activeTarget = _ColorTarget.result;
+                              }),
+                            ),
+                          ],
+                        ),
+                        if (_rollingEnabled) ...[
+                          SegmentedButton<RollingFlashPreset>(
+                            segments: const [
+                              ButtonSegment(value: RollingFlashPreset.strobe, label: Text('Strobe')),
+                              ButtonSegment(value: RollingFlashPreset.pulse, label: Text('Pulse')),
+                              ButtonSegment(value: RollingFlashPreset.breathe, label: Text('Breathe')),
+                            ],
+                            selected: {_rollingPreset},
+                            onSelectionChanged: (s) => setState(() => _rollingPreset = s.first),
+                          ),
+                        ],
+                      ],
                       // HA entity only rendered when integration is enabled.
                       if (widget.haEnabled) ...[
                         const Divider(),
@@ -516,7 +673,21 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                   TextButton(
                     child: const Text('Save'),
                     onPressed: () {
-                      widget.onSave(widget.die, _currentColor.toColor().withValues(alpha: _brightness), _entityController.text, _currentFaceType);
+                      widget.onSave(
+                        widget.die,
+                        DieSettings(
+                          blinkColor: _currentColor.toColor().withValues(alpha: _brightness),
+                          haEntityTargets: _entityController.text.isEmpty
+                              ? []
+                              : [_entityController.text],
+                          faceTypeName: _currentFaceType.name,
+                          rollingFlashEnabled: _rollingEnabled,
+                          rollingFlashColor: widget.die.type == GenericDieType.pixel
+                              ? _rollingColor.toColor().withValues(alpha: _rollingBrightness)
+                              : null,
+                          rollingFlashPreset: _rollingPreset,
+                        ),
+                      );
                       Navigator.of(context).pop();
                     },
                   ),
@@ -654,8 +825,9 @@ Widget singleDieSettingsVirtual() {
         die: die,
         haEnabled: true,
         onBlink: (_, __, ___) async {},
+        onPreviewRolling: (_, __, ___) async {},
         onDisconnect: (_) async {},
-        onSave: (_, __, ___, ____) async {},
+        onSave: (_, __) async {},
       ),
     ),
   );
@@ -670,8 +842,9 @@ Widget singleDieSettingsNoHa() {
         die: die,
         haEnabled: false,
         onBlink: (_, __, ___) async {},
+        onPreviewRolling: (_, __, ___) async {},
         onDisconnect: (_) async {},
-        onSave: (_, __, ___, ____) async {},
+        onSave: (_, __) async {},
       ),
     ),
   );

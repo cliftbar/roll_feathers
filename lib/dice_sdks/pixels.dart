@@ -413,3 +413,11 @@ class MessageBlink extends TxMessage with Color255 implements Blinker {
     return Duration(milliseconds: duration);
   }
 }
+
+/// Stops all currently playing animations on the die.
+class MessageStopAllAnimations extends TxMessage {
+  MessageStopAllAnimations() : super(id: PixelMessageType.stopAllAnimations.index);
+
+  @override
+  List<int> toBuffer() => [PixelMessageType.stopAllAnimations.index];
+}

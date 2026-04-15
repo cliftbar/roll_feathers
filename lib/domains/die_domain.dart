@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
@@ -9,16 +8,18 @@ import '../dice_sdks/message_sdk.dart';
 import '../dice_sdks/pixels.dart';
 import '../repositories/ble/ble_repository.dart';
 import '../repositories/home_assistant_repository.dart';
+import '../services/app_service.dart';
 
 class DieDomain {
   final BleRepository _bleRepository;
   final HaRepository _haRepository;
+  final AppService? _appService;
   final Map<String, GenericDie> _foundDie = {};
 
   final _diceSubscription = StreamController<Map<String, GenericDie>>.broadcast();
   late StreamSubscription<Map<String, GenericDie>> _bleDevicesSub;
 
-  DieDomain(this._bleRepository, this._haRepository) {
+  DieDomain(this._bleRepository, this._haRepository, [this._appService]) {
     _bleDevicesSub = _bleRepository.subscribeBleDevices().asyncMap(asyncConvertToDie).listen((data) {
       _diceSubscription.add(data);
     });
@@ -54,6 +55,21 @@ class DieDomain {
             _diceSubscription.add(Map.of(_foundDie));
           }
         };
+        // Restore persisted settings if available.
+        if (_appService != null) {
+          final saved = await _appService.getDieSettings(pd.dieId);
+          if (saved != null) {
+            pd.blinkColor = saved.blinkColor;
+            pd.haEntityTargets = saved.haEntityTargets;
+            pd.rollingFlashEnabled = saved.rollingFlashEnabled;
+            pd.rollingFlashColor = saved.rollingFlashColor;
+            pd.rollingFlashPreset = saved.rollingFlashPreset;
+            if (saved.faceTypeName != null && pd.type != GenericDieType.pixel) {
+              final dt = GenericDTypeFactory.getKnown(saved.faceTypeName!);
+              if (dt != null) pd.dType = dt;
+            }
+          }
+        }
         _foundDie[pd.dieId] = pd;
       }
     }
@@ -77,44 +93,40 @@ class DieDomain {
 
   // Disconnect a specific die
   Future<void> disconnectDie(String dieId) async {
-    if (_foundDie.containsKey(dieId)) {
-      GenericDie die = _foundDie[dieId]!;
-      if (die.type != GenericDieType.virtual) {
-        await _bleRepository.disconnectDevice(dieId);
-        // The die will be removed from _foundDie in asyncConvertToDie when the BLE device is disconnected
-      } else {
-        _foundDie.remove(dieId);
-        _diceSubscription.add(_foundDie);
-      }
+    final die = _foundDie[dieId];
+    if (die == null) return;
+    if (die is GenericBleDie) die.dispose();
+    _foundDie.remove(dieId);
+    _diceSubscription.add(Map.of(_foundDie));
+    if (die.type != GenericDieType.virtual) {
+      await _bleRepository.disconnectDevice(dieId);
     }
   }
 
   // Disconnect all dice (including virtual)
   Future<void> disconnectAllDice() async {
-    // Disconnect all BLE devices
     await _bleRepository.disconnectAllDevices();
+    for (final die in _foundDie.values) {
+      if (die is GenericBleDie) die.dispose();
+    }
+    _foundDie.clear();
+    _diceSubscription.add(Map.of(_foundDie));
+  }
 
-    // Remove all virtual dice
+  void removeAllVirtualDice() {
     _foundDie.removeWhere((_, die) => die.type == GenericDieType.virtual);
-
-    // Update subscribers
-    _diceSubscription.add(_foundDie);
+    _diceSubscription.add(Map.of(_foundDie));
   }
 
   // Disconnect all non-virtual dice
   Future<void> disconnectAllNonVirtualDice() async {
-    // Disconnect all BLE devices
     await _bleRepository.disconnectAllDevices();
-
-    // Keep only virtual dice
-    List<String> keys = _foundDie.keys.toList();
-    for (var id in keys) {
-      if (_foundDie[id]?.type != GenericDieType.virtual) {
-        _foundDie.remove(id);
-      }
+    final toRemove = _foundDie.entries.where((e) => e.value.type != GenericDieType.virtual).toList();
+    for (final e in toRemove) {
+      if (e.value is GenericBleDie) (e.value as GenericBleDie).dispose();
+      _foundDie.remove(e.key);
     }
-    // Update subscribers
-    _diceSubscription.add(_foundDie);
+    _diceSubscription.add(Map.of(_foundDie));
   }
 
   Future<void> blink(
@@ -150,5 +162,52 @@ class DieDomain {
     if (withHa) {
       await _haRepository.blinkEntity(blink: blinker, entity: die.haEntityTargets.firstOrNull);
     }
+  }
+
+  /// Stops all animations currently playing on [die].
+  /// No-op for non-Pixels dice.
+  Future<void> stopAnimations(GenericDie die) async {
+    if (die is PixelDie) {
+      await die.sendMessage(MessageStopAllAnimations());
+    }
+  }
+
+  static ({int onMs, int offMs, int fade}) _presetTiming(RollingFlashPreset preset) =>
+      switch (preset) {
+        RollingFlashPreset.strobe  => (onMs: 50,  offMs: 50,  fade: 0),
+        RollingFlashPreset.pulse   => (onMs: 400, offMs: 200, fade: 0),
+        RollingFlashPreset.breathe => (onMs: 600, offMs: 600, fade: 128),
+      };
+
+  /// Sends a short finite preview of the rolling flash animation.
+  /// Uses the supplied [color] and [preset] rather than the die's saved settings,
+  /// so the user can preview unsaved changes from the settings dialog.
+  /// No-op for non-Pixels dice.
+  Future<void> previewRollingFlash(GenericDie die, Color color, RollingFlashPreset preset) async {
+    if (die is! PixelDie) return;
+    final t = _presetTiming(preset);
+    await die.sendMessage(MessageBlink(
+      blinkColor: color,
+      duration: t.onMs,
+      count: 1,
+      fade: t.fade,
+      loopCount: 3,
+    ));
+  }
+
+  /// Sends an infinite looping blink to [die] while it is rolling.
+  /// No-op if [die.rollingFlashEnabled] is false or [die] is not a Pixels die.
+  Future<void> blinkRolling(GenericDie die) async {
+    if (die is! PixelDie) return;
+    if (!die.rollingFlashEnabled) return;
+    final color = die.rollingFlashColor ?? Colors.white;
+    final t = _presetTiming(die.rollingFlashPreset);
+    await die.sendMessage(MessageBlink(
+      blinkColor: color,
+      duration: t.onMs,
+      count: 1,
+      fade: t.fade,
+      loopCount: 255,
+    ));
   }
 }

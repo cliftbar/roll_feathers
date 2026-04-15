@@ -115,6 +115,13 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                     ),
                     ListTile(
                       onTap: () {
+                        widget.viewModel.removeAllVirtualDice.execute();
+                      },
+                      title: const Text('Remove Virtual Dice'),
+                      leading: const Icon(Icons.remove_circle_outline),
+                    ),
+                    ListTile(
+                      onTap: () {
                         widget.viewModel.disconnectAllDice.execute();
                       },
                       title: const Text("Remove All Dice"),
@@ -326,6 +333,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
             die: die,
             haEnabled: widget.settingsVm.getHaConfig().enabled,
             onBlink: widget.viewModel.blink.execute,
+            onPreviewRolling: widget.viewModel.previewRollingFlash.execute,
             onDisconnect: widget.viewModel.disconnectDie.execute,
             onSave: widget.viewModel.updateDieSettings.execute,
           ),

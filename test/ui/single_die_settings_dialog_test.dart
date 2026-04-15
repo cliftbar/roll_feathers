@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
+import 'package:roll_feathers/services/app_service.dart';
+import 'package:roll_feathers/testing/dsl_test_harness.dart';
 import 'package:roll_feathers/ui/die_screen/single_die_settings_dialog.dart';
 
 // ── Factories ─────────────────────────────────────────────────────────────────
@@ -12,19 +14,37 @@ VirtualDie _virtualDie({Color? color, String name = 'TestDie', String dType = 'd
   return die;
 }
 
+// TestBleDie has type=pixel, used for Pixels-specific UI tests.
+TestBleDie _pixelDie({
+  String name = 'Test Pixel',
+  bool rollingEnabled = false,
+  Color? rollingColor,
+  RollingFlashPreset preset = RollingFlashPreset.strobe,
+}) {
+  final die = TestBleDie(name);
+  die.rollingFlashEnabled = rollingEnabled;
+  die.rollingFlashColor = rollingColor;
+  die.rollingFlashPreset = preset;
+  return die;
+}
+
+// TestGoDiceDie has type=godice, used for GoDice-specific UI tests.
+TestGoDiceDie _godiceDie({String name = 'Test GoDice'}) {
+  return TestGoDiceDie(name);
+}
+
 // ── Test pump helper ──────────────────────────────────────────────────────────
 
 /// Pumps a host widget that opens SingleDieSettingsDialog as a real dialog
 /// (via showDialog) so AlertDialog has a proper overlay context.
-///
-/// Returns immediately after pumping the host; call [_openDialog] to open it.
 Future<void> _pumpHost(
   WidgetTester tester, {
   required GenericDie die,
   bool haEnabled = false,
   void Function(Color, GenericDie, String?)? onBlink,
+  void Function(Color, RollingFlashPreset, GenericDie)? onPreviewRolling,
   void Function(String)? onDisconnect,
-  void Function(GenericDie, Color, String, GenericDType)? onSave,
+  void Function(GenericDie, DieSettings)? onSave,
 }) async {
   await tester.pumpWidget(MaterialApp(
     home: Builder(builder: (ctx) {
@@ -37,8 +57,9 @@ Future<void> _pumpHost(
               die: die,
               haEnabled: haEnabled,
               onBlink: (c, d, e) async => onBlink?.call(c, d, e),
+              onPreviewRolling: (c, p, d) async => onPreviewRolling?.call(c, p, d),
               onDisconnect: (id) async => onDisconnect?.call(id),
-              onSave: (d, c, e, t) async => onSave?.call(d, c, e, t),
+              onSave: (d, s) async => onSave?.call(d, s),
             ),
           ),
         ),
@@ -58,19 +79,41 @@ Future<void> _pumpDialog(
   GenericDie? die,
   bool haEnabled = false,
   void Function(Color, GenericDie, String?)? onBlink,
+  void Function(Color, RollingFlashPreset, GenericDie)? onPreviewRolling,
   void Function(String)? onDisconnect,
-  void Function(GenericDie, Color, String, GenericDType)? onSave,
+  void Function(GenericDie, DieSettings)? onSave,
 }) async {
   await _pumpHost(
     tester,
     die: die ?? _virtualDie(),
     haEnabled: haEnabled,
     onBlink: onBlink,
+    onPreviewRolling: onPreviewRolling,
     onDisconnect: onDisconnect,
     onSave: onSave,
   );
   await _openDialog(tester);
 }
+
+/// Alias for _pumpDialog with DieSettings onSave — kept for clarity in rolling
+/// flash tests that specifically check DieSettings fields.
+Future<void> _pumpDialogNew(
+  WidgetTester tester, {
+  GenericDie? die,
+  bool haEnabled = false,
+  void Function(Color, GenericDie, String?)? onBlink,
+  void Function(Color, RollingFlashPreset, GenericDie)? onPreviewRolling,
+  void Function(String)? onDisconnect,
+  void Function(GenericDie, DieSettings)? onSave,
+}) => _pumpDialog(
+  tester,
+  die: die,
+  haEnabled: haEnabled,
+  onBlink: onBlink,
+  onPreviewRolling: onPreviewRolling,
+  onDisconnect: onDisconnect,
+  onSave: onSave,
+);
 
 // ── Color mode helpers ────────────────────────────────────────────────────────
 
@@ -339,7 +382,7 @@ void main() {
       await _pumpDialog(
         tester,
         die: _virtualDie(color: const Color(0x80FF0000)), // 50% brightness
-        onSave: (_, c, __, ___) => savedColor = c,
+        onSave: (_, s) => savedColor = s.blinkColor,
       );
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
@@ -366,7 +409,7 @@ void main() {
       await _pumpDialog(
         tester,
         die: _virtualDie(color: null),
-        onSave: (_, c, __, ___) => savedColor = c,
+        onSave: (_, s) => savedColor = s.blinkColor,
       );
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
@@ -391,19 +434,19 @@ void main() {
 
     testWidgets('Save calls onSave and closes dialog', (tester) async {
       GenericDie? savedDie;
-      Color? savedColor;
+      DieSettings? savedSettings;
       await _pumpDialog(
         tester,
         die: _virtualDie(color: Colors.green),
-        onSave: (d, c, e, t) {
+        onSave: (d, s) {
           savedDie = d;
-          savedColor = c;
+          savedSettings = s;
         },
       );
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
       expect(savedDie, isNotNull);
-      expect(savedColor, isNotNull);
+      expect(savedSettings, isNotNull);
       expect(find.byType(SingleDieSettingsDialog), findsNothing);
     });
 
@@ -431,6 +474,189 @@ void main() {
       await tester.pumpAndSettle();
       expect(disconnectedId, equals(die.dieId));
       expect(find.byType(SingleDieSettingsDialog), findsNothing);
+    });
+
+    // ── Face count section visibility ─────────────────────────────────────────
+
+    testWidgets('face count section not present for Pixels die', (tester) async {
+      await _pumpDialog(tester, die: _pixelDie());
+      // Face count for Pixels is determined by the die firmware; we hide the selector.
+      expect(find.text('Face Count'), findsNothing);
+    });
+
+    testWidgets('face count section present for virtual die', (tester) async {
+      await _pumpDialog(tester, die: _virtualDie(dType: 'd6'));
+      expect(find.text('Face Count'), findsOneWidget);
+    });
+
+    testWidgets('face count section present for GoDice', (tester) async {
+      await _pumpDialog(tester, die: _godiceDie());
+      expect(find.text('Face Count'), findsOneWidget);
+    });
+
+    // ── Rolling flash section ─────────────────────────────────────────────────
+
+    testWidgets('rolling flash section not present for virtual die', (tester) async {
+      await _pumpDialog(tester, die: _virtualDie());
+      expect(find.text('Rolling Flash'), findsNothing);
+    });
+
+    testWidgets('rolling flash section not present for GoDice', (tester) async {
+      await _pumpDialog(tester, die: _godiceDie());
+      expect(find.text('Rolling Flash'), findsNothing);
+    });
+
+    testWidgets('rolling flash section present for Pixels die', (tester) async {
+      await _pumpDialog(tester, die: _pixelDie());
+      expect(find.text('Rolling Flash'), findsOneWidget);
+    });
+
+    testWidgets('rolling flash toggle starts off when rollingFlashEnabled=false', (tester) async {
+      await _pumpDialog(tester, die: _pixelDie(rollingEnabled: false));
+      final toggle = tester.widget<Switch>(find.byType(Switch).last);
+      expect(toggle.value, isFalse);
+    });
+
+    testWidgets('rolling flash toggle starts on when rollingFlashEnabled=true', (tester) async {
+      await _pumpDialog(tester, die: _pixelDie(rollingEnabled: true));
+      final toggle = tester.widget<Switch>(find.byType(Switch).last);
+      expect(toggle.value, isTrue);
+    });
+
+    testWidgets('preset selector not visible when rolling flash toggle is off', (tester) async {
+      await _pumpDialog(tester, die: _pixelDie(rollingEnabled: false));
+      expect(find.text('Strobe'), findsNothing);
+      expect(find.text('Pulse'), findsNothing);
+      expect(find.text('Breathe'), findsNothing);
+    });
+
+    testWidgets('preset selector visible when rolling flash toggle is on', (tester) async {
+      await _pumpDialog(tester, die: _pixelDie(rollingEnabled: true));
+      expect(find.text('Strobe'), findsOneWidget);
+      expect(find.text('Pulse'), findsOneWidget);
+      expect(find.text('Breathe'), findsOneWidget);
+    });
+
+    testWidgets('preset selection updates state (Strobe → Pulse)', (tester) async {
+      await _pumpDialog(tester, die: _pixelDie(rollingEnabled: true, preset: RollingFlashPreset.strobe));
+      await tester.tap(find.text('Pulse'));
+      await tester.pumpAndSettle();
+      // After tapping Pulse the Pulse button should be selected.
+      // SegmentedButton marks selected segment visually; we verify no exception
+      // and the widget is still alive.
+      expect(find.byType(SingleDieSettingsDialog), findsOneWidget);
+    });
+
+    testWidgets('rolling flash save receives DieSettings with rollingFlashEnabled=true', (tester) async {
+      DieSettings? savedSettings;
+      await _pumpDialogNew(
+        tester,
+        die: _pixelDie(rollingEnabled: true),
+        onSave: (_, s) => savedSettings = s,
+      );
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(savedSettings, isNotNull);
+      expect(savedSettings!.rollingFlashEnabled, isTrue);
+    });
+
+    testWidgets('rolling flash save receives DieSettings with correct preset', (tester) async {
+      DieSettings? savedSettings;
+      await _pumpDialogNew(
+        tester,
+        die: _pixelDie(rollingEnabled: true, preset: RollingFlashPreset.pulse),
+        onSave: (_, s) => savedSettings = s,
+      );
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(savedSettings, isNotNull);
+      expect(savedSettings!.rollingFlashPreset, equals(RollingFlashPreset.pulse));
+    });
+
+    testWidgets('rolling flash save includes rollingFlashColor for Pixels die', (tester) async {
+      DieSettings? savedSettings;
+      final die = _pixelDie(rollingEnabled: true, rollingColor: Colors.blue);
+      await _pumpDialogNew(tester, die: die, onSave: (_, s) => savedSettings = s);
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(savedSettings?.rollingFlashColor, isNotNull);
+      expect(
+        savedSettings!.rollingFlashColor!.toARGB32(),
+        equals(Colors.blue.withValues(alpha: 1.0).toARGB32()),
+      );
+    });
+
+    testWidgets('rollingFlashColor is null in DieSettings for virtual die', (tester) async {
+      DieSettings? savedSettings;
+      await _pumpDialogNew(tester, die: _virtualDie(), onSave: (_, s) => savedSettings = s);
+
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(savedSettings?.rollingFlashColor, isNull);
+    });
+
+    // ── onPreviewRolling callback ─────────────────────────────────────────────
+
+    testWidgets('Preview calls onPreviewRolling when rolling swatch is active', (tester) async {
+      Color? capturedColor;
+      RollingFlashPreset? capturedPreset;
+
+      await _pumpDialog(
+        tester,
+        die: _pixelDie(rollingEnabled: true, preset: RollingFlashPreset.pulse),
+        onPreviewRolling: (c, p, _) {
+          capturedColor = c;
+          capturedPreset = p;
+        },
+      );
+
+      // Switch active picker target to Rolling by tapping the swatch label.
+      await tester.tap(find.text('Rolling'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Preview'));
+      await tester.pump();
+
+      expect(capturedColor, isNotNull);
+      expect(capturedPreset, equals(RollingFlashPreset.pulse));
+    });
+
+    testWidgets('Preview calls onBlink (not onPreviewRolling) when result target is active', (tester) async {
+      bool previewRollingCalled = false;
+      Color? blinkColor;
+
+      await _pumpDialog(
+        tester,
+        die: _pixelDie(rollingEnabled: true),
+        onBlink: (c, _, __) => blinkColor = c,
+        onPreviewRolling: (_, __, ___) => previewRollingCalled = true,
+      );
+
+      // Default active target is result — tap Preview without switching.
+      await tester.tap(find.text('Preview'));
+      await tester.pump();
+
+      expect(previewRollingCalled, isFalse);
+      expect(blinkColor, isNotNull);
+    });
+
+    testWidgets('Preview does not call onPreviewRolling when rolling flash is disabled', (tester) async {
+      bool previewRollingCalled = false;
+
+      await _pumpDialog(
+        tester,
+        // rollingEnabled=false: rolling swatch is greyed out and non-tappable.
+        die: _pixelDie(rollingEnabled: false),
+        onPreviewRolling: (_, __, ___) => previewRollingCalled = true,
+      );
+
+      await tester.tap(find.text('Preview'));
+      await tester.pump();
+
+      expect(previewRollingCalled, isFalse);
     });
   });
 }

@@ -109,11 +109,22 @@ class GenericDTypeFactory {
   }
 }
 
+/// Animation preset for the rolling flash feature.
+enum RollingFlashPreset {
+  strobe,  // 50ms on / 50ms off / fade 0
+  pulse,   // 400ms on / 200ms off / fade 0
+  breathe, // 600ms on / 600ms off / fade 128
+}
+
 abstract class GenericDie {
-  abstract final Logger _log;
   abstract final GenericDieType type;
   late DiceState state;
   List<String> haEntityTargets = [];
+
+  // Rolling flash — per-die settings (Pixels only; ignored by other types).
+  bool rollingFlashEnabled = false;
+  Color? rollingFlashColor;
+  RollingFlashPreset rollingFlashPreset = RollingFlashPreset.strobe;
 
   Color? get blinkColor;
 
@@ -233,7 +244,6 @@ class GoDiceBle extends GenericBleDie {
 
   final Map<String, dynamic> info = {};
 
-  @override
   final _log = Logger("GoDiceBle");
   @override
   final GenericDieType type = GenericDieType.godice;
@@ -432,7 +442,6 @@ class GoDiceBle extends GenericBleDie {
 }
 
 class PixelDie extends GenericBleDie {
-  @override
   final _log = Logger("PixelDie");
 
   @override
@@ -580,9 +589,6 @@ class PixelDie extends GenericBleDie {
 }
 
 class VirtualDie extends GenericDie {
-  @override
-  final _log = Logger("VirtualDie");
-
   late final String _dieId;
   late final String? _name;
   final Random rand = Random();
@@ -650,9 +656,6 @@ class VirtualDie extends GenericDie {
 }
 
 class StaticVirtualDie extends GenericDie {
-  @override
-  final _log = Logger("StaticVirtualDie");
-
   late final String _dieId;
   late final String? _name;
   late GenericDType _dType;

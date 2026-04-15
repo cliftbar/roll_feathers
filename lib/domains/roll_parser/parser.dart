@@ -348,94 +348,6 @@ class RuleParser {
     return await _evaluateRuleV11Async(rolls, v11);
   }
 
-  ParseResult _evaluateRule(List<GenericDie> rolls, ParsedScript result, int threshold) {
-    // Check if the roll should evaluate
-    List<String> rollNames = rolls.map((d) => d.dType.name).toList();
-    List<String> expandedResults =
-        result.roll.expand((v) {
-          if (v[0] == "*") {
-            return [v];
-          } else {
-            int times = int.parse(v[0]);
-            String dName = v.substring(1);
-            return List.generate(times, (i) => dName.trim());
-          }
-        }).toList();
-    bool passed = _checkRollConditions(expandedResults, rollNames);
-    _log.fine("Should Evaluate: $rollNames, $passed");
-
-    // Transform
-    Map<GenericDie, int> rollMap = Map.fromEntries(rolls.map((r) => MapEntry(r, r.getFaceValueOrElse())));
-    for (ScriptTransform transform in result.transforms) {
-      rollMap = transform.transformFunction(rollMap, transform.args);
-    }
-    _log.fine("transformed: ${rollMap.values.toList()}");
-
-    // apply roll aggregate
-    int rollResult = result.aggregate(rollMap.values.toList());
-
-    _log.fine("Roll Result: $rollResult");
-
-    // determine the rolls to make a result
-    Map<String, int> evaluatedRolls = Map.fromEntries(rollMap.entries.map((e) => MapEntry(e.key.dieId, e.value)));
-    Map<String, int> allRolls = Map.fromEntries(rolls.map((e) => MapEntry(e.dieId, e.getFaceValueOrElse())));
-    if (!passed) {
-      return ParseResult(
-        result: rollResult,
-        allRolled: allRolls,
-        rolledEvaluated: evaluatedRolls,
-        ruleName: result.name,
-        ruleReturn: passed,
-      );
-    }
-    // run actions if we should evaluate
-    bool ruleReturn = true;
-    for (ScriptResultTarget res in result.targets) {
-      if (!res.resultRange.valueIn(rollResult)) {
-        continue;
-      }
-
-      switch (res.targetFunction.rtType) {
-        case ResultTargetType.rule:
-          ruleReturn = resultRules[res.targetFunction.action]!(args: res.targetFunction.args);
-          break;
-        case ResultTargetType.action:
-          List<GenericDie>? actionAllDice;
-          if (res.targetFunction.args.remove(allDiceKey)) {
-            actionAllDice = rolls;
-          }
-
-          List<GenericDie>? actionResultDice;
-          if (res.targetFunction.args.remove(resultDiceKey)) {
-            actionResultDice = rollMap.keys.toList();
-          }
-          final fn = resultAction[res.targetFunction.action];
-          if (fn != null) {
-            fn(
-              dd: _dieDomain,
-              rd: _rollDomain,
-              allDice: actionAllDice,
-              resultDice: actionResultDice,
-              defaultDice: rollMap.keys.toList(),
-              args: res.targetFunction.args,
-            );
-          }
-          break;
-        case ResultTargetType.webhook:
-          break;
-      }
-    }
-
-    _log.fine("result: $ruleReturn");
-
-    return ParseResult(
-      result: rollResult,
-      allRolled: allRolls,
-      rolledEvaluated: evaluatedRolls,
-      ruleName: result.name,
-      ruleReturn: ruleReturn,
-    );
-  }
 
   ParsedScript _parseRule({required String rule, required int threshold, required int modifier, required int rolledCount}) {
     String replacedRule = rule.replaceAll(thresholdKey, threshold.toString());
@@ -556,7 +468,6 @@ class RuleParser {
             final localArgs = List<String>.from(res.targetFunction.args);
             // Handle special selection tokens for action target resolution
             final bool wantsAllDice = localArgs.contains(allDiceKey);
-            final bool wantsResultDice = localArgs.contains(resultDiceKey);
             List<GenericDie>? actionAllDice;
             List<GenericDie>? actionResultDice;
 
@@ -680,7 +591,6 @@ class RuleParser {
             final localArgs = List<String>.from(res.targetFunction.args);
             // Handle special selection tokens for action target resolution
             final bool wantsAllDice = localArgs.contains(allDiceKey);
-            final bool wantsResultDice = localArgs.contains(resultDiceKey);
             List<GenericDie>? actionAllDice;
             List<GenericDie>? actionResultDice;
 

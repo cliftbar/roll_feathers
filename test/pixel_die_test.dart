@@ -252,6 +252,12 @@ void main() {
     expect(callbackCalled, isTrue);
   });
 
+  // Test MessageStopAllAnimations serialization
+  test('MessageStopAllAnimations serializes to single stop-all byte', () {
+    final msg = pix.MessageStopAllAnimations();
+    expect(msg.toBuffer(), equals([pix.PixelMessageType.stopAllAnimations.index]));
+  });
+
   // Test roll callbacks
   test('addRollCallback registers and triggers callback correctly', () async {
     final PixelDie die = await PixelDie.create(device: mockDevice);

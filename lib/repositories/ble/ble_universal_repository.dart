@@ -336,22 +336,33 @@ class BleUniversalRepository implements BleRepository {
 
   @override
   Future<void> disconnectDevice(String deviceId) async {
-    await UniversalBle.disconnect(deviceId);
     _connectionSubscriptions[deviceId]?.cancel();
     _connectionSubscriptions.remove(deviceId);
     _discoveredBleDevices.remove(deviceId);
     _bleDeviceSubscription.add(Map.of(_discoveredBleDevices));
+    try {
+      await UniversalBle.disconnect(deviceId);
+    } catch (e, st) {
+      _log.warning('disconnect error for $deviceId: $e', e, st);
+    }
   }
 
   @override
   Future<void> disconnectAllDevices() async {
-    for (final deviceId in List.of(_discoveredBleDevices.keys)) {
-      await UniversalBle.disconnect(deviceId);
+    final ids = List.of(_discoveredBleDevices.keys);
+    for (final deviceId in ids) {
       _connectionSubscriptions[deviceId]?.cancel();
       _connectionSubscriptions.remove(deviceId);
     }
     _discoveredBleDevices.clear();
     _bleDeviceSubscription.add(Map.of(_discoveredBleDevices));
+    for (final deviceId in ids) {
+      try {
+        await UniversalBle.disconnect(deviceId);
+      } catch (e, st) {
+        _log.warning('disconnect error for $deviceId: $e', e, st);
+      }
+    }
   }
 
   @override

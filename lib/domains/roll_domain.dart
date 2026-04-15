@@ -46,6 +46,7 @@ class RollDomain {
   bool autoRollVirtualDice = true;
 
   final DieDomain _diceDomain;
+  // ignore: unused_field
   late StreamSubscription<Map<String, GenericDie>> _deviceStreamListener; // used for notifications, better way?
   // final Map<String, Color> blinkColors = {};
 
@@ -149,9 +150,6 @@ class RollDomain {
     return result.rollResult;
   }
 
-  int _rollTotal() {
-    return _rolledDie.values.map((d) => d.getFaceValueOrElse(orElse: 0)).fold(0, (p, c) => p + c);
-  }
 
   void _rollStartVirtualDice({bool force = false}) {
     if (!autoRollVirtualDice && !force) {
@@ -174,15 +172,24 @@ class RollDomain {
   // attach listeners to die
   void rollStreamListener(Map<String, GenericDie> data) {
     for (var die in data.values.where((d) => d.type != GenericDieType.virtual)) {
+      // Per-die flag: prevents re-sending blinkRolling if rolling fires multiple
+      // times for the same die during a single roll session.
+      bool dieBlinking = false;
+
       die.addRollCallback(DiceRollState.rolling, "$hashCode.rolling", (DiceRollState rollState) {
-        // die has started rolling, initiate roll if its not already going
         if (!_isRolling) {
           _rollStartVirtualDice();
           _startRolling();
         }
+        if (!dieBlinking) {
+          dieBlinking = true;
+          _diceDomain.blinkRolling(die);
+        }
       });
 
       die.addRollCallback(DiceRollState.rolled, "$hashCode.rolled", (DiceRollState rollState) async {
+        dieBlinking = false;
+        await _diceDomain.stopAnimations(die);
         bool allDiceRolled = areDieRolling(data.values.where((d) => d.type != GenericDieType.virtual).toList());
         _rolledDie[die.dieId] = die;
         _rollEndVirtualDie();
@@ -192,6 +199,11 @@ class RollDomain {
           _stopRolling();
           await _stopRollWithResult();
         }
+      });
+
+      die.addRollCallback(DiceRollState.crooked, "$hashCode.crooked", (DiceRollState rollState) async {
+        dieBlinking = false;
+        await _diceDomain.stopAnimations(die);
       });
     }
   }

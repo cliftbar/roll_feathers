@@ -58,7 +58,7 @@ class DiWrapper {
       bleRepo.scan(services: services, namePrefix: ['GoDice_']);
     }
 
-    DieDomain dieDomain = DieDomain(bleRepo, haRepository);
+    DieDomain dieDomain = DieDomain(bleRepo, haRepository, appService);
 
     RollDomain rollDomain = await RollDomain.create(dieDomain, appService);
     late ApiDomain apiDomain;

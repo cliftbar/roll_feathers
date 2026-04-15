@@ -77,21 +77,6 @@ class HaApiService implements HaService {
     return retState;
   }
 
-  Future<State> _postState(State newState) async {
-    HaConfig conf = await _haConfigService.getConfig();
-    Uri url = Uri.parse(format(entityStatePath, {#url: conf.url, #entityId: newState.entityId}));
-
-    Response resp = await _httpClient.post(url, headers: getHeaders(conf), body: jsonEncode(newState.toJson()));
-
-    if (resp.statusCode != 200 && resp.statusCode != 201) {
-      throw Exception("bad HA response: ${resp.body}");
-    }
-
-    Map<String, dynamic> decodedResponse = jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
-    var retState = State.fromJson(decodedResponse);
-
-    return retState;
-  }
 
   Future<List<dynamic>> _postService({
     required String entityId,
@@ -143,7 +128,7 @@ class HaApiService implements HaService {
         revertAction = HaDomainService.lightOff;
       }
     } catch (e) {
-      ("error reading ha state of '$entity': $e");
+      _log.warning("error reading ha state of '$entity': $e");
       revertAction = HaDomainService.lightOff;
     }
 

@@ -184,7 +184,7 @@ class AppSettingsWidget extends StatelessWidget {
                         vm.disconnectAllNonVirtualDice.execute();
                       }
                       : null,
-              title: const Text("Disconnect Dice"),
+              title: const Text("Disconnect BLE Dice"),
               leading: const Icon(Icons.bluetooth_disabled),
             ),
             const Divider(),

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 
@@ -9,11 +11,82 @@ import 'package:roll_feathers/repositories/home_assistant_repository.dart';
 import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
 
+/// Fake BLE-type die (type=pixel) for use in RollDomain tests where the
+/// virtual-die filter must be bypassed.  Has no real BLE; roll state is
+/// fired manually via [fireRollState].
+class TestBleDie extends GenericDie {
+  @override
+  final GenericDieType type = GenericDieType.pixel;
+
+  final String id;
+  Color? _blinkColor;
+
+  TestBleDie(this.id);
+
+  /// Simulate the die entering [rs] and invoke registered callbacks.
+  void fireRollState(DiceRollState rs) {
+    state.rollState = rs.index;
+    if (rollCallbacks.containsKey(rs)) {
+      for (final fn in List.of(rollCallbacks[rs]!.values)) {
+        fn(rs);
+      }
+    }
+  }
+
+  Future<void> _init() async {}
+
+  @override
+  String get dieId => id;
+
+  @override
+  String get friendlyName => id;
+
+  @override
+  GenericDType get dType => GenericDTypeFactory.getKnownChecked('d20');
+
+  @override
+  set dType(GenericDType df) {}
+
+  @override
+  Color? get blinkColor => _blinkColor;
+
+  @override
+  set blinkColor(Color? c) => _blinkColor = c;
+}
+
+/// Fake GoDice-type die for UI tests that check GoDice-specific sections.
+class TestGoDiceDie extends GenericDie {
+  @override
+  final GenericDieType type = GenericDieType.godice;
+
+  final String id;
+  Color? _blinkColor;
+
+  TestGoDiceDie(this.id);
+
+  Future<void> _init() async {}
+
+  @override
+  String get dieId => id;
+
+  @override
+  String get friendlyName => id;
+
+  @override
+  GenericDType get dType => GenericDTypeFactory.getKnownChecked('d6');
+
+  @override
+  set dType(GenericDType df) {}
+
+  @override
+  Color? get blinkColor => _blinkColor;
+
+  @override
+  set blinkColor(Color? c) => _blinkColor = c;
+}
+
 /// Simple fake die that lets us control id, type, and face value.
 class TestDie extends GenericDie {
-  @override
-  final Logger _log = Logger('TestDie');
-
   @override
   final GenericDieType type = GenericDieType.virtual;
 
@@ -30,7 +103,6 @@ class TestDie extends GenericDie {
     state = DiceState(currentFaceValue: value);
   }
 
-  @override
   Future<void> _init() async {}
 
   @override
@@ -80,10 +152,23 @@ class TestBleRepository extends BleRepository {
   Future<void> stopScan() async {}
 }
 
-/// Fake DieDomain that records blink actions for later inspection.
+/// Fake DieDomain that records blink, blinkRolling, and stopAnimations calls.
 class RecordingDieDomain extends DieDomain {
   final List<String> blinked = [];
+  final List<String> rollingBlinked = [];
+  final List<String> animationsStopped = [];
+
+  final _testDiceStream =
+      StreamController<Map<String, GenericDie>>.broadcast();
+
   RecordingDieDomain() : super(TestBleRepository(), HaRepositoryEmpty());
+
+  /// Push a dice map into the stream so RollDomain registers callbacks.
+  void emitDice(Map<String, GenericDie> dice) => _testDiceStream.add(dice);
+
+  @override
+  Stream<Map<String, GenericDie>> getDiceStream() => _testDiceStream.stream;
+
   @override
   Future<void> blink(
       Color blinkColor,
@@ -92,18 +177,38 @@ class RecordingDieDomain extends DieDomain {
         int blinkCount = 2,
         Duration blinkInterval = const Duration(milliseconds: 500),
       }) async {
-    blinked.add('${(die as TestDie).id}:${blinkColor.toARGB32()}');
+    blinked.add('${die.dieId}:${blinkColor.toARGB32()}');
   }
+
+  @override
+  Future<void> blinkRolling(GenericDie die) async =>
+      rollingBlinked.add(die.dieId);
+
+  @override
+  Future<void> stopAnimations(GenericDie die) async =>
+      animationsStopped.add(die.dieId);
 }
 
-/// Minimal AppService that stores rules in-memory for harness use.
+/// Minimal AppService that stores rules and die settings in-memory.
 class InMemoryAppService extends AppService {
   List<String> _saved = [];
+  final Map<String, DieSettings> _dieSettings = {};
+
   @override
   Future<List<String>> getSavedScripts() async => _saved;
+
   @override
   Future<void> setSavedScripts(List<String> rules) async {
     _saved = rules;
+  }
+
+  @override
+  Future<DieSettings?> getDieSettings(String dieId) async =>
+      _dieSettings[dieId];
+
+  @override
+  Future<void> saveDieSettings(String dieId, DieSettings settings) async {
+    _dieSettings[dieId] = settings;
   }
 }
 

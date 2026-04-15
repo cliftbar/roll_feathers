@@ -19,11 +19,9 @@ class EmptyApiDomain extends ApiDomain {
 }
 
 class ApiDomainServer extends ApiDomain {
-  final HttpServer _apiServer;
-  final RollDomain _rollDomain;
   final List<NetworkInterface> _networkInterfaces;
 
-  ApiDomainServer._(this._apiServer, this._rollDomain, this._networkInterfaces);
+  ApiDomainServer._(this._networkInterfaces);
 
   static Future<ApiDomain> create({required RollDomain rollDomain}) async {
     List<NetworkInterface> iFaces = [];
@@ -33,14 +31,12 @@ class ApiDomainServer extends ApiDomain {
         includeLinkLocal: false,
         type: InternetAddressType.IPv4,
       );
-    } on Exception catch (e) {
-      print("iface exception: $e");
+    } on Exception catch (_) {
+      // Ignored for now
     }
     var router = Router();
 
     router.get("/api/last-roll", (Request request) {
-      print("api request ${request.url}");
-
       var result = rollDomain.rollHistory.firstOrNull;
       if (result == null) {
         return Response.notFound(result);
@@ -50,8 +46,8 @@ class ApiDomainServer extends ApiDomain {
 
     final app = const Pipeline().addMiddleware(logRequests()).addHandler(router.call);
 
-    var server = await shelf_io.serve(app, InternetAddress.anyIPv4, 8080);
-    return ApiDomainServer._(server, rollDomain, iFaces);
+    await shelf_io.serve(app, InternetAddress.anyIPv4, 8080);
+    return ApiDomainServer._(iFaces);
   }
 
   @override

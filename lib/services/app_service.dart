@@ -1,6 +1,52 @@
 // datastore access
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
+
+/// Per-die settings persisted under the die's UUID.
+class DieSettings {
+  Color? blinkColor;
+  List<String> haEntityTargets;
+  String? faceTypeName;
+  bool rollingFlashEnabled;
+  Color? rollingFlashColor;
+  RollingFlashPreset rollingFlashPreset;
+
+  DieSettings({
+    this.blinkColor,
+    this.haEntityTargets = const [],
+    this.faceTypeName,
+    this.rollingFlashEnabled = false,
+    this.rollingFlashColor,
+    this.rollingFlashPreset = RollingFlashPreset.strobe,
+  });
+
+  Map<String, dynamic> toJson() => {
+    if (blinkColor != null) 'blinkColor': blinkColor!.toARGB32(),
+    'haEntityTargets': haEntityTargets,
+    if (faceTypeName != null) 'faceTypeName': faceTypeName,
+    'rollingFlashEnabled': rollingFlashEnabled,
+    if (rollingFlashColor != null) 'rollingFlashColor': rollingFlashColor!.toARGB32(),
+    'rollingFlashPreset': rollingFlashPreset.name,
+  };
+
+  factory DieSettings.fromJson(Map<String, dynamic> json) {
+    return DieSettings(
+      blinkColor: json['blinkColor'] != null ? Color(json['blinkColor'] as int) : null,
+      haEntityTargets: (json['haEntityTargets'] as List?)?.cast<String>() ?? [],
+      faceTypeName: json['faceTypeName'] as String?,
+      rollingFlashEnabled: json['rollingFlashEnabled'] as bool? ?? false,
+      rollingFlashColor: json['rollingFlashColor'] != null ? Color(json['rollingFlashColor'] as int) : null,
+      rollingFlashPreset: RollingFlashPreset.values.firstWhere(
+        (p) => p.name == json['rollingFlashPreset'],
+        orElse: () => RollingFlashPreset.strobe,
+      ),
+    );
+  }
+}
 
 class AppService {
   static String themeKey = 'theme_mode';
@@ -50,5 +96,21 @@ class AppService {
     final prefs = await SharedPreferences.getInstance();
     // Default to false in production; tests can opt-in explicitly
     return prefs.getBool(useAsyncEvaluatorKey) ?? false;
+  }
+
+  static String _dieSettingsKey(String dieId) => 'die_settings_$dieId';
+
+  Future<DieSettings?> getDieSettings(String dieId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_dieSettingsKey(dieId));
+    if (raw == null) return null;
+    return DieSettings.fromJson(Map<String, dynamic>.from(
+        const JsonDecoder().convert(raw) as Map));
+  }
+
+  Future<void> saveDieSettings(String dieId, DieSettings settings) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_dieSettingsKey(dieId),
+        const JsonEncoder().convert(settings.toJson()));
   }
 }

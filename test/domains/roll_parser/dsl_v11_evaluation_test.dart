@@ -14,9 +14,6 @@ import 'package:roll_feathers/util/color.dart';
 // Simple fakes to observe actions without real hardware
 class FakeDie extends GenericDie {
   @override
-  final Logger _log = Logger('FakeDie');
-
-  @override
   final GenericDieType type = GenericDieType.virtual;
 
   @override
@@ -32,7 +29,6 @@ class FakeDie extends GenericDie {
     state = DiceState(currentFaceValue: value);
   }
 
-  @override
   Future<void> _init() async {}
 
   @override

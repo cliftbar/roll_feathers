@@ -51,3 +51,4 @@ app.*.map.json
 *.private.env.json
 deploy.sh
 *.keystore
+*.junie

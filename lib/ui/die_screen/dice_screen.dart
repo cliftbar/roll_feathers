@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
+import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/ui/die_screen/dice_screen_vm.dart';
 import 'package:roll_feathers/ui/die_screen/die_list_tile.dart';
 import 'package:roll_feathers/ui/die_screen/single_die_settings_dialog.dart';
@@ -14,11 +15,11 @@ import '../app_settings/app_settings_screen.dart';
 import '../app_settings/app_settings_screen_vm.dart';
 
 class DiceScreenWidget extends StatefulWidget {
-  const DiceScreenWidget._(this.viewModel, this.settingsVm);
+  const DiceScreenWidget({super.key, required this.viewModel, required this.settingsVm});
 
   static Future<DiceScreenWidget> create(DiWrapper di, AppSettingsScreenViewModel settingsVm) async {
     var vm = DiceScreenViewModel(di);
-    return DiceScreenWidget._(vm, settingsVm);
+    return DiceScreenWidget(viewModel: vm, settingsVm: settingsVm);
   }
 
   final DiceScreenViewModel viewModel;
@@ -135,191 +136,230 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
         ),
       ),
       appBar: AppBar(title: const Text('Roll Feathers'), actions: []),
-      body: Row(
-        children: [
-          // First column - existing StreamBuilder (taking half the width)
-          Expanded(
-            child: Column(
-              children: [
-                Wrap(
-                  // TODO: second row so alignment works?
+      body: ListenableBuilder(
+        listenable: widget.settingsVm,
+        builder: (context, _) {
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final orientation = widget.settingsVm.dicePaneOrientation;
+              final isNarrow = constraints.maxWidth < 600;
+              final isShort = constraints.maxHeight < 400;
+
+              final bool forceVertical = orientation == DicePaneOrientation.vertical;
+              final bool forceHorizontal = orientation == DicePaneOrientation.horizontal;
+
+              if (forceVertical || (isNarrow && !forceHorizontal)) {
+                if (isShort) {
+                  // Extremely cramped or forced vertical: Use a single scrollable view for everything.
+                  return ListView(
+                    key: const Key('dice_screen_compact_layout'),
+                    children: [
+                      _buildDiceColumn(isExpanded: false),
+                      _buildHistoryColumn(isVertical: true, isExpanded: false),
+                    ],
+                  );
+                } else {
+                  // Narrow but tall or forced vertical: Stack them as two expanded panes.
+                  return Column(
+                    key: const Key('dice_screen_vertical_layout'),
+                    children: [
+                      Expanded(child: _buildDiceColumn()),
+                      Expanded(child: _buildHistoryColumn(isVertical: true)),
+                    ],
+                  );
+                }
+              } else {
+                // Wide screen or forced horizontal: Side-by-side panes.
+                return Row(
+                  key: const Key('dice_screen_horizontal_layout'),
                   children: [
-                    _makeAutoRollSwitch(),
-                    TextButton.icon(
-                      onPressed: () {
-                        _showAddVirtualDieDialog(context);
-                      },
-                      label: const Text("Add Die"),
-                      icon: const Icon(Icons.add),
-                    ), // _makeBleScanButton(),
-                    ListenableBuilder(
-                      listenable: widget.settingsVm,
-                      builder: (context, _) {
-                        final bleOn = widget.settingsVm.bleIsEnabled();
-                        final scanning = widget.settingsVm.isScanning;
-                        return TextButton.icon(
-                          onPressed: bleOn && !scanning
-                              ? () { widget.settingsVm.startBleScan.execute(); }
-                              : null,
-                          label: bleOn
-                              ? Text(kIsWeb ? "Pair Die" : "Scan")
-                              : const Text("BLE Disabled"),
-                          icon: scanning
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : bleOn
-                                  ? const Icon(Icons.bluetooth_searching)
-                                  : const Icon(Icons.bluetooth_disabled),
-                        );
-                      },
-                    ),
-                    TextButton.icon(
-                      onPressed: () {
-                        widget.viewModel.rollAllVirtualDice.execute(true);
-                      },
-                      label: const Text("Roll"),
-                      icon: const Icon(Icons.refresh),
-                    ),
+                    Expanded(child: _buildDiceColumn()),
+                    Expanded(child: _buildHistoryColumn(isVertical: false)),
                   ],
-                ), // TODO: Does this need to be listenable?  does the stream already handle updates?
-                Expanded(
-                  child: ListenableBuilder(
-                    listenable: widget.viewModel,
-                    builder: (context, _) {
-                      return StreamBuilder<Map<String, GenericDie>>(
-                        stream: widget.viewModel.getDeviceStream(),
-                        initialData: const {},
-                        builder: (context, snapshot) {
-                          if (snapshot.hasError) {
-                            return Center(child: Text('Error: ${snapshot.error}'));
-                          }
+                );
+              }
+            },
+          );
+        },
+      ),
+    );
+  }
 
-                          final List<GenericDie> devices = snapshot.data?.values.toList() ?? [];
+  Widget _buildDiceColumn({bool isExpanded = true}) {
+    return Column(
+      children: [
+        _buildDiceHeader(),
+        isExpanded
+            ? Expanded(child: _buildDiceList())
+            : _buildDiceList(shrinkWrap: true, physics: const NeverScrollableScrollPhysics()),
+      ],
+    );
+  }
 
-                          if (devices.isEmpty) {
-                            return const Center(child: Text('No dice added'));
-                          }
-                          return ListView.builder(
-                            itemCount: devices.length,
-                            itemBuilder: (context, index) {
-                              final die = devices[index];
-                              return DieListTile(
-                                die: die,
-                                themeMode: widget.settingsVm.themeMode,
-                                onTap: () => _showDieSettings(context, die),
-                              );
-                            },
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ), // Second column - roll history (taking half the width)
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(border: Border(left: BorderSide(color: Colors.grey.shade300, width: 1))),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Text('Roll History', style: Theme.of(context).textTheme.titleLarge),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                    child: Wrap(
-                      spacing: 8.0, // gap between adjacent items
-                      runSpacing: 4.0, // gap between lines
-                      alignment: WrapAlignment.spaceBetween,
-                      children: [
-                        // Wrap(
-                        //   spacing: 8.0,
-                        //   children: [
-                        //     Row(
-                        //       mainAxisSize: MainAxisSize.min,
-                        //       children: [
-                        //         const Text('Roll Type: '),
-                        //         Checkbox(
-                        //           value: _rollMax,
-                        //           onChanged: (bool? value) {
-                        //             setState(() {
-                        //               _rollMax = value ?? false;
-                        //               if (_rollMax) {
-                        //                 _rollMin = false;
-                        //               }
-                        //               _setRollType();
-                        //             });
-                        //           },
-                        //         ),
-                        //         const Text('Maximum'),
-                        //       ],
-                        //     ),
-                        //     SizedBox(
-                        //       width: 140, // Fixed width for consistency
-                        //       child: Row(
-                        //         mainAxisSize: MainAxisSize.min,
-                        //         children: [
-                        //           Checkbox(
-                        //             value: _rollMin,
-                        //             onChanged: (bool? value) {
-                        //               setState(() {
-                        //                 _rollMin = value ?? false;
-                        //                 if (_rollMin) {
-                        //                   _rollMax = false;
-                        //                 }
-                        //                 _setRollType();
-                        //               });
-                        //             },
-                        //           ),
-                        //           const Text('Minimum'),
-                        //         ],
-                        //       ),
-                        //     ),
-                        //   ],
-                        // ),
-                        TextButton.icon(
-                          icon: const Icon(Icons.clear_all),
-                          label: const Text('Clear'),
-                          onPressed: () {
-                            widget.viewModel.clearRollResultHistory.execute();
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: ListenableBuilder(
-                      listenable: widget.viewModel,
-                      builder: (context, _) {
-                        return StreamBuilder(
-                          stream: widget.viewModel.getResultsStream(),
-                          builder: (context, snapshot) {
-                            List<RollResult> rollResults = snapshot.data ?? [];
-                            if (rollResults.isEmpty) {
-                              return const Center(child: Text('Make some rolls!'));
-                            }
-                            return ListView.builder(
-                              itemCount: rollResults.length,
-                              itemBuilder: (context, index) {
-                                return ListTile(title: _makeRollText(context, rollResults[index]));
-                              },
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                ],
+  Widget _buildDiceHeader() {
+    return Wrap(
+      // TODO: second row so alignment works?
+      children: [
+        _makeAutoRollSwitch(),
+        TextButton.icon(
+          onPressed: () {
+            _showAddVirtualDieDialog(context);
+          },
+          label: const Text("Add Die"),
+          icon: const Icon(Icons.add),
+        ), // _makeBleScanButton(),
+        ListenableBuilder(
+          listenable: widget.settingsVm,
+          builder: (context, _) {
+            final bleOn = widget.settingsVm.bleIsEnabled();
+            final scanning = widget.settingsVm.isScanning;
+            return TextButton.icon(
+              onPressed:
+                  bleOn && !scanning
+                      ? () {
+                        widget.settingsVm.startBleScan.execute();
+                      }
+                      : null,
+              label: bleOn ? Text(kIsWeb ? "Pair Die" : "Scan") : const Text("BLE Disabled"),
+              icon:
+                  scanning
+                      ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                      : bleOn
+                      ? const Icon(Icons.bluetooth_searching)
+                      : const Icon(Icons.bluetooth_disabled),
+            );
+          },
+        ),
+        TextButton.icon(
+          onPressed: () {
+            widget.viewModel.rollAllVirtualDice.execute(true);
+          },
+          label: const Text("Roll"),
+          icon: const Icon(Icons.refresh),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDiceList({bool shrinkWrap = false, ScrollPhysics? physics}) {
+    return ListenableBuilder(
+      listenable: widget.viewModel,
+      builder: (context, _) {
+        return StreamBuilder<Map<String, GenericDie>>(
+          stream: widget.viewModel.getDeviceStream(),
+          initialData: widget.viewModel.dice,
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
+
+            final List<GenericDie> devices = snapshot.data?.values.toList() ?? [];
+
+            if (devices.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.all(20.0),
+                child: Center(child: Text('No dice added')),
+              );
+            }
+            return ListView.builder(
+              shrinkWrap: shrinkWrap,
+              physics: physics,
+              itemCount: devices.length,
+              itemBuilder: (context, index) {
+                final die = devices[index];
+                return DieListTile(
+                  die: die,
+                  themeMode: widget.settingsVm.themeMode,
+                  onTap: () => _showDieSettings(context, die),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildHistoryColumn({required bool isVertical, bool isExpanded = true}) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border(
+          left: isVertical ? BorderSide.none : BorderSide(color: Colors.grey.shade300, width: 1),
+          top: isVertical ? BorderSide(color: Colors.grey.shade300, width: 1) : BorderSide.none,
+        ),
+      ),
+      child: Column(
+        children: [
+          _buildHistoryHeader(),
+          isExpanded
+              ? Expanded(child: _buildHistoryList())
+              : _buildHistoryList(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
               ),
-            ),
-          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHistoryHeader() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Text('Roll History', style: Theme.of(context).textTheme.titleLarge),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Wrap(
+            spacing: 8.0, // gap between adjacent items
+            runSpacing: 4.0, // gap between lines
+            alignment: WrapAlignment.spaceBetween,
+            children: [
+              TextButton.icon(
+                icon: const Icon(Icons.clear_all),
+                label: const Text('Clear'),
+                onPressed: () {
+                  widget.viewModel.clearRollResultHistory.execute();
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHistoryList({bool shrinkWrap = false, ScrollPhysics? physics}) {
+    return ListenableBuilder(
+      listenable: widget.viewModel,
+      builder: (context, _) {
+        return StreamBuilder(
+          stream: widget.viewModel.getResultsStream(),
+          initialData: widget.viewModel.rollHistory,
+          builder: (context, snapshot) {
+            List<RollResult> rollResults = snapshot.data ?? [];
+            if (rollResults.isEmpty) {
+              return const Padding(
+                padding: EdgeInsets.all(20.0),
+                child: Center(child: Text('Make some rolls!')),
+              );
+            }
+            return ListView.builder(
+              shrinkWrap: shrinkWrap,
+              physics: physics,
+              itemCount: rollResults.length,
+              itemBuilder: (context, index) {
+                return ListTile(title: _makeRollText(context, rollResults[index]));
+              },
+            );
+          },
+        );
+      },
     );
   }
 
@@ -393,8 +433,9 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
       color: Colors.transparent,
       shadowColor: Colors.transparent,
       child: Padding(
-        padding: EdgeInsetsGeometry.all(8),
-        child: Row(
+        padding: const EdgeInsets.all(8),
+        child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Switch(
               value: _rollVirtualDice,
@@ -412,7 +453,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
   }
 
   void _showAddVirtualDieDialog(BuildContext context) {
-    final nameController = TextEditingController(text: "VirtualDie");
+    final nameController = TextEditingController(text: "");
     final faceCountController = TextEditingController(text: "6");
 
     showDialog(

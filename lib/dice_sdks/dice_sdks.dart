@@ -151,6 +151,7 @@ abstract class GenericDie {
   String get dieId;
 
   String get friendlyName;
+  set friendlyName(String name);
 
   GenericDType get dType;
 
@@ -161,6 +162,8 @@ abstract class GenericBleDie extends GenericDie {
   BleDeviceWrapper device;
   VoidCallback? onStateChanged;
   StreamSubscription<List<int>>? _notifySubscription;
+  @override
+  set friendlyName(String name) {}
 
   void dispose() {
     _notifySubscription?.cancel();
@@ -235,7 +238,7 @@ abstract class GenericBleDie extends GenericDie {
   String get dieId => device.deviceId;
 
   @override
-  String get friendlyName;
+  String get friendlyName => device.friendlyName;
 }
 
 class GoDiceBle extends GenericBleDie {
@@ -564,9 +567,6 @@ class PixelDie extends GenericBleDie {
   }
 
   @override
-  String get friendlyName => device.friendlyName;
-
-  @override
   GenericDType get dType {
     pix.PixelDieType dt = info?.pixelDieTypeFaces ?? pix.PixelDieType.unknown;
 
@@ -590,7 +590,7 @@ class PixelDie extends GenericBleDie {
 
 class VirtualDie extends GenericDie {
   late final String _dieId;
-  late final String? _name;
+  String? _name;
   final Random rand = Random();
   late GenericDType _dType;
   Color? _blinkColor;
@@ -634,7 +634,12 @@ class VirtualDie extends GenericDie {
   Future<void> _init() async {}
 
   @override
-  String get friendlyName => _name ?? dieId;
+  String get friendlyName => (_name == null || _name!.isEmpty) ? "Virtual ${dType.name}" : _name!;
+
+  @override
+  set friendlyName(String name) {
+    _name = name;
+  }
 
   @override
   GenericDType get dType {
@@ -657,7 +662,7 @@ class VirtualDie extends GenericDie {
 
 class StaticVirtualDie extends GenericDie {
   late final String _dieId;
-  late final String? _name;
+  String? _name;
   late GenericDType _dType;
   Color? _blinkColor;
 
@@ -683,7 +688,12 @@ class StaticVirtualDie extends GenericDie {
   Future<void> _init() async {}
 
   @override
-  String get friendlyName => _name ?? dieId;
+  String get friendlyName => (_name == null || _name!.isEmpty) ? "Virtual ${dType.name}" : _name!;
+
+  @override
+  set friendlyName(String name) {
+    _name = name;
+  }
 
   @override
   GenericDType get dType {

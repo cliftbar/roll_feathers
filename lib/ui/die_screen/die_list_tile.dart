@@ -72,7 +72,7 @@ class _DieListTileState extends State<DieListTile> with SingleTickerProviderStat
       default:
         valueStr = '';
     }
-    return '${widget.die.dType.name} ${widget.die.state.batteryLevel}%$valueStr ${widget.die.dieId}';
+    return '${widget.die.dType.name} ${widget.die.state.batteryLevel}%$valueStr';
   }
 
   @override
@@ -89,7 +89,7 @@ class _DieListTileState extends State<DieListTile> with SingleTickerProviderStat
     return ListTile(
       textColor: color,
       leading: leading,
-      title: Text(widget.die.friendlyName.isEmpty ? 'Unknown Device ${widget.die.dieId}' : widget.die.friendlyName),
+      title: Text(widget.die.friendlyName.isEmpty || widget.die.friendlyName == widget.die.dieId ? 'Unknown ${widget.die.dType.name}' : widget.die.friendlyName),
       subtitle: Text(_subtitle),
       onTap: widget.onTap,
     );

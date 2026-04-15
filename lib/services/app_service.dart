@@ -6,8 +6,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 
+enum DicePaneOrientation {
+  auto,
+  horizontal,
+  vertical,
+}
+
 /// Per-die settings persisted under the die's UUID.
 class DieSettings {
+  String? friendlyName;
   Color? blinkColor;
   List<String> haEntityTargets;
   String? faceTypeName;
@@ -16,6 +23,7 @@ class DieSettings {
   RollingFlashPreset rollingFlashPreset;
 
   DieSettings({
+    this.friendlyName,
     this.blinkColor,
     this.haEntityTargets = const [],
     this.faceTypeName,
@@ -25,6 +33,7 @@ class DieSettings {
   });
 
   Map<String, dynamic> toJson() => {
+    if (friendlyName != null) 'friendlyName': friendlyName,
     if (blinkColor != null) 'blinkColor': blinkColor!.toARGB32(),
     'haEntityTargets': haEntityTargets,
     if (faceTypeName != null) 'faceTypeName': faceTypeName,
@@ -35,6 +44,7 @@ class DieSettings {
 
   factory DieSettings.fromJson(Map<String, dynamic> json) {
     return DieSettings(
+      friendlyName: json['friendlyName'] as String?,
       blinkColor: json['blinkColor'] != null ? Color(json['blinkColor'] as int) : null,
       haEntityTargets: (json['haEntityTargets'] as List?)?.cast<String>() ?? [],
       faceTypeName: json['faceTypeName'] as String?,
@@ -53,6 +63,7 @@ class AppService {
   static String keepScreenOnKey = 'keep_screen_on';
   static String ruleScriptsKey = 'rule_scripts';
   static String useAsyncEvaluatorKey = 'use_async_evaluator';
+  static String dicePaneOrientationKey = 'dice_pane_orientation';
 
   Future<void> setThemeMode(ThemeMode mode) async {
     final prefs = await SharedPreferences.getInstance();
@@ -96,6 +107,17 @@ class AppService {
     final prefs = await SharedPreferences.getInstance();
     // Default to false in production; tests can opt-in explicitly
     return prefs.getBool(useAsyncEvaluatorKey) ?? false;
+  }
+
+  Future<void> setDicePaneOrientation(DicePaneOrientation orientation) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(dicePaneOrientationKey, orientation.index);
+  }
+
+  Future<DicePaneOrientation> getDicePaneOrientation() async {
+    final prefs = await SharedPreferences.getInstance();
+    final index = prefs.getInt(dicePaneOrientationKey) ?? DicePaneOrientation.auto.index;
+    return DicePaneOrientation.values[index];
   }
 
   static String _dieSettingsKey(String dieId) => 'die_settings_$dieId';

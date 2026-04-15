@@ -69,6 +69,9 @@ class DiceScreenViewModel extends ChangeNotifier {
     }
   }
 
+  Map<String, GenericDie> get dice => _diWrapper.dieDomain.dice;
+  List<RollResult> get rollHistory => _diWrapper.rollDomain.rollHistory;
+
   // rolling
   Stream<List<RollResult>> getResultsStream() {
     return _diWrapper.rollDomain.subscribeRollResults();
@@ -115,6 +118,9 @@ class DiceScreenViewModel extends ChangeNotifier {
     die.rollingFlashEnabled = settings.rollingFlashEnabled;
     die.rollingFlashColor = settings.rollingFlashColor;
     die.rollingFlashPreset = settings.rollingFlashPreset;
+    if (settings.friendlyName != null) {
+      die.friendlyName = settings.friendlyName!;
+    }
     if (die.type != GenericDieType.pixel && settings.faceTypeName != null) {
       final dt = GenericDTypeFactory.getKnown(settings.faceTypeName!);
       if (dt != null) die.dType = dt;

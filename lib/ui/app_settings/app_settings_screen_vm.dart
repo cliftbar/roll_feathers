@@ -8,6 +8,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../di/di.dart';
 import '../../dice_sdks/pixels.dart';
+import '../../services/app_service.dart';
 import '../../services/home_assistant/ha_config_service.dart';
 import '../../util/command.dart';
 
@@ -24,6 +25,11 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
   bool keepScreenOn = false;
   late Command0 toggleKeepScreenOn;
   late StreamSubscription<bool> _keepScreenOnSubscription;
+
+  // layout orientation
+  DicePaneOrientation dicePaneOrientation = DicePaneOrientation.auto;
+  late Command1<void, DicePaneOrientation> setDicePaneOrientation;
+  late StreamSubscription<DicePaneOrientation> _dicePaneOrientationSubscription;
 
   // ble
   bool _bleEnabled = false;
@@ -51,6 +57,13 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
     _keepScreenOnSubscription = _diWrapper.appRepository.observeKeepScreenOn().listen((enabled) {
       keepScreenOn = enabled;
       WakelockPlus.toggle(enable: enabled);
+      notifyListeners();
+    });
+
+    // layout orientation
+    setDicePaneOrientation = Command1(_setDicePaneOrientation);
+    _dicePaneOrientationSubscription = _diWrapper.appRepository.observeDicePaneOrientation().listen((orientation) {
+      dicePaneOrientation = orientation;
       notifyListeners();
     });
 
@@ -86,6 +99,11 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
         WakelockPlus.toggle(enable: keepScreenOn);
       }
 
+      final orientationResult = await _diWrapper.appRepository.getDicePaneOrientation();
+      if (orientationResult.isValue && orientationResult.asValue != null) {
+        dicePaneOrientation = orientationResult.asValue!.value;
+      }
+
       _haConfig = await _diWrapper.haRepository.getHaConfig();
       return themeResult;
     } on Exception catch (e) {
@@ -116,6 +134,17 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
     try {
       keepScreenOn = !keepScreenOn;
       return await _diWrapper.appRepository.setKeepScreenOn(keepScreenOn);
+    } on Exception catch (e) {
+      return Result.error(e);
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  Future<Result<void>> _setDicePaneOrientation(DicePaneOrientation orientation) async {
+    try {
+      dicePaneOrientation = orientation;
+      return await _diWrapper.appRepository.setDicePaneOrientation(orientation);
     } on Exception catch (e) {
       return Result.error(e);
     } finally {
@@ -215,6 +244,7 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
     _haConfigSubscription.cancel();
     _keepScreenOnSubscription.cancel();
     _bleEnabledSubscription.cancel();
+    _dicePaneOrientationSubscription.cancel();
     _diWrapper.appRepository.setKeepScreenOn(false);
     super.dispose();
   }

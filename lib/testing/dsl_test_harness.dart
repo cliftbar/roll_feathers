@@ -41,6 +41,9 @@ class TestBleDie extends GenericDie {
   String get friendlyName => id;
 
   @override
+  set friendlyName(String name) {}
+
+  @override
   GenericDType get dType => GenericDTypeFactory.getKnownChecked('d20');
 
   @override
@@ -70,6 +73,9 @@ class TestGoDiceDie extends GenericDie {
 
   @override
   String get friendlyName => id;
+
+  @override
+  set friendlyName(String name) {}
 
   @override
   GenericDType get dType => GenericDTypeFactory.getKnownChecked('d6');
@@ -109,6 +115,9 @@ class TestDie extends GenericDie {
 
   @override
   String get friendlyName => name;
+
+  @override
+  set friendlyName(String name) {}
 
   @override
   GenericDType get dType => _dType;

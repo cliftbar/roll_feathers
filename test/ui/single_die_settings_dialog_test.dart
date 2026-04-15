@@ -142,9 +142,56 @@ void main() {
   group('SingleDieSettingsDialog', () {
     // ── Rendering ─────────────────────────────────────────────────────────────
 
-    testWidgets('renders with die name in title', (tester) async {
+    testWidgets('virtual die renders with name in title and name field', (tester) async {
       await _pumpDialog(tester, die: _virtualDie(name: 'My D6'));
       expect(find.text('My D6 Settings'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Die Name'), findsOneWidget);
+      expect(find.text('My D6'), findsOneWidget);
+    });
+
+    testWidgets('non-virtual dice (Pixels) do not show name field', (tester) async {
+      await _pumpDialog(tester, die: _pixelDie(name: 'My Pixel'));
+      expect(find.widgetWithText(TextField, 'Die Name'), findsNothing);
+    });
+
+    testWidgets('non-virtual dice (GoDice) do not show name field', (tester) async {
+      await _pumpDialog(tester, die: _godiceDie(name: 'My GoDice'));
+      expect(find.widgetWithText(TextField, 'Die Name'), findsNothing);
+    });
+
+    testWidgets('can edit die name', (tester) async {
+      final die = _virtualDie(name: 'Original Name');
+      String? savedName;
+
+      await _pumpDialog(
+        tester,
+        die: die,
+        onSave: (_, settings) => savedName = settings.friendlyName,
+      );
+
+      final nameField = find.widgetWithText(TextField, 'Die Name');
+      await tester.enterText(nameField, 'Updated Name');
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      expect(savedName, 'Updated Name');
+    });
+
+    testWidgets('Save does not include friendlyName for non-virtual dice', (tester) async {
+      DieSettings? savedSettings;
+      await _pumpDialog(
+        tester,
+        die: _pixelDie(name: 'My Pixel'),
+        onSave: (_, s) => savedSettings = s,
+      );
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(savedSettings?.friendlyName, isNull);
+    });
+
+    testWidgets('Virtual die defaults to "Virtual d6" if name is empty', (tester) async {
+      final die = VirtualDie(dType: GenericDTypeFactory.getKnownChecked('d6'), name: '');
+      expect(die.friendlyName, 'Virtual d6');
     });
 
     testWidgets('shows all action buttons', (tester) async {
@@ -539,7 +586,9 @@ void main() {
 
     testWidgets('preset selection updates state (Strobe → Pulse)', (tester) async {
       await _pumpDialog(tester, die: _pixelDie(rollingEnabled: true, preset: RollingFlashPreset.strobe));
-      await tester.tap(find.text('Pulse'));
+      final pulse = find.text('Pulse');
+      await tester.ensureVisible(pulse);
+      await tester.tap(pulse);
       await tester.pumpAndSettle();
       // After tapping Pulse the Pulse button should be selected.
       // SegmentedButton marks selected segment visually; we verify no exception
@@ -554,7 +603,9 @@ void main() {
         die: _pixelDie(rollingEnabled: true),
         onSave: (_, s) => savedSettings = s,
       );
-      await tester.tap(find.text('Save'));
+      final save = find.text('Save');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
       await tester.pumpAndSettle();
       expect(savedSettings, isNotNull);
       expect(savedSettings!.rollingFlashEnabled, isTrue);
@@ -567,7 +618,9 @@ void main() {
         die: _pixelDie(rollingEnabled: true, preset: RollingFlashPreset.pulse),
         onSave: (_, s) => savedSettings = s,
       );
-      await tester.tap(find.text('Save'));
+      final save = find.text('Save');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
       await tester.pumpAndSettle();
       expect(savedSettings, isNotNull);
       expect(savedSettings!.rollingFlashPreset, equals(RollingFlashPreset.pulse));
@@ -578,7 +631,9 @@ void main() {
       final die = _pixelDie(rollingEnabled: true, rollingColor: Colors.blue);
       await _pumpDialogNew(tester, die: die, onSave: (_, s) => savedSettings = s);
 
-      await tester.tap(find.text('Save'));
+      final save = find.text('Save');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
       await tester.pumpAndSettle();
 
       expect(savedSettings?.rollingFlashColor, isNotNull);
@@ -592,7 +647,9 @@ void main() {
       DieSettings? savedSettings;
       await _pumpDialogNew(tester, die: _virtualDie(), onSave: (_, s) => savedSettings = s);
 
-      await tester.tap(find.text('Save'));
+      final save = find.text('Save');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
       await tester.pumpAndSettle();
 
       expect(savedSettings?.rollingFlashColor, isNull);
@@ -614,10 +671,14 @@ void main() {
       );
 
       // Switch active picker target to Rolling by tapping the swatch label.
-      await tester.tap(find.text('Rolling'));
+      final rolling = find.text('Rolling');
+      await tester.ensureVisible(rolling);
+      await tester.tap(rolling);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Preview'));
+      final preview = find.text('Preview');
+      await tester.ensureVisible(preview);
+      await tester.tap(preview);
       await tester.pump();
 
       expect(capturedColor, isNotNull);
@@ -636,7 +697,9 @@ void main() {
       );
 
       // Default active target is result — tap Preview without switching.
-      await tester.tap(find.text('Preview'));
+      final preview = find.text('Preview');
+      await tester.ensureVisible(preview);
+      await tester.tap(preview);
       await tester.pump();
 
       expect(previewRollingCalled, isFalse);
@@ -653,10 +716,35 @@ void main() {
         onPreviewRolling: (_, __, ___) => previewRollingCalled = true,
       );
 
-      await tester.tap(find.text('Preview'));
+      final preview = find.text('Preview');
+      await tester.ensureVisible(preview);
+      await tester.tap(preview);
       await tester.pump();
 
       expect(previewRollingCalled, isFalse);
+    });
+
+    testWidgets('should not overflow on small screens', (tester) async {
+      // Set a small screen size (e.g., iPhone SE or small Android)
+      // 320x568 is very small.
+      tester.view.physicalSize = const Size(320 * 3, 568 * 3);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final die = _pixelDie(rollingEnabled: true);
+      await _pumpDialog(tester, die: die);
+
+      // The test itself will fail if there's an overflow during pumpAndSettle.
+      // We can also check if the swatches are too narrow.
+      final resultSwatchLabel = find.text('Result');
+      final resultSwatchLabelBox = tester.getRect(resultSwatchLabel);
+      // If the label is wrapping vertically, its width will be very small.
+      // 'Result' should be much wider than one character.
+      expect(resultSwatchLabelBox.width, greaterThan(20.0),
+          reason: 'Label "Result" is too narrow, likely wrapping vertically.');
     });
   });
 }

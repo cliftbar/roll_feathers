@@ -59,6 +59,7 @@ class DieDomain {
         if (_appService != null) {
           final saved = await _appService.getDieSettings(pd.dieId);
           if (saved != null) {
+            pd.friendlyName = saved.friendlyName ?? pd.friendlyName;
             pd.blinkColor = saved.blinkColor;
             pd.haEntityTargets = saved.haEntityTargets;
             pd.rollingFlashEnabled = saved.rollingFlashEnabled;
@@ -90,6 +91,8 @@ class DieDomain {
   Stream<Map<String, GenericDie>> getDiceStream() {
     return _diceSubscription.stream;
   }
+
+  Map<String, GenericDie> get dice => Map.unmodifiable(_foundDie);
 
   // Disconnect a specific die
   Future<void> disconnectDie(String dieId) async {

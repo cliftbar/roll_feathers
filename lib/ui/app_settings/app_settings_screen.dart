@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
 import '../../di/di.dart';
+import '../../services/app_service.dart';
 import 'app_settings_screen_vm.dart';
 import 'script_screen.dart';
 
@@ -96,6 +97,33 @@ class AppSettingsWidget extends StatelessWidget {
     );
   }
 
+  void _showLayoutOrientationDialog(BuildContext context, AppSettingsScreenViewModel vm) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Layout Orientation'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: DicePaneOrientation.values.map((orientation) {
+              return RadioListTile<DicePaneOrientation>(
+                title: Text(orientation.name[0].toUpperCase() + orientation.name.substring(1)),
+                value: orientation,
+                groupValue: vm.dicePaneOrientation,
+                onChanged: (DicePaneOrientation? value) {
+                  if (value != null) {
+                    vm.setDicePaneOrientation.execute(value);
+                    Navigator.of(context).pop();
+                  }
+                },
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+  }
+
   ListenableBuilder _makeBleScanButton(AppSettingsScreenViewModel vm) {
     return ListenableBuilder(
       listenable: vm,
@@ -150,6 +178,34 @@ class AppSettingsWidget extends StatelessWidget {
                   value: vm.getKeepScreenOn(),
                   onChanged: (bool value) {
                     vm.toggleKeepScreenOn.execute();
+                  },
+                );
+              },
+            ),
+            // Layout orientation
+            ListenableBuilder(
+              listenable: vm,
+              builder: (context, _) {
+                IconData icon;
+                switch (vm.dicePaneOrientation) {
+                  case DicePaneOrientation.auto:
+                    icon = Icons.brightness_auto;
+                    break;
+                  case DicePaneOrientation.horizontal:
+                    icon = Icons.view_column;
+                    break;
+                  case DicePaneOrientation.vertical:
+                    icon = Icons.view_stream;
+                    break;
+                }
+                return ListTile(
+                  leading: Icon(icon),
+                  title: const Text('Layout Orientation'),
+                  subtitle: Text(
+                    vm.dicePaneOrientation.name[0].toUpperCase() + vm.dicePaneOrientation.name.substring(1),
+                  ),
+                  onTap: () {
+                    _showLayoutOrientationDialog(context, vm);
                   },
                 );
               },

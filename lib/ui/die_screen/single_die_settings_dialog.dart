@@ -83,6 +83,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   final _hslSFocus = FocusNode();
   final _hslLFocus = FocusNode();
 
+  late TextEditingController _nameController;
   late TextEditingController _entityController;
   late GenericDType _currentFaceType;
 
@@ -125,6 +126,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
     _rollingColor = HSVColor.fromColor(rollingInitColor);
     _rollingBrightness = rollingInitColor.a.clamp(0.0, 1.0);
 
+    _nameController = TextEditingController(text: widget.die.friendlyName);
     _entityController = TextEditingController(text: widget.die.haEntityTargets.firstOrNull ?? '');
     _currentFaceType = widget.die.dType;
     _rollingEnabled = widget.die.rollingFlashEnabled;
@@ -162,6 +164,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
     _hslHFocus.dispose();
     _hslSFocus.dispose();
     _hslLFocus.dispose();
+    _nameController.dispose();
     _entityController.dispose();
     super.dispose();
   }
@@ -354,8 +357,11 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
 
   Widget _inputRow(List<Widget> fields) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        child: Wrap(
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
           children: fields,
         ),
       );
@@ -370,23 +376,20 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
     String? prefix,
     double width = 65,
   }) =>
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: SizedBox(
-          width: width,
-          child: TextField(
-            controller: controller,
-            focusNode: focusNode,
-            onChanged: onChanged,
-            textAlign: TextAlign.center,
-            decoration: InputDecoration(
-              labelText: label,
-              suffixText: suffix,
-              prefixText: prefix,
-              isDense: true,
-            ),
-            inputFormatters: formatters,
+      SizedBox(
+        width: width,
+        child: TextField(
+          controller: controller,
+          focusNode: focusNode,
+          onChanged: onChanged,
+          textAlign: TextAlign.center,
+          decoration: InputDecoration(
+            labelText: label,
+            suffixText: suffix,
+            prefixText: prefix,
+            isDense: true,
           ),
+          inputFormatters: formatters,
         ),
       );
 
@@ -533,14 +536,28 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      if (widget.die.type == GenericDieType.virtual) ...[
+                        TextField(
+                          controller: _nameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Die Name',
+                            hintText: 'Enter a name for the die',
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       // Color section header row: swatches + preview + mode.
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                      // Use a Wrap to avoid overflow on narrow screens.
+                      Wrap(
+                        crossAxisAlignment: WrapCrossAlignment.end,
+                        spacing: 8,
+                        runSpacing: 12,
                         children: [
                           // For Pixels: two selectable swatches (Result / Rolling).
                           // For others: one plain swatch.
                           if (widget.die.type == GenericDieType.pixel) ...[
-                            Expanded(
+                            SizedBox(
+                              width: 80,
                               child: _colorTargetSwatch(
                                 label: 'Result',
                                 target: _ColorTarget.result,
@@ -548,8 +565,8 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                                 brightness: _brightness,
                               ),
                             ),
-                            const SizedBox(width: 6),
-                            Expanded(
+                            SizedBox(
+                              width: 80,
                               child: _colorTargetSwatch(
                                 label: 'Rolling',
                                 target: _ColorTarget.rolling,
@@ -559,16 +576,15 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                               ),
                             ),
                           ] else ...[
-                            Expanded(
-                              child: Container(
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  color: _currentColor
-                                      .withValue(_currentColor.value * _brightness)
-                                      .toColor(),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.grey.shade400),
-                                ),
+                            Container(
+                              width: 80,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: _currentColor
+                                    .withValue(_currentColor.value * _brightness)
+                                    .toColor(),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade400),
                               ),
                             ),
                           ],
@@ -614,7 +630,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                         const Text('Face Count'),
                         _FaceSelector(
                           die: widget.die,
-                          onChanged: (t) => _currentFaceType = t,
+                          onChanged: (t) => setState(() => _currentFaceType = t),
                         ),
                       ],
                       // Rolling flash: Pixels only.
@@ -622,8 +638,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                         const Divider(),
                         Row(
                           children: [
-                            const Text('Rolling Flash'),
-                            const Spacer(),
+                            const Expanded(child: Text('Rolling Flash')),
                             Switch(
                               value: _rollingEnabled,
                               onChanged: (v) => setState(() {
@@ -676,6 +691,9 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                       widget.onSave(
                         widget.die,
                         DieSettings(
+                          friendlyName: widget.die.type == GenericDieType.virtual
+                              ? _nameController.text
+                              : null,
                           blinkColor: _currentColor.toColor().withValues(alpha: _brightness),
                           haEntityTargets: _entityController.text.isEmpty
                               ? []

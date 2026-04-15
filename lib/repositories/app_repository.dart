@@ -9,6 +9,7 @@ class AppRepository {
 
   final _themeModeController = StreamController<ThemeMode>.broadcast();
   final _keepScreenOnController = StreamController<bool>.broadcast();
+  final _dicePaneOrientationController = StreamController<DicePaneOrientation>.broadcast();
 
   final AppService _service;
 
@@ -60,4 +61,28 @@ class AppRepository {
 
   /// Stream that emits screen wake lock setting changes.
   Stream<bool> observeKeepScreenOn() => _keepScreenOnController.stream;
+
+  /// Get the dice pane orientation
+  Future<Result<DicePaneOrientation>> getDicePaneOrientation() async {
+    try {
+      final value = await _service.getDicePaneOrientation();
+      return Result.value(value);
+    } on Exception catch (e) {
+      return Result.error(e);
+    }
+  }
+
+  /// Set the dice pane orientation
+  Future<Result<void>> setDicePaneOrientation(DicePaneOrientation orientation) async {
+    try {
+      await _service.setDicePaneOrientation(orientation);
+      _dicePaneOrientationController.add(orientation);
+      return Result.value(null);
+    } on Exception catch (e) {
+      return Result.error(e);
+    }
+  }
+
+  /// Stream that emits dice pane orientation changes.
+  Stream<DicePaneOrientation> observeDicePaneOrientation() => _dicePaneOrientationController.stream;
 }

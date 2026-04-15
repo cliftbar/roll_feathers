@@ -37,6 +37,9 @@ class FakeDie extends GenericDie {
   String get friendlyName => name;
 
   @override
+  set friendlyName(String n) {}
+
+  @override
   GenericDType get dType => _dType;
 
   @override

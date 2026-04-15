@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:logging/logging.dart';
 
 import 'package:roll_feathers/domains/roll_parser/parser.dart';
 import 'package:roll_feathers/domains/die_domain.dart';

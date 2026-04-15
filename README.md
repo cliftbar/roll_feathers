@@ -9,8 +9,8 @@ or requests.
 2. [Platforms](#platforms)
 3. [Install](#install)
    1. [Android](#android)
-   2. [Android](#macos)
-   3. [Android](#windows)
+   2. [macOS](#macos)
+   3. [Windows](#windows)
       - [Installed](#installed)
       - [Portable](#portable)
 4. [Home Assistant](#home-assistant)
@@ -21,19 +21,22 @@ or requests.
 
 ## Features
 
-- Connect multiple supported Dice
+- Connect multiple supported Bluetooth dice
   - [Pixel Dice](https://gamewithpixels.com/)
   - [GoDice](https://particula-tech.com/pages/godice)
-  - Virtual Dice
+  - Virtual Dice (with removal support)
 - Track roll history
-- Roll types
+- Custom rule scripting via DSL
+- Roll types & aggregates
   - sum, max (advantage), min (disadvantage)
   - Blink the lowest or highest die when rolling max or min
-- Blink Dice on roll
-  - choose blink color
-- Home Assistant light integration
-- API to get the latest roll
-  - GET http://<device-ip>:8080/api/last-roll
+- Visual feedback on roll
+  - Custom blink colors per die
+  - **Rolling flash animations (Pixels only)** — configure color and animation style (Strobe, Pulse, Breathe)
+  - **Preview animations** directly from settings
+- Home Assistant integration for smart light control
+- API server to get the latest roll (local network only)
+  - `GET http://<device-ip>:8080/api/last-roll`
   - Not available on web
  
 ### DSL and Local Testing
@@ -48,7 +51,7 @@ or requests.
 - [x] Android
 - [ ] iOS
   - build from source
-- [x] MacOs
+- [x] macOS
 - [x] Windows
 - [ ] Linux
   - build from source
@@ -69,7 +72,7 @@ All installers are currently unsigned, meaning you'll have to click past various
 - click install
 - The phone may scan the app for malicious code, allow that, continue installation afterward.
 
-### MacOS
+### macOS
 
 - download & open `dmg` file
 - drag the roll feathers app into the application folder

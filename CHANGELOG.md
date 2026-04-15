@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.12.8
+## 0.12.9
 
 ### Features
 
@@ -14,6 +14,13 @@
 - **Disconnect logic** — Fixed an issue where disconnecting a die would sometimes fail to remove it from the internal application state.
 - **Pixels: dType persistence** — Improved reliability of die type (e.g. d20, d6) restoration when reconnecting Pixels dice.
 - **Rolling notifications** — Fixed a bug where rolling flash would sometimes re-trigger on repeated BLE notifications of the same rolling state.
+
+## 0.12.8
+
+### Bug Fixes
+
+- **BLE: Die detection** — Improved reliability of GoDice and Pixels identification on Android by caching device names across scans. Re-scans that return null names (common on Android) now correctly resolve to the previously identified device.
+- **Pixels: stability** — Fixed a potential crash when receiving unknown message types from Pixels firmware.
 
 ## 0.12.7
 

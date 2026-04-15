@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.12.11
+
+### Bug Fixes
+
+- **Tests** — Fixed a compilation error caused by `FakeDie` not implementing the `friendlyName=` setter added to `GenericDie` in 0.12.10.
+
+## 0.12.10
+
+### Features
+
+- **Adaptive layout** — The main dice screen responds to screen size. Narrow/tall screens stack the dice list and roll history vertically; wide screens place them side by side. An extremely small window collapses into a single scrollable list.
+- **Layout orientation setting** — New "Layout Orientation" option in app settings lets you pin the layout to Horizontal, Vertical, or Auto.
+- **Virtual die renaming** — Die settings dialog now has a name field for virtual dice.
+- **Die settings: narrow-screen layout** — Color picker controls and threshold fields now wrap onto multiple lines on narrow screens instead of overflowing.
+
 ## 0.12.9
 
 ### Features

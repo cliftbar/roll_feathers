@@ -51,25 +51,6 @@ class ParseResult {
   });
 }
 
-class ParsedScript {
-  String name;
-  List<String> roll;
-  List<ScriptTransform> transforms;
-  RollAggregate aggregate;
-  List<ScriptResultTarget> targets;
-  // do this better
-  String? script;
-
-  ParsedScript({
-    required this.name,
-    required this.roll,
-    required this.transforms,
-    required this.aggregate,
-    required this.targets,
-    this.script,
-  });
-}
-
 // ===== DSL v1.1 data model =====
 class MakeSelectionDef {
   final String name; // @NAME
@@ -214,46 +195,6 @@ class RuleParser {
     _makeSelectionParser,
     _useSelectionParser,
   ].toChoiceParser();
-  static final pp.Parser<ParsedScript> scriptParser = pp
-      .seq5(
-        pp.seq3(pp.string("define ").times(1).flatten(), alphanumericParser, pp.whitespace().star()),
-        pp.seq3(
-          pp.string("for roll ").times(1).flatten(),
-          dieParser.plusSeparated(",".toParser()),
-          pp.whitespace().star(),
-        ),
-        pp
-            .seq4(
-              pp.string("transform").times(1).flatten(),
-              pp.whitespace().star(),
-              transformDef.starSeparated(pp.whitespace().star()),
-              pp.whitespace().star(),
-            )
-            .optional(),
-        pp.seq4(
-          pp.string("aggregate").times(1).flatten(),
-          " ".toParser().star(),
-          aggregateParsers,
-          pp.whitespace().star(),
-        ),
-        pp
-            .seq4(
-              pp.string("with result").times(1).flatten(),
-              pp.whitespace().star(),
-              resultDef.starSeparated(pp.whitespace().star()),
-              pp.whitespace().star(),
-            )
-            .optional(),
-      )
-      .map5((name, roll, transforms, aggregate, targets) {
-        return ParsedScript(
-          name: name.$2,
-          roll: roll.$2.elements,
-          transforms: transforms?.$3.elements ?? [],
-          aggregate: aggregate.$3,
-          targets: targets?.$3.elements ?? [],
-        );
-      });
 
   final Logger _log = Logger("RuleParser");
   final DieDomain _dieDomain;
@@ -275,13 +216,7 @@ class RuleParser {
   }
 
   Future<void> addRuleScript(String ruleScript, {bool enabled = true}) async {
-    // Try v1.1 parser first; fall back to legacy v1.0 parser for old-format scripts.
-    String name;
-    try {
-      name = _parseRuleV11(rule: ruleScript, threshold: 0, modifier: 0, rolledCount: 0).name;
-    } catch (_) {
-      name = _parseRule(rule: ruleScript, threshold: 0, modifier: 0, rolledCount: 0).name;
-    }
+    final String name = _parseRuleV11(rule: ruleScript, threshold: 0, modifier: 0, rolledCount: 0).name;
     var newRule = RuleScript(name: name, script: ruleScript, enabled: enabled);
     int idx = _userRules.indexWhere((r) => r.name == name);
     if (idx != -1) {
@@ -359,19 +294,6 @@ class RuleParser {
     return await _evaluateRuleV11Async(rolls, v11);
   }
 
-
-  ParsedScript _parseRule({required String rule, required int threshold, required int modifier, required int rolledCount}) {
-    String replacedRule = rule.replaceAll(thresholdKey, threshold.toString());
-    replacedRule = replacedRule.replaceAll(modifierKey, modifier.toString());
-    // provide total rolled count under both $ROLLED_COUNT and $ROLLED
-    replacedRule = replacedRule.replaceAll(rolledCountKey, rolledCount.toString());
-    replacedRule = replacedRule.replaceAll(rolledAliasKey, rolledCount.toString());
-
-    pp.Result<ParsedScript> result = scriptParser.parse(replacedRule);
-    result.value.script = rule;
-    _log.fine(result.value);
-    return result.value;
-  }
 
   ParsedScriptV11 _parseRuleV11({required String rule, required int threshold, required int modifier, required int rolledCount}) {
     String replacedRule = rule.replaceAll(thresholdKey, threshold.toString());

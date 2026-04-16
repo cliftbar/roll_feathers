@@ -13,7 +13,16 @@ class SoundClipRepository {
   static const _settingsKey = 'sound_settings';
   static const _uuid = Uuid();
 
+  /// When provided (tests), used directly instead of `getApplicationDocumentsDirectory()`.
+  final Directory? testClipsDir;
+
+  SoundClipRepository({this.testClipsDir});
+
   Future<Directory> _getClipsDir() async {
+    if (testClipsDir != null) {
+      if (!await testClipsDir!.exists()) await testClipsDir!.create(recursive: true);
+      return testClipsDir!;
+    }
     final dir = await getApplicationDocumentsDirectory();
     final clipsDir = Directory('${dir.path}/sound_clips');
     if (!await clipsDir.exists()) await clipsDir.create(recursive: true);

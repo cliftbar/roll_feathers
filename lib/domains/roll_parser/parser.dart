@@ -275,9 +275,15 @@ class RuleParser {
   }
 
   Future<void> addRuleScript(String ruleScript, {bool enabled = true}) async {
-    ParsedScript result = _parseRule(rule: ruleScript, threshold: 0, modifier: 0, rolledCount: 0);
-    var newRule = RuleScript(name: result.name, script: ruleScript, enabled: enabled);
-    int idx = _userRules.indexWhere((r) => r.name == result.name);
+    // Try v1.1 parser first; fall back to legacy v1.0 parser for old-format scripts.
+    String name;
+    try {
+      name = _parseRuleV11(rule: ruleScript, threshold: 0, modifier: 0, rolledCount: 0).name;
+    } catch (_) {
+      name = _parseRule(rule: ruleScript, threshold: 0, modifier: 0, rolledCount: 0).name;
+    }
+    var newRule = RuleScript(name: name, script: ruleScript, enabled: enabled);
+    int idx = _userRules.indexWhere((r) => r.name == name);
     if (idx != -1) {
       _userRules[idx] = newRule;
     } else {

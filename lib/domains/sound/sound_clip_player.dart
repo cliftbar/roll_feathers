@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:logging/logging.dart';
 
@@ -10,13 +11,21 @@ final Logger _log = Logger('SoundClipPlayer');
 
 class SoundClipPlayer {
   final SoundClipRepository _repo;
+  final AudioPlayer Function() _playerFactory;
 
   AudioPlayer? _player;
   // Paths of clips waiting to play (not counting the currently playing one).
   final List<String> _pending = [];
   bool _playing = false;
 
-  SoundClipPlayer(this._repo);
+  SoundClipPlayer(this._repo, {AudioPlayer Function()? playerFactory})
+      : _playerFactory = playerFactory ?? AudioPlayer.new;
+
+  @visibleForTesting
+  int get pendingCount => _pending.length;
+
+  @visibleForTesting
+  bool get isPlaying => _playing;
 
   Future<void> init() async {
     // Nothing to pre-init; player created lazily on first use.
@@ -71,7 +80,7 @@ class SoundClipPlayer {
   Future<void> _drainQueue() async {
     if (_playing) return;
     _playing = true;
-    _player ??= AudioPlayer();
+    _player ??= _playerFactory();
 
     while (_pending.isNotEmpty) {
       final path = _pending.removeAt(0);

@@ -560,13 +560,13 @@ void main() {
 
     testWidgets('rolling flash toggle starts off when rollingFlashEnabled=false', (tester) async {
       await _pumpDialog(tester, die: _pixelDie(rollingEnabled: false));
-      final toggle = tester.widget<Switch>(find.byType(Switch).last);
+      final toggle = tester.widget<Switch>(find.byKey(const Key('rollingFlashToggle')));
       expect(toggle.value, isFalse);
     });
 
     testWidgets('rolling flash toggle starts on when rollingFlashEnabled=true', (tester) async {
       await _pumpDialog(tester, die: _pixelDie(rollingEnabled: true));
-      final toggle = tester.widget<Switch>(find.byType(Switch).last);
+      final toggle = tester.widget<Switch>(find.byKey(const Key('rollingFlashToggle')));
       expect(toggle.value, isTrue);
     });
 

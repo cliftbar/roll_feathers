@@ -21,6 +21,7 @@ class DieSettings {
   bool rollingFlashEnabled;
   Color? rollingFlashColor;
   RollingFlashPreset rollingFlashPreset;
+  bool useGlobalSounds;
 
   DieSettings({
     this.friendlyName,
@@ -30,6 +31,7 @@ class DieSettings {
     this.rollingFlashEnabled = false,
     this.rollingFlashColor,
     this.rollingFlashPreset = RollingFlashPreset.strobe,
+    this.useGlobalSounds = true,
   });
 
   Map<String, dynamic> toJson() => {
@@ -40,6 +42,7 @@ class DieSettings {
     'rollingFlashEnabled': rollingFlashEnabled,
     if (rollingFlashColor != null) 'rollingFlashColor': rollingFlashColor!.toARGB32(),
     'rollingFlashPreset': rollingFlashPreset.name,
+    'useGlobalSounds': useGlobalSounds,
   };
 
   factory DieSettings.fromJson(Map<String, dynamic> json) {
@@ -54,11 +57,16 @@ class DieSettings {
         (p) => p.name == json['rollingFlashPreset'],
         orElse: () => RollingFlashPreset.strobe,
       ),
+      useGlobalSounds: json['useGlobalSounds'] as bool? ?? true,
     );
   }
 }
 
 class AppService {
+  // sound clips
+  static const String soundClipsLibraryKey = 'sound_clips_library';
+  static const String soundSettingsKey = 'sound_settings';
+
   static String themeKey = 'theme_mode';
   static String keepScreenOnKey = 'keep_screen_on';
   static String ruleScriptsKey = 'rule_scripts';

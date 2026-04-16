@@ -91,6 +91,9 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
   bool _rollingEnabled = false;
   RollingFlashPreset _rollingPreset = RollingFlashPreset.strobe;
 
+  // Global sound opt-out
+  bool _useGlobalSounds = true;
+
   // ── Active color accessors ────────────────────────────────────────────────
 
   HSVColor get _activeColor =>
@@ -131,6 +134,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
     _currentFaceType = widget.die.dType;
     _rollingEnabled = widget.die.rollingFlashEnabled;
     _rollingPreset = widget.die.rollingFlashPreset;
+    _useGlobalSounds = widget.die.useGlobalSounds;
     _updateControllers();
     // Restore any field left empty/invalid when focus leaves it.
     for (final node in [
@@ -640,6 +644,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                           children: [
                             const Expanded(child: Text('Rolling Flash')),
                             Switch(
+                              key: const Key('rollingFlashToggle'),
                               value: _rollingEnabled,
                               onChanged: (v) => setState(() {
                                 _rollingEnabled = v;
@@ -661,6 +666,15 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                           ),
                         ],
                       ],
+                      // Global sound effects opt-out.
+                      const Divider(),
+                      SwitchListTile(
+                        title: const Text('Use global sound effects'),
+                        subtitle: const Text('When off, this die won\'t trigger rolling or rolled sounds'),
+                        value: _useGlobalSounds,
+                        onChanged: (v) => setState(() => _useGlobalSounds = v),
+                        contentPadding: EdgeInsets.zero,
+                      ),
                       // HA entity only rendered when integration is enabled.
                       if (widget.haEnabled) ...[
                         const Divider(),
@@ -704,6 +718,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                               ? _rollingColor.toColor().withValues(alpha: _rollingBrightness)
                               : null,
                           rollingFlashPreset: _rollingPreset,
+                          useGlobalSounds: _useGlobalSounds,
                         ),
                       );
                       Navigator.of(context).pop();

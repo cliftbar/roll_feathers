@@ -126,6 +126,9 @@ abstract class GenericDie {
   Color? rollingFlashColor;
   RollingFlashPreset rollingFlashPreset = RollingFlashPreset.strobe;
 
+  // Global sound effects opt-out. When false, this die does not trigger global sounds.
+  bool useGlobalSounds = true;
+
   Color? get blinkColor;
 
   set blinkColor(Color? c);

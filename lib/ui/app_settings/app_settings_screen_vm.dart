@@ -8,6 +8,8 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../di/di.dart';
 import '../../dice_sdks/pixels.dart';
+import '../../domains/sound/sound_clip_player.dart';
+import '../../domains/sound/sound_clip_repository.dart';
 import '../../services/app_service.dart';
 import '../../services/home_assistant/ha_config_service.dart';
 import '../../util/command.dart';
@@ -236,6 +238,9 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Sound clips
+  SoundClipRepository get soundClipRepository => _diWrapper.soundClipRepository;
+  SoundClipPlayer get soundClipPlayer => _diWrapper.soundClipPlayer;
 
   // Cleanup
   @override

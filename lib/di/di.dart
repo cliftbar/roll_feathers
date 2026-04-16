@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart';
+import 'package:roll_feathers/domains/sound/sound_clip_player.dart';
+import 'package:roll_feathers/domains/sound/sound_clip_repository.dart';
 import 'package:roll_feathers/services/home_assistant/ha_api_service.dart';
 
 import '../dice_sdks/godice.dart';
@@ -32,6 +34,8 @@ class DiWrapper {
   final DieDomain dieDomain;
   final RollDomain rollDomain;
   final ApiDomain apiDomain;
+  final SoundClipRepository soundClipRepository;
+  final SoundClipPlayer soundClipPlayer;
 
   static Future<DiWrapper> initDi() async {
     late HaRepository haRepository;
@@ -60,7 +64,12 @@ class DiWrapper {
 
     DieDomain dieDomain = DieDomain(bleRepo, haRepository, appService);
 
-    RollDomain rollDomain = await RollDomain.create(dieDomain, appService);
+    final soundClipRepository = SoundClipRepository();
+    final soundClipPlayer = SoundClipPlayer(soundClipRepository);
+    await soundClipPlayer.init();
+
+    RollDomain rollDomain = await RollDomain.create(dieDomain, appService,
+        soundRepo: soundClipRepository, soundPlayer: soundClipPlayer);
     late ApiDomain apiDomain;
     if (kIsWeb) {
       apiDomain = EmptyApiDomain();
@@ -78,6 +87,8 @@ class DiWrapper {
       bleRepo,
       rollDomain,
       apiDomain,
+      soundClipRepository,
+      soundClipPlayer,
     );
   }
 
@@ -91,5 +102,7 @@ class DiWrapper {
     this.bleRepository,
     this.rollDomain,
     this.apiDomain,
+    this.soundClipRepository,
+    this.soundClipPlayer,
   );
 }

@@ -118,6 +118,7 @@ class DiceScreenViewModel extends ChangeNotifier {
     die.rollingFlashEnabled = settings.rollingFlashEnabled;
     die.rollingFlashColor = settings.rollingFlashColor;
     die.rollingFlashPreset = settings.rollingFlashPreset;
+    die.useGlobalSounds = settings.useGlobalSounds;
     if (settings.friendlyName != null) {
       die.friendlyName = settings.friendlyName!;
     }

@@ -130,6 +130,20 @@ final pp.Parser<ResultTargetFunction> resultTarget = (() {
     choices.add(ruleP);
   }
 
+  // Soundclip: "soundclip <name>" — single word clip name, matched by name at dispatch time.
+  final soundclipP = pp
+      .seq3(
+        ResultTargetType.soundclip.key.toParser(),
+        pp.whitespace().plus(),
+        wholeWordParser,
+      )
+      .map3((_, __, name) => ResultTargetFunction(
+            rtType: ResultTargetType.soundclip,
+            action: name,
+            args: [],
+          ));
+  choices.add(soundclipP);
+
   // Webhook: "webhook [GET|POST] <url-to-end-of-line>"
   // Method prefix is optional; defaults to POST. URL stored in action, method in args[0].
   final webhookP = pp
@@ -195,7 +209,8 @@ final pp.Parser<ScriptResultTarget> resultDef = pp
 enum ResultTargetType {
   rule("rule"),
   webhook("webhook"),
-  action("action");
+  action("action"),
+  soundclip("soundclip");
 
   final String key;
 

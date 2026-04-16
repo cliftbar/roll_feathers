@@ -4,6 +4,11 @@
 
 ### Features
 
+- **Soundclip targets** — DSL rules now support `on result [range] soundclip <name>`. Plays the named clip from the library when the result range matches. Silent no-op if the clip name is not found.
+- **Sound Clips library** — New "Sound Clips" screen in app settings to import, rename, preview, and delete audio clips from the library.
+- **Global sound effects** — App-level rolling and rolled sounds that play on every roll event. Configurable per-clip from the Sound Clips screen, with independent enable toggles and a hard mute that silences all audio including rule soundclips.
+- **Queue depth** — Sound clips queue sequentially up to a configurable depth (default 3); excess clips are silently dropped.
+- **Per-die sound opt-out** — New "Use global sound effects" toggle in die settings. When off, the die does not trigger rolling/rolled sounds. Normal dice win: global sound fires unless all dice in the roll have opted out.
 - **Webhook targets** — DSL rules now support `on result [range] webhook [GET|POST] <url>`. On match, fires an HTTP request to the configured URL. POST sends a full JSON payload with rule name, timestamp, aggregate value, matched range, result dice, all dice, and co-actions. GET appends `aggregate` and `rule` as query params. Errors are caught and logged; dice behavior is never interrupted.
 
 ## 0.12.14

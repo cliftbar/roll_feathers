@@ -5,6 +5,8 @@ import 'package:http/http.dart' as http;
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/domains/roll_parser/parser.dart';
+import 'package:roll_feathers/domains/sound/sound_clip_player.dart';
+import 'package:roll_feathers/domains/sound/sound_clip_repository.dart';
 import 'package:roll_feathers/services/app_service.dart';
 
 class RollResult {
@@ -49,7 +51,6 @@ class RollDomain {
   final DieDomain _diceDomain;
   // ignore: unused_field
   late StreamSubscription<Map<String, GenericDie>> _deviceStreamListener; // used for notifications, better way?
-  // final Map<String, Color> blinkColors = {};
 
   Timer? _rollUpdateTimer;
 
@@ -57,7 +58,17 @@ class RollDomain {
   late final AppService appService;
   bool useAsyncEvaluator = false; // gated via AppService pref
 
-  RollDomain._(this._diceDomain, this.appService, {http.Client? httpClient}) {
+  final SoundClipRepository? _soundRepo;
+  final SoundClipPlayer? _soundPlayer;
+
+  RollDomain._(
+    this._diceDomain,
+    this.appService, {
+    http.Client? httpClient,
+    SoundClipRepository? soundRepo,
+    SoundClipPlayer? soundPlayer,
+  })  : _soundRepo = soundRepo,
+        _soundPlayer = soundPlayer {
     _deviceStreamListener = _diceDomain.getDiceStream().listen(rollStreamListener);
     ruleParser = RuleParser(_diceDomain, this, appService, httpClient: httpClient);
   }
@@ -76,10 +87,27 @@ class RollDomain {
 
   Stream<RollStatus> subscribeRollStatus() => _rollStatusStream.stream;
 
-  static Future<RollDomain> create(DieDomain dieDomain, AppService appService, {http.Client? httpClient}) async {
-    var rollDomain = RollDomain._(dieDomain, appService, httpClient: httpClient);
+  static Future<RollDomain> create(
+    DieDomain dieDomain,
+    AppService appService, {
+    http.Client? httpClient,
+    SoundClipRepository? soundRepo,
+    SoundClipPlayer? soundPlayer,
+  }) async {
+    var rollDomain = RollDomain._(
+      dieDomain,
+      appService,
+      httpClient: httpClient,
+      soundRepo: soundRepo,
+      soundPlayer: soundPlayer,
+    );
     rollDomain.init();
     return rollDomain;
+  }
+
+  /// Called by the DSL evaluator when a soundclip target fires.
+  Future<void> enqueueSound(String clipName) async {
+    await _soundPlayer?.enqueueByName(clipName);
   }
 
   bool areDieRolling(List<GenericDie> allDie) {
@@ -88,19 +116,32 @@ class RollDomain {
     );
   }
 
-  void _startRolling() {
-    // reset roll state as needed
+  Future<void> _startRolling({GenericDie? triggeringDie}) async {
     _rolledDie.clear();
     _rollUpdateTimer?.cancel();
 
     _isRolling = true;
     _rollStatusStream.add(RollStatus.rollStarted);
 
-    // periodically tell everyone that we're still rolling;
-
     _rollUpdateTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
       _rollStatusStream.add(RollStatus.rolling);
     });
+
+    await _fireGlobalRollingSound(triggeringDie);
+  }
+
+  Future<void> _fireGlobalRollingSound(GenericDie? die) async {
+    final soundRepo = _soundRepo;
+    final soundPlayer = _soundPlayer;
+    if (soundRepo == null || soundPlayer == null) return;
+
+    final settings = await soundRepo.getSettings();
+    if (settings.hardMute || !settings.rollingEnabled || settings.rollingClipId == null) return;
+
+    // Check per-die opt-out: if triggering die has useGlobalSounds = false, suppress.
+    if (die != null && !die.useGlobalSounds) return;
+
+    await soundPlayer.enqueueById(settings.rollingClipId!);
   }
 
   void _stopRolling() {
@@ -111,28 +152,17 @@ class RollDomain {
 
   Future<int> _stopRollWithResult({RollType rollType = RollType.normal}) async {
     ParseResult? ruleResult;
-    // switch (rollType) {
-    //   case RollType.max:
-    //     ruleResult = ruleParser.runRule(rule.maxRoll, _rolledDie.values.toList());
-    //   case RollType.min:
-    //     ruleResult = ruleParser.runRule(rule.minRoll, _rolledDie.values.toList());
-    //   default:
-    //     for (var r in ruleParser.getRules(enabledOnly: true)) {
-    //       ruleResult = ruleParser.runRule(r.script, _rolledDie.values.toList());
-    //       if (ruleResult.ruleReturn) {
-    //         rollType = RollType.rule;
-    //         break;
-    //       }
-    //     }
-    // }
+    bool ruleFiredSoundclip = false;
+
     for (var r in ruleParser.getRules(enabledOnly: true)) {
-      // Migrate to async evaluator for deterministic, awaited action execution
       ruleResult = await ruleParser.runRuleAsync(r.script, _rolledDie.values.toList());
       if (ruleResult.ruleReturn) {
         rollType = RollType.rule;
+        ruleFiredSoundclip = ruleResult.hadSoundclip;
         break;
       }
     }
+
     late Map<String, int> resultRolls;
     late int resultValue;
     String? ruleName;
@@ -144,13 +174,41 @@ class RollDomain {
       resultRolls = Map.fromEntries(_rolledDie.entries.map((e) => MapEntry(e.key, e.value.getFaceValueOrElse())));
       resultValue = resultRolls.values.sum;
     }
+
     var result = RollResult(rollType: rollType, rolls: resultRolls, rollResult: resultValue, ruleName: ruleName);
     _rollHistory.insert(0, result);
     _rollStatusStream.add(RollStatus.rollEnded);
     _rollResultStream.add(_rollHistory);
+
+    if (!ruleFiredSoundclip) {
+      await _fireGlobalRolledSound();
+    }
+
     return result.rollResult;
   }
 
+  Future<void> _fireGlobalRolledSound() async {
+    final soundRepo = _soundRepo;
+    final soundPlayer = _soundPlayer;
+    if (soundRepo == null || soundPlayer == null) return;
+
+    final settings = await soundRepo.getSettings();
+    if (settings.hardMute || !settings.rolledEnabled || settings.rolledClipId == null) return;
+
+    // Normal dice win: fire unless ALL dice in this roll have opted out.
+    bool anyDieWantsSound = false;
+    for (final die in _rolledDie.values) {
+      if (die.useGlobalSounds) {
+        anyDieWantsSound = true;
+        break;
+      }
+    }
+    // If no dice are in the roll (virtual-only edge case), default to fire.
+    if (_rolledDie.isEmpty) anyDieWantsSound = true;
+    if (!anyDieWantsSound) return;
+
+    await soundPlayer.enqueueById(settings.rolledClipId!);
+  }
 
   void _rollStartVirtualDice({bool force = false}) {
     if (!autoRollVirtualDice && !force) {
@@ -177,10 +235,10 @@ class RollDomain {
       // times for the same die during a single roll session.
       bool dieBlinking = false;
 
-      die.addRollCallback(DiceRollState.rolling, "$hashCode.rolling", (DiceRollState rollState) {
+      die.addRollCallback(DiceRollState.rolling, "$hashCode.rolling", (DiceRollState rollState) async {
         if (!_isRolling) {
           _rollStartVirtualDice();
-          _startRolling();
+          await _startRolling(triggeringDie: die);
         }
         if (!dieBlinking) {
           dieBlinking = true;
@@ -218,8 +276,8 @@ class RollDomain {
     if (_diceDomain.dieCount == 0) {
       return;
     }
-    // Start the rolling process
-    _startRolling();
+    // Start the rolling process (no triggering die for virtual rolls)
+    unawaited(_startRolling());
     _rollStartVirtualDice(force: force);
 
     // Use a timer to simulate the rolling animation

@@ -38,6 +38,7 @@ class ParseResult {
   final String ruleName;
   final bool ruleReturn;
   final int? modifier;
+  final bool hadSoundclip;
 
   ParseResult({
     required this.result,
@@ -46,6 +47,7 @@ class ParseResult {
     required this.ruleName,
     required this.ruleReturn,
     this.modifier,
+    this.hadSoundclip = false,
   });
 }
 
@@ -510,6 +512,9 @@ class RuleParser {
               httpClient: _httpClient,
             ).ignore();
             break;
+          case ResultTargetType.soundclip:
+            _rollDomain.enqueueSound(res.targetFunction.action).ignore();
+            break;
         }
       }
     }
@@ -576,6 +581,7 @@ class RuleParser {
     }
 
     int rollResultAggregate = 0;
+    bool firedSoundclip = false;
 
     int blockIdx = 0;
     for (final block in result.useBlocks) {
@@ -684,6 +690,10 @@ class RuleParser {
             };
             await fireWebhook(url: webhookUrl, method: webhookMethod, payload: payload, httpClient: _httpClient);
             break;
+          case ResultTargetType.soundclip:
+            await _rollDomain.enqueueSound(res.targetFunction.action);
+            firedSoundclip = true;
+            break;
         }
       }
     }
@@ -694,6 +704,7 @@ class RuleParser {
       rolledEvaluated: Map.fromEntries(baseMap.entries.map((e) => MapEntry(e.key.dieId, e.value))),
       ruleName: result.name,
       ruleReturn: passed,
+      hadSoundclip: firedSoundclip,
     );
   }
 

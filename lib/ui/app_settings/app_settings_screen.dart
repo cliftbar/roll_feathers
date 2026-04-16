@@ -5,6 +5,7 @@ import '../../di/di.dart';
 import '../../services/app_service.dart';
 import 'app_settings_screen_vm.dart';
 import 'script_screen.dart';
+import 'sound_clips_screen.dart';
 
 /// A widget that displays application-level settings including Bluetooth settings.
 /// This widget can be included in screens that need to display app settings.
@@ -273,6 +274,22 @@ class AppSettingsWidget extends StatelessWidget {
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (context) => ScriptScreenWidget(viewModel: vm)));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.music_note),
+              title: const Text('Sound Clips'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SoundClipsScreen(
+                      repo: vm.soundClipRepository,
+                      player: vm.soundClipPlayer,
+                    ),
+                  ),
+                );
               },
             ),
           ],

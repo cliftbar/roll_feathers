@@ -65,6 +65,7 @@ class DieDomain {
             pd.rollingFlashEnabled = saved.rollingFlashEnabled;
             pd.rollingFlashColor = saved.rollingFlashColor;
             pd.rollingFlashPreset = saved.rollingFlashPreset;
+            pd.useGlobalSounds = saved.useGlobalSounds;
             if (saved.faceTypeName != null && pd.type != GenericDieType.pixel) {
               final dt = GenericDTypeFactory.getKnown(saved.faceTypeName!);
               if (dt != null) pd.dType = dt;

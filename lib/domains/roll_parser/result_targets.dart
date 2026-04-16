@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:collection/collection.dart' as cc;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:petitparser/parser.dart' as pp;
 
@@ -126,6 +129,35 @@ final pp.Parser<ResultTargetFunction> resultTarget = (() {
     });
     choices.add(ruleP);
   }
+
+  // Webhook: "webhook [GET|POST] <url-to-end-of-line>"
+  // Method prefix is optional; defaults to POST. URL stored in action, method in args[0].
+  final webhookP = pp
+      .seq3(
+        ResultTargetType.webhook.key.toParser(),
+        pp.whitespace().plus(),
+        pp.any().plusLazy(lineOrReservedSentinel).flatten(),
+      )
+      .map3((_, __, rest) {
+        final String trimmed = rest.trimRight();
+        final parts = trimmed.split(RegExp(r'\s+'));
+        final String method;
+        final String url;
+        if (parts.isNotEmpty &&
+            (parts.first.toUpperCase() == 'GET' || parts.first.toUpperCase() == 'POST')) {
+          method = parts.first.toUpperCase();
+          url = trimmed.substring(parts.first.length).trimLeft();
+        } else {
+          method = 'POST';
+          url = trimmed;
+        }
+        return ResultTargetFunction(
+          rtType: ResultTargetType.webhook,
+          action: url,
+          args: [method],
+        );
+      });
+  choices.add(webhookP);
 
   final actionP = (
     ResultTargetType.action.key.toParser().map((rt) => ResultTargetType.byKey(rt)),
@@ -279,6 +311,30 @@ Future<void> sequence({
 
     // Inter-step delay to avoid hardware/SDK coalescing
     await Future.delayed(blinkInterval);
+  }
+}
+
+Future<void> fireWebhook({
+  required String url,
+  required String method,
+  required Map<String, dynamic> payload,
+}) async {
+  try {
+    if (method == 'GET') {
+      final uri = Uri.parse(url).replace(queryParameters: {
+        'aggregate': payload['aggregate'].toString(),
+        'rule': payload['rule'].toString(),
+      });
+      await http.get(uri);
+    } else {
+      await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
+      );
+    }
+  } catch (e) {
+    _rtLog.warning('[fireWebhook] error firing to $url: $e');
   }
 }
 

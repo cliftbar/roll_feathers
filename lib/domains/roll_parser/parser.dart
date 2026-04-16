@@ -497,6 +497,14 @@ class RuleParser {
             }
             break;
           case ResultTargetType.webhook:
+            fireWebhook(
+              url: res.targetFunction.action,
+              method: res.targetFunction.args.isNotEmpty ? res.targetFunction.args[0] : 'POST',
+              payload: {
+                'rule': result.name,
+                'aggregate': aggValue,
+              },
+            ).ignore();
             break;
         }
       }
@@ -578,6 +586,20 @@ class RuleParser {
       rollResultAggregate = aggValue;
       _log.fine(() => "[DSL v1.1] (async) use#${blockIdx++} sel=${block.selectionToken} size=${selMap.length} agg=$aggValue");
 
+      // Pre-scan co-actions for webhook payload: other action-type targets in this block
+      // whose range also matches aggValue (webhooks excluded, selection tokens stripped).
+      final List<Map<String, dynamic>> coActions = block.targets
+          .where((t) =>
+              t.resultRange.valueIn(aggValue) &&
+              t.targetFunction.rtType == ResultTargetType.action)
+          .map((t) => <String, dynamic>{
+                'type': t.targetFunction.action,
+                'args': t.targetFunction.args
+                    .where((a) => a != allDiceKey && a != resultDiceKey)
+                    .toList(),
+              })
+          .toList();
+
       for (final res in block.targets) {
         // Debug: log range evaluation details
         final rr = res.resultRange;
@@ -617,6 +639,46 @@ class RuleParser {
             }
             break;
           case ResultTargetType.webhook:
+            final webhookUrl = res.targetFunction.action;
+            final webhookMethod =
+                res.targetFunction.args.isNotEmpty ? res.targetFunction.args[0] : 'POST';
+            final allDiceJson = rolls.map((d) {
+              final obj = <String, dynamic>{
+                'id': d.dieId,
+                'name': d.friendlyName,
+                'type': d.dType.name,
+                'value': d.getFaceValueOrElse(),
+              };
+              final battery = d.state.batteryLevel;
+              if (battery != null) obj['battery'] = battery;
+              return obj;
+            }).toList();
+            final resultDiceJson = selMap.keys.map((d) {
+              final obj = <String, dynamic>{
+                'id': d.dieId,
+                'name': d.friendlyName,
+                'type': d.dType.name,
+                'value': selMap[d]!,
+              };
+              final battery = d.state.batteryLevel;
+              if (battery != null) obj['battery'] = battery;
+              return obj;
+            }).toList();
+            final payload = <String, dynamic>{
+              'rule': result.name,
+              'timestamp': DateTime.now().toUtc().toIso8601String(),
+              'aggregate': aggValue,
+              'matched_range': {
+                'start': res.resultRange.start,
+                'end': res.resultRange.end,
+                'start_inclusive': res.resultRange.startInclusive,
+                'end_inclusive': res.resultRange.endInclusive,
+              },
+              'result_dice': resultDiceJson,
+              'all_dice': allDiceJson,
+              'actions': coActions,
+            };
+            await fireWebhook(url: webhookUrl, method: webhookMethod, payload: payload);
             break;
         }
       }

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **Webhook targets** — DSL rules now support `on result [range] webhook [GET|POST] <url>`. On match, fires an HTTP request to the configured URL. POST sends a full JSON payload with rule name, timestamp, aggregate value, matched range, result dice, all dice, and co-actions. GET appends `aggregate` and `rule` as query params. Errors are caught and logged; dice behavior is never interrupted.
+
+## 0.12.14
+
+### Internal
+
+- **Release tooling** — `deploy.sh` now bumps the pubspec version before tagging, ensuring the git tag always matches the Gradle archive name. Also fixed tagging to use `HEAD` instead of `origin/main` to avoid ambiguity with a stray tag of the same name. Versions 0.12.12 and 0.12.13 were skipped due to these tagging issues.
+
 ## 0.12.11
 
 ### Bug Fixes

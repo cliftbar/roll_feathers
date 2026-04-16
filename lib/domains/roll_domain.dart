@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:collection/collection.dart';
+import 'package:http/http.dart' as http;
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/domains/roll_parser/parser.dart';
@@ -56,9 +57,9 @@ class RollDomain {
   late final AppService appService;
   bool useAsyncEvaluator = false; // gated via AppService pref
 
-  RollDomain._(this._diceDomain, this.appService) {
+  RollDomain._(this._diceDomain, this.appService, {http.Client? httpClient}) {
     _deviceStreamListener = _diceDomain.getDiceStream().listen(rollStreamListener);
-    ruleParser = RuleParser(_diceDomain, this, appService);
+    ruleParser = RuleParser(_diceDomain, this, appService, httpClient: httpClient);
   }
 
   Future<void> init() async {
@@ -75,8 +76,8 @@ class RollDomain {
 
   Stream<RollStatus> subscribeRollStatus() => _rollStatusStream.stream;
 
-  static Future<RollDomain> create(DieDomain dieDomain, AppService appService) async {
-    var rollDomain = RollDomain._(dieDomain, appService);
+  static Future<RollDomain> create(DieDomain dieDomain, AppService appService, {http.Client? httpClient}) async {
+    var rollDomain = RollDomain._(dieDomain, appService, httpClient: httpClient);
     rollDomain.init();
     return rollDomain;
   }

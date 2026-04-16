@@ -1,4 +1,5 @@
 import 'package:collection/collection.dart';
+import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
 import 'package:petitparser/petitparser.dart' as pp;
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
@@ -330,8 +331,10 @@ class RuleParser {
 
 
   final AppService _appService;
+  final http.Client? _httpClient;
 
-  RuleParser(this._dieDomain, this._rollDomain, this._appService);
+  RuleParser(this._dieDomain, this._rollDomain, this._appService, {http.Client? httpClient})
+      : _httpClient = httpClient;
 
   Future<void> init() async {
     _userRules = (await _appService.getSavedScripts()).map((e) => RuleScript.fromJsonString(e)).toList();
@@ -504,6 +507,7 @@ class RuleParser {
                 'rule': result.name,
                 'aggregate': aggValue,
               },
+              httpClient: _httpClient,
             ).ignore();
             break;
         }
@@ -678,7 +682,7 @@ class RuleParser {
               'all_dice': allDiceJson,
               'actions': coActions,
             };
-            await fireWebhook(url: webhookUrl, method: webhookMethod, payload: payload);
+            await fireWebhook(url: webhookUrl, method: webhookMethod, payload: payload, httpClient: _httpClient);
             break;
         }
       }

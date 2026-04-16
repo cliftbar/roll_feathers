@@ -318,16 +318,18 @@ Future<void> fireWebhook({
   required String url,
   required String method,
   required Map<String, dynamic> payload,
+  http.Client? httpClient,
 }) async {
+  final client = httpClient ?? http.Client();
   try {
     if (method == 'GET') {
       final uri = Uri.parse(url).replace(queryParameters: {
         'aggregate': payload['aggregate'].toString(),
         'rule': payload['rule'].toString(),
       });
-      await http.get(uri);
+      await client.get(uri);
     } else {
-      await http.post(
+      await client.post(
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
@@ -335,6 +337,8 @@ Future<void> fireWebhook({
     }
   } catch (e) {
     _rtLog.warning('[fireWebhook] error firing to $url: $e');
+  } finally {
+    if (httpClient == null) client.close();
   }
 }
 

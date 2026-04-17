@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/domains/roll_parser/parser_rules.dart';
 
-import '../../di/di.dart';
-import 'app_settings_screen_vm.dart';
+import 'package:roll_feathers/di/di.dart';
+import 'package:roll_feathers/ui/app_settings/app_settings_screen_vm.dart';
 
 /// A screen that displays and manages rule scripts.
 class ScriptScreenWidget extends StatefulWidget {
@@ -115,7 +115,6 @@ class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
   }
 
   void _showAddScriptDialog(BuildContext context) {
-    final TextEditingController nameController = TextEditingController();
     final TextEditingController contentController = TextEditingController();
 
     showDialog(
@@ -127,10 +126,6 @@ class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Script Name', hintText: 'Enter a name for your script'),
-                ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: contentController,
@@ -150,10 +145,8 @@ class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
             TextButton(
               child: const Text('Save'),
               onPressed: () {
-                if (nameController.text.isNotEmpty) {
-                  setState(() {
-                    widget.viewModel.addRuleScript(contentController.text);
-                  });
+                if (contentController.text.isNotEmpty) {
+                  widget.viewModel.addRuleScript(contentController.text);
                   Navigator.of(context).pop();
                 }
               },
@@ -166,11 +159,9 @@ class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
 
   void _showEditScriptDialog(BuildContext context, int index, List<RuleScript> scripts) {
     // Get the current script values
-    String currentName = scripts[index].name;
     String currentContent = scripts[index].script;
 
     // Create controllers with the current values
-    // final TextEditingController nameController = TextEditingController(text: currentName);
     final TextEditingController contentController = TextEditingController(text: currentContent);
 
     showDialog(

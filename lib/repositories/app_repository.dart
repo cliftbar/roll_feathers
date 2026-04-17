@@ -10,6 +10,7 @@ class AppRepository {
   final _themeModeController = StreamController<ThemeMode>.broadcast();
   final _keepScreenOnController = StreamController<bool>.broadcast();
   final _dicePaneOrientationController = StreamController<DicePaneOrientation>.broadcast();
+  final _webhooksEnabledController = StreamController<bool>.broadcast();
 
   final AppService _service;
 
@@ -85,4 +86,25 @@ class AppRepository {
 
   /// Stream that emits dice pane orientation changes.
   Stream<DicePaneOrientation> observeDicePaneOrientation() => _dicePaneOrientationController.stream;
+
+  Future<Result<bool>> getWebhooksEnabled() async {
+    try {
+      final value = await _service.getWebhooksEnabled();
+      return Result.value(value);
+    } on Exception catch (e) {
+      return Result.error(e);
+    }
+  }
+
+  Future<Result<void>> setWebhooksEnabled(bool enabled) async {
+    try {
+      await _service.setWebhooksEnabled(enabled);
+      _webhooksEnabledController.add(enabled);
+      return Result.value(null);
+    } on Exception catch (e) {
+      return Result.error(e);
+    }
+  }
+
+  Stream<bool> observeWebhooksEnabled() => _webhooksEnabledController.stream;
 }

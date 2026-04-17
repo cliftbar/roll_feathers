@@ -9,10 +9,10 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 
-import '../dice_sdks/godice.dart' as godice;
-import '../dice_sdks/pixels.dart' as pix;
-import '../repositories/ble/ble_repository.dart';
-import 'message_sdk.dart';
+import 'package:roll_feathers/dice_sdks/godice.dart' as godice;
+import 'package:roll_feathers/dice_sdks/message_sdk.dart';
+import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
+import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 
 class MessageParseError extends IOException {
   final String message;
@@ -227,7 +227,7 @@ abstract class GenericBleDie extends GenericDie {
     await _sendMessageBuffer(msg.toBuffer());
   }
 
-  // keeo for overrides!!
+  // keep for overrides!!
   void _readNotify(List<int> data);
 
   void addMessageCallback(int messageType, String callbackKey, Function(RxMessage) callback) {

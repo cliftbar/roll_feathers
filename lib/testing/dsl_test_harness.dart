@@ -2,8 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import 'package:roll_feathers/domains/roll_parser/parser.dart';
+import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
+import 'package:roll_feathers/domains/webhook_domain.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 import 'package:roll_feathers/repositories/home_assistant_repository.dart';
@@ -200,6 +201,7 @@ class RecordingDieDomain extends DieDomain {
 /// Minimal AppService that stores rules and die settings in-memory.
 class InMemoryAppService extends AppService {
   List<String> _saved = [];
+  bool _webhooksEnabled = true;
   final Map<String, DieSettings> _dieSettings = {};
 
   @override
@@ -208,6 +210,14 @@ class InMemoryAppService extends AppService {
   @override
   Future<void> setSavedScripts(List<String> rules) async {
     _saved = rules;
+  }
+
+  @override
+  Future<bool> getWebhooksEnabled() async => _webhooksEnabled;
+
+  @override
+  Future<void> setWebhooksEnabled(bool enabled) async {
+    _webhooksEnabled = enabled;
   }
 
   @override
@@ -250,16 +260,17 @@ class DslTestRunner {
   final RecordingDieDomain dieDomain;
   final RollDomain rollDomain;
   final InMemoryAppService appService;
-  final RuleParser parser;
+  final RuleEvaluator parser;
 
   DslTestRunner._(this.dieDomain, this.rollDomain, this.appService, this.parser);
 
   static Future<DslTestRunner> create() async {
     final dd = RecordingDieDomain();
     final app = InMemoryAppService();
-    final rd = await RollDomain.create(dd, app);
-    final rp = RuleParser(dd, rd, app);
+    final wd = WebhookDomain(appService: app);
+    final rp = RuleEvaluator(dd, app, wd);
     await rp.init();
+    final rd = await RollDomain.create(dd, app, ruleParser: rp);
     return DslTestRunner._(dd, rd, app, rp);
   }
 
@@ -283,7 +294,7 @@ class DslTestRunner {
   }) async {
     dieDomain.blinked.clear();
     final testDice = _makeDice(dice);
-    final result = await parser.runRuleAsync(rule, testDice, threshold: threshold, modifier: modifier);
+    final result = await parser.runRule(rule, testDice, threshold: threshold, modifier: modifier);
 
     // Map blink events to ActionLogEntries. We infer 'blink' action; 'sequence' results in blink calls too.
     final actions = <ActionLogEntry>[];

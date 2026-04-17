@@ -2,7 +2,6 @@ import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
@@ -11,19 +10,20 @@ import 'package:roll_feathers/ui/die_screen/dice_screen_vm.dart';
 import 'package:roll_feathers/ui/die_screen/die_list_tile.dart';
 import 'package:roll_feathers/ui/die_screen/single_die_settings_dialog.dart';
 
-import '../app_settings/app_settings_screen.dart';
-import '../app_settings/app_settings_screen_vm.dart';
+import 'package:roll_feathers/ui/app_settings/app_settings_screen.dart';
+import 'package:roll_feathers/ui/app_settings/app_settings_screen_vm.dart';
 
 class DiceScreenWidget extends StatefulWidget {
-  const DiceScreenWidget({super.key, required this.viewModel, required this.settingsVm});
+  const DiceScreenWidget({super.key, required this.viewModel, required this.settingsVm, required this.appVersion});
 
   static Future<DiceScreenWidget> create(DiWrapper di, AppSettingsScreenViewModel settingsVm) async {
     var vm = DiceScreenViewModel(di);
-    return DiceScreenWidget(viewModel: vm, settingsVm: settingsVm);
+    return DiceScreenWidget(viewModel: vm, settingsVm: settingsVm, appVersion: di.appVersion);
   }
 
   final DiceScreenViewModel viewModel;
   final AppSettingsScreenViewModel settingsVm;
+  final String appVersion;
 
   @override
   State<DiceScreenWidget> createState() => _DiceScreenWidgetState();
@@ -31,26 +31,6 @@ class DiceScreenWidget extends StatefulWidget {
 
 class _DiceScreenWidgetState extends State<DiceScreenWidget> {
   bool _rollVirtualDice = true;
-  String? _appVersion;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadVersion();
-  }
-
-  Future<void> _loadVersion() async {
-    try {
-      final info = await PackageInfo.fromPlatform();
-      setState(() {
-        _appVersion = info.buildNumber.isNotEmpty
-            ? '${info.version}+${info.buildNumber}'
-            : info.version;
-      });
-    } catch (_) {
-      // ignore errors; version is optional UI detail
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,11 +51,11 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                       'Settings',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
                     ),
-                    if (_appVersion != null)
+                    if (widget.appVersion.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4.0),
                         child: Text(
-                          'v$_appVersion',
+                          'v${widget.appVersion}',
                           style: Theme.of(context)
                               .textTheme
                               .bodySmall

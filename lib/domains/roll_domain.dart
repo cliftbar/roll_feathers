@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:collection/collection.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
-import 'package:roll_feathers/domains/roll_parser/parser.dart';
+import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
 import 'package:roll_feathers/services/app_service.dart';
 
 class RollResult {
@@ -52,17 +52,15 @@ class RollDomain {
 
   Timer? _rollUpdateTimer;
 
-  late final RuleParser ruleParser;
-  late final AppService appService;
+  final RuleEvaluator _ruleParser;
+  final AppService appService;
   bool useAsyncEvaluator = false; // gated via AppService pref
 
-  RollDomain._(this._diceDomain, this.appService) {
+  RollDomain._(this._diceDomain, this.appService, this._ruleParser) {
     _deviceStreamListener = _diceDomain.getDiceStream().listen(rollStreamListener);
-    ruleParser = RuleParser(_diceDomain, this, appService);
   }
 
   Future<void> init() async {
-    await ruleParser.init();
     // Load evaluator preference (default false to avoid changing runtime behavior)
     try {
       useAsyncEvaluator = await appService.getUseAsyncEvaluator();
@@ -75,9 +73,10 @@ class RollDomain {
 
   Stream<RollStatus> subscribeRollStatus() => _rollStatusStream.stream;
 
-  static Future<RollDomain> create(DieDomain dieDomain, AppService appService) async {
-    var rollDomain = RollDomain._(dieDomain, appService);
-    rollDomain.init();
+  static Future<RollDomain> create(DieDomain dieDomain, AppService appService,
+      {required RuleEvaluator ruleParser}) async {
+    var rollDomain = RollDomain._(dieDomain, appService, ruleParser);
+    await rollDomain.init();
     return rollDomain;
   }
 
@@ -110,23 +109,8 @@ class RollDomain {
 
   Future<int> _stopRollWithResult({RollType rollType = RollType.normal}) async {
     ParseResult? ruleResult;
-    // switch (rollType) {
-    //   case RollType.max:
-    //     ruleResult = ruleParser.runRule(rule.maxRoll, _rolledDie.values.toList());
-    //   case RollType.min:
-    //     ruleResult = ruleParser.runRule(rule.minRoll, _rolledDie.values.toList());
-    //   default:
-    //     for (var r in ruleParser.getRules(enabledOnly: true)) {
-    //       ruleResult = ruleParser.runRule(r.script, _rolledDie.values.toList());
-    //       if (ruleResult.ruleReturn) {
-    //         rollType = RollType.rule;
-    //         break;
-    //       }
-    //     }
-    // }
-    for (var r in ruleParser.getRules(enabledOnly: true)) {
-      // Migrate to async evaluator for deterministic, awaited action execution
-      ruleResult = await ruleParser.runRuleAsync(r.script, _rolledDie.values.toList());
+    for (var r in _ruleParser.getRules(enabledOnly: true)) {
+      ruleResult = await _ruleParser.runRule(r.script, _rolledDie.values.toList());
       if (ruleResult.ruleReturn) {
         rollType = RollType.rule;
         break;

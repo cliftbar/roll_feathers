@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:universal_ble/universal_ble.dart';
 
-import 'ble_repository.dart';
+import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 
 class UniversalBleDevice implements BleDeviceWrapper {
   @override

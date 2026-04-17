@@ -1,10 +1,10 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
-import '../../di/di.dart';
-import '../../services/app_service.dart';
-import 'app_settings_screen_vm.dart';
-import 'script_screen.dart';
+import 'package:roll_feathers/di/di.dart';
+import 'package:roll_feathers/services/app_service.dart';
+import 'package:roll_feathers/ui/app_settings/app_settings_screen_vm.dart';
+import 'package:roll_feathers/ui/app_settings/script_screen.dart';
 
 /// A widget that displays application-level settings including Bluetooth settings.
 /// This widget can be included in screens that need to display app settings.
@@ -273,6 +273,26 @@ class AppSettingsWidget extends StatelessWidget {
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (context) => ScriptScreenWidget(viewModel: vm)));
+              },
+            ),
+            const Divider(),
+            ListenableBuilder(
+              listenable: vm,
+              builder: (context, _) {
+                return SwitchListTile(
+                  secondary: const Icon(Icons.webhook),
+                  title: const Text('Webhooks'),
+                  subtitle: kIsWeb
+                      ? const Text(
+                          'CORS preflight (OPTIONS) must be supported by the target server for JSON payloads.',
+                          style: TextStyle(fontSize: 12),
+                        )
+                      : null,
+                  value: vm.webhooksEnabled,
+                  onChanged: (bool value) {
+                    vm.toggleWebhooksEnabled.execute();
+                  },
+                );
               },
             ),
           ],

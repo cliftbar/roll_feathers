@@ -8,8 +8,8 @@ import 'package:logging/logging.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/services/home_assistant/ha_service.dart';
 
-import '../../dice_sdks/message_sdk.dart';
-import '../../util/color.dart';
+import 'package:roll_feathers/dice_sdks/message_sdk.dart';
+import 'package:roll_feathers/util/color.dart';
 
 class State {
   final String entityId;

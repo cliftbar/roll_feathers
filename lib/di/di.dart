@@ -2,22 +2,25 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:roll_feathers/services/home_assistant/ha_api_service.dart';
 
-import '../dice_sdks/godice.dart';
-import '../dice_sdks/pixels.dart';
-import '../domains/api_domain.dart';
-import '../domains/die_domain.dart';
-import '../domains/roll_domain.dart';
-import '../repositories/app_repository.dart';
-import '../repositories/ble/ble_repository.dart';
-import '../repositories/ble/ble_universal_repository.dart';
-import '../repositories/home_assistant_repository.dart';
-import '../services/app_service.dart';
-import '../services/home_assistant/ha_config_service.dart';
-import '../services/home_assistant/ha_service.dart';
-import 'http/http_client_provider.dart'
-    if (dart.library.js_interop) 'http/web_http_client_provider.dart'
+import 'package:roll_feathers/dice_sdks/godice.dart';
+import 'package:roll_feathers/dice_sdks/pixels.dart';
+import 'package:roll_feathers/domains/api_domain.dart';
+import 'package:roll_feathers/domains/die_domain.dart';
+import 'package:roll_feathers/domains/roll_domain.dart';
+import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
+import 'package:roll_feathers/domains/webhook_domain.dart';
+import 'package:roll_feathers/repositories/app_repository.dart';
+import 'package:roll_feathers/repositories/ble/ble_repository.dart';
+import 'package:roll_feathers/repositories/ble/ble_universal_repository.dart';
+import 'package:roll_feathers/repositories/home_assistant_repository.dart';
+import 'package:roll_feathers/services/app_service.dart';
+import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
+import 'package:roll_feathers/services/home_assistant/ha_service.dart';
+import 'package:roll_feathers/di/http/http_client_provider.dart'
+    if (dart.library.js_interop) 'package:roll_feathers/di/http/web_http_client_provider.dart'
     as http_factory;
 
 class DiWrapper {
@@ -30,6 +33,9 @@ class DiWrapper {
 
   final BleRepository bleRepository;
   final DieDomain dieDomain;
+  final String appVersion;
+  final RuleEvaluator ruleParser;
+  final WebhookDomain webhookDomain;
   final RollDomain rollDomain;
   final ApiDomain apiDomain;
 
@@ -47,6 +53,12 @@ class DiWrapper {
       haRepository = HaRepositoryImpl(haConfigService, haService, conf.enabled);
     }
 
+    String appVersion = 'unknown';
+    try {
+      final info = await PackageInfo.fromPlatform();
+      appVersion = info.buildNumber.isNotEmpty ? '${info.version}+${info.buildNumber}' : info.version;
+    } catch (_) {}
+
     AppService appService = AppService();
     AppRepository appRepo = AppRepository(appService);
 
@@ -60,7 +72,14 @@ class DiWrapper {
 
     DieDomain dieDomain = DieDomain(bleRepo, haRepository, appService);
 
-    RollDomain rollDomain = await RollDomain.create(dieDomain, appService);
+    WebhookDomain webhookDomain =
+        WebhookDomain(httpClient: httpClient, appVersion: appVersion, appService: appService);
+
+    RuleEvaluator ruleParser = RuleEvaluator(dieDomain, appService, webhookDomain);
+    await ruleParser.init();
+
+    RollDomain rollDomain = await RollDomain.create(dieDomain, appService,
+        ruleParser: ruleParser);
     late ApiDomain apiDomain;
     if (kIsWeb) {
       apiDomain = EmptyApiDomain();
@@ -76,6 +95,9 @@ class DiWrapper {
       appRepo,
       dieDomain,
       bleRepo,
+      appVersion,
+      ruleParser,
+      webhookDomain,
       rollDomain,
       apiDomain,
     );
@@ -89,6 +111,9 @@ class DiWrapper {
     this.appRepository,
     this.dieDomain,
     this.bleRepository,
+    this.appVersion,
+    this.ruleParser,
+    this.webhookDomain,
     this.rollDomain,
     this.apiDomain,
   );

@@ -3,12 +3,12 @@ import 'dart:io';
 import 'package:petitparser/petitparser.dart' as pp;
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:roll_feathers/domains/roll_parser/parser.dart';
+import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
 
 void main() {
   group('DSL v1.1 parsing', () {
     final fixturesDir = Directory('test/fixtures');
-    final parser = RuleParser.v11ScriptParser;
+    final parser = RuleEvaluator.v11ScriptParser;
 
     test('all .rule fixtures should parse with v1.1 grammar', () {
       expect(fixturesDir.existsSync(), isTrue, reason: 'fixtures directory missing');

@@ -6,11 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:roll_feathers/domains/roll_parser/parser_rules.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
-import '../../di/di.dart';
-import '../../dice_sdks/pixels.dart';
-import '../../services/app_service.dart';
-import '../../services/home_assistant/ha_config_service.dart';
-import '../../util/command.dart';
+import 'package:roll_feathers/di/di.dart';
+import 'package:roll_feathers/dice_sdks/pixels.dart';
+import 'package:roll_feathers/services/app_service.dart';
+import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
+import 'package:roll_feathers/util/command.dart';
 
 class AppSettingsScreenViewModel extends ChangeNotifier {
   // init
@@ -30,6 +30,11 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
   DicePaneOrientation dicePaneOrientation = DicePaneOrientation.auto;
   late Command1<void, DicePaneOrientation> setDicePaneOrientation;
   late StreamSubscription<DicePaneOrientation> _dicePaneOrientationSubscription;
+
+  // webhooks
+  bool webhooksEnabled = true;
+  late Command0 toggleWebhooksEnabled;
+  late StreamSubscription<bool> _webhooksEnabledSubscription;
 
   // ble
   bool _bleEnabled = false;
@@ -64,6 +69,13 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
     setDicePaneOrientation = Command1(_setDicePaneOrientation);
     _dicePaneOrientationSubscription = _diWrapper.appRepository.observeDicePaneOrientation().listen((orientation) {
       dicePaneOrientation = orientation;
+      notifyListeners();
+    });
+
+    // webhooks
+    toggleWebhooksEnabled = Command0(_toggleWebhooksEnabled);
+    _webhooksEnabledSubscription = _diWrapper.appRepository.observeWebhooksEnabled().listen((enabled) {
+      webhooksEnabled = enabled;
       notifyListeners();
     });
 
@@ -102,6 +114,11 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
       final orientationResult = await _diWrapper.appRepository.getDicePaneOrientation();
       if (orientationResult.isValue && orientationResult.asValue != null) {
         dicePaneOrientation = orientationResult.asValue!.value;
+      }
+
+      final webhooksResult = await _diWrapper.appRepository.getWebhooksEnabled();
+      if (webhooksResult.isValue && webhooksResult.asValue != null) {
+        webhooksEnabled = webhooksResult.asValue!.value;
       }
 
       _haConfig = await _diWrapper.haRepository.getHaConfig();
@@ -145,6 +162,18 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
     try {
       dicePaneOrientation = orientation;
       return await _diWrapper.appRepository.setDicePaneOrientation(orientation);
+    } on Exception catch (e) {
+      return Result.error(e);
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  // webhooks
+  Future<Result<void>> _toggleWebhooksEnabled() async {
+    try {
+      webhooksEnabled = !webhooksEnabled;
+      return await _diWrapper.appRepository.setWebhooksEnabled(webhooksEnabled);
     } on Exception catch (e) {
       return Result.error(e);
     } finally {
@@ -214,25 +243,30 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
 
   // Scripts
   List<RuleScript> getRuleScripts() {
-    return _diWrapper.rollDomain.ruleParser.getRules();
+    return _diWrapper.ruleParser.getRules();
   }
 
   void addRuleScript(String script, {bool enabled = true}) {
-    _diWrapper.rollDomain.ruleParser.addRuleScript(script, enabled: enabled);
+    unawaited(_diWrapper.ruleParser.addRuleScript(script, enabled: enabled)
+        .onError((e, st) => debugPrint('[AppSettingsVM] addRuleScript failed: $e')));
     notifyListeners();
   }
+
   void toggleRuleScript(String name, bool enabled) {
-    _diWrapper.rollDomain.ruleParser.toggleRuleScript(name, enabled);
+    unawaited(_diWrapper.ruleParser.toggleRuleScript(name, enabled)
+        .onError((e, st) => debugPrint('[AppSettingsVM] toggleRuleScript failed: $e')));
     notifyListeners();
   }
 
   void reorderRules(int idxFrom, int idxTo) {
-    _diWrapper.rollDomain.ruleParser.reorderRules(idxFrom, idxTo);
+    unawaited(_diWrapper.ruleParser.reorderRules(idxFrom, idxTo)
+        .onError((e, st) => debugPrint('[AppSettingsVM] reorderRules failed: $e')));
     notifyListeners();
   }
 
   void removeRule(int idx) {
-    _diWrapper.rollDomain.ruleParser.removeRule(idx);
+    unawaited(_diWrapper.ruleParser.removeRule(idx)
+        .onError((e, st) => debugPrint('[AppSettingsVM] removeRule failed: $e')));
     notifyListeners();
   }
 
@@ -243,6 +277,7 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
     _scanProgressTimer?.cancel();
     _haConfigSubscription.cancel();
     _keepScreenOnSubscription.cancel();
+    _webhooksEnabledSubscription.cancel();
     _bleEnabledSubscription.cancel();
     _dicePaneOrientationSubscription.cancel();
     _diWrapper.appRepository.setKeepScreenOn(false);

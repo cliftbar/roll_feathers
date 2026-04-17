@@ -64,6 +64,7 @@ class AppService {
   static String ruleScriptsKey = 'rule_scripts';
   static String useAsyncEvaluatorKey = 'use_async_evaluator';
   static String dicePaneOrientationKey = 'dice_pane_orientation';
+  static String webhooksEnabledKey = 'webhooks_enabled';
 
   Future<void> setThemeMode(ThemeMode mode) async {
     final prefs = await SharedPreferences.getInstance();
@@ -94,7 +95,7 @@ class AppService {
 
   Future<void> setSavedScripts(List<String> scripts) async {
     final prefs = await SharedPreferences.getInstance();
-    prefs.setStringList(ruleScriptsKey, scripts);
+    await prefs.setStringList(ruleScriptsKey, scripts);
   }
 
   // Evaluator toggle: gate async evaluator usage behind a preference
@@ -118,6 +119,16 @@ class AppService {
     final prefs = await SharedPreferences.getInstance();
     final index = prefs.getInt(dicePaneOrientationKey) ?? DicePaneOrientation.auto.index;
     return DicePaneOrientation.values[index];
+  }
+
+  Future<void> setWebhooksEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(webhooksEnabledKey, enabled);
+  }
+
+  Future<bool> getWebhooksEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(webhooksEnabledKey) ?? true;
   }
 
   static String _dieSettingsKey(String dieId) => 'die_settings_$dieId';

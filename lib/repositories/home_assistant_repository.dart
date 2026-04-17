@@ -6,7 +6,7 @@ import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/services/home_assistant/ha_service.dart';
 import 'package:roll_feathers/util/strings.dart';
 
-import '../dice_sdks/message_sdk.dart';
+import 'package:roll_feathers/dice_sdks/message_sdk.dart';
 
 abstract class HaRepository {
   Stream<HaConfig> subscribeHaSettings();

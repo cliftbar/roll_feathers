@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 
-import '../util/color.dart';
-import 'message_sdk.dart';
+import 'package:roll_feathers/dice_sdks/message_sdk.dart';
+import 'package:roll_feathers/util/color.dart';
 
 const Color green = Color.fromARGB(255, 0, 255, 0);
 const Color red = Color.fromARGB(255, 255, 0, 0);

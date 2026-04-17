@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:roll_feathers/domains/roll_parser/parser.dart';
+import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 import 'package:roll_feathers/repositories/home_assistant_repository.dart';
-import 'package:roll_feathers/domains/roll_domain.dart';
+import 'package:roll_feathers/domains/webhook_domain.dart';
 import 'package:roll_feathers/util/color.dart';
 
 // Simple fakes to observe actions without real hardware
@@ -97,25 +97,33 @@ class FakeDieDomain extends DieDomain {
 
 class FakeAppService extends AppService {
   List<String> _saved = [];
+
   @override
   Future<List<String>> getSavedScripts() async => _saved;
+
   @override
   Future<void> setSavedScripts(List<String> rules) async {
     _saved = rules;
   }
+
+  @override
+  Future<bool> getWebhooksEnabled() async => true;
+
+  @override
+  Future<void> setWebhooksEnabled(bool enabled) async {}
 }
 
 void main() {
   group('DSL v1.1 evaluation basics', () {
     late FakeDieDomain dd;
     late AppService app;
-    late RuleParser parser;
+    late RuleEvaluator parser;
 
     setUp(() async {
       dd = FakeDieDomain();
       app = FakeAppService();
-      final rd = await RollDomain.create(dd, app);
-      parser = rd.ruleParser;
+      parser = RuleEvaluator(dd, app, WebhookDomain(appService: app));
+      await parser.init();
     });
 
     test('highest/lowest selections act on intended dice', () async {
@@ -130,7 +138,7 @@ void main() {
       final d3 = FakeDie('C', 'C', 4, dName: 'd6');
       final rolls = [d1, d2, d3];
 
-      final res = await parser.runRuleAsync(script, rolls);
+      final res = await parser.runRule(script, rolls);
       expect(res.ruleName, equals('extremes'));
       // Expect two blinks: highest (B) green and lowest (A) red
       // We can't assert colors easily without importing color map; just assert die ids present
@@ -143,13 +151,13 @@ void main() {
   group('DSL v1.1 dupes transform', () {
     late FakeDieDomain dd;
     late AppService app;
-    late RuleParser parser;
+    late RuleEvaluator parser;
 
     setUp(() async {
       dd = FakeDieDomain();
       app = FakeAppService();
-      final rd = await RollDomain.create(dd, app);
-      parser = rd.ruleParser;
+      parser = RuleEvaluator(dd, app, WebhookDomain(appService: app));
+      await parser.init();
     });
 
     test('dupes [2:*] selects all dice that are part of pairs/triples/quads', () async {
@@ -171,10 +179,10 @@ define pairsPlus for roll *d*
     on result [5:5] action blink green
 ''';
 
-      final parsed = RuleParser.v11ScriptParser.parse(script);
+      final parsed = RuleEvaluator.v11ScriptParser.parse(script);
       expect(parsed.isSuccess, isTrue);
 
-      final res = await parser.runRuleAsync(script, [d1, d2, d3, d4, d5]);
+      final res = await parser.runRule(script, [d1, d2, d3, d4, d5]);
       // Two 5s + three 2s => 5 dice selected, expect one blink per selection count target
       // We check that at least one blink occurred (exact color value from util map)
       expect(dd.blinked.isNotEmpty, isTrue);
@@ -199,10 +207,10 @@ define pairsOnly for roll *d*
     on result [2:2] action blink blue
 ''';
 
-      final parsed = RuleParser.v11ScriptParser.parse(script);
+      final parsed = RuleEvaluator.v11ScriptParser.parse(script);
       expect(parsed.isSuccess, isTrue);
 
-      final res = await parser.runRuleAsync(script, [d1, d2, d3, d4, d5]);
+      final res = await parser.runRule(script, [d1, d2, d3, d4, d5]);
       // Only the two 5s should be selected (not the triple 2s). Count == 2 triggers the action
       expect(dd.blinked.isNotEmpty, isTrue);
     });
@@ -211,13 +219,13 @@ define pairsOnly for roll *d*
   group('DSL v1.1 evaluation extended scenarios', () {
     late FakeDieDomain dd;
     late AppService app;
-    late RuleParser parser;
+    late RuleEvaluator parser;
 
     setUp(() async {
       dd = FakeDieDomain();
       app = FakeAppService();
-      final rd = await RollDomain.create(dd, app);
-      parser = rd.ruleParser;
+      parser = RuleEvaluator(dd, app, WebhookDomain(appService: app));
+      await parser.init();
     });
 
     test('interval match and aggregate min/max/avg gating', () async {
@@ -234,7 +242,7 @@ define pairsOnly for roll *d*
       final b = FakeDie('B', 'B', 4, dName: 'd6');
       final c = FakeDie('C', 'C', 6, dName: 'd6');
       final rolls = [a, b, c];
-      await parser.runRuleAsync(script, rolls);
+      await parser.runRule(script, rolls);
 
       final ids = dd.blinked.map((s) => s.split(':').first).toSet();
       expect(ids, containsAll(<String>['A', 'B', 'C']));
@@ -246,7 +254,7 @@ define pairsOnly for roll *d*
           'use selection \$ALL_DICE aggregate over selection sum on result [*:*] action blink blue';
       final a = FakeDie('A', 'A', 1, dName: 'd6');
       final b = FakeDie('B', 'B', 2, dName: 'd6');
-      await parser.runRuleAsync(script, [a, b]);
+      await parser.runRule(script, [a, b]);
       final ids = dd.blinked.map((s) => s.split(':').first).toList();
       expect(ids, containsAll(<String>['A', 'B']));
     });
@@ -261,7 +269,7 @@ define pairsOnly for roll *d*
       final a = FakeDie('A', 'A', 2, dName: 'd20');
       final b = FakeDie('B', 'B', 19, dName: 'd20');
       final c = FakeDie('C', 'C', 7, dName: 'd20');
-      await parser.runRuleAsync(script, [a, b, c]);
+      await parser.runRule(script, [a, b, c]);
       final ids = dd.blinked.map((s) => s.split(':').first).toList();
       expect(ids, equals(['B']));
     });
@@ -277,12 +285,12 @@ define pairsOnly for roll *d*
 
       // First, value 12 triggers first block only
       dd.blinked.clear();
-      await parser.runRuleAsync(script, [a]);
+      await parser.runRule(script, [a]);
       expect(dd.blinked.map((s) => s.split(':').first).toList(), equals(['A']));
 
       // Second, value 18 triggers second block only
       dd.blinked.clear();
-      await parser.runRuleAsync(script, [b]);
+      await parser.runRule(script, [b]);
       final ids2 = dd.blinked.map((s) => s.split(':').first).toList();
       // Sequence emits multiple blink events; assert that only die 'B' was acted on
       expect(ids2.toSet().toList(), equals(['B']));
@@ -297,7 +305,7 @@ define pairsOnly for roll *d*
           'use selection @ALL aggregate over selection sum on result [*:*] action blink red';
       final a = FakeDie('A', 'A', 3, dName: 'd6');
       dd.blinked.clear();
-      await parser.runRuleAsync(script, [a]);
+      await parser.runRule(script, [a]);
       // two blocks × one blink each = 2
       expect(dd.blinked.length, equals(2));
     });
@@ -313,7 +321,7 @@ define pairsOnly for roll *d*
 
       final a = FakeDie('X', 'X', 5, dName: 'd6');
       dd.blinked.clear();
-      await parser.runRuleAsync(script, [a]);
+      await parser.runRule(script, [a]);
 
       // Expect exactly two blinks in order: red then blue
       expect(dd.blinked.length, equals(2));
@@ -335,7 +343,7 @@ define pairsOnly for roll *d*
       final a = FakeDie('A', 'A', 3, dName: 'd6');
       final b = FakeDie('B', 'B', 4, dName: 'd6');
       dd.blinked.clear();
-      await parser.runRuleAsync(script, [a, b]);
+      await parser.runRule(script, [a, b]);
 
       // Both blocks should trigger: first due to max >= 4, second due to min <= 3
       // Each block blinks all dice in the selection, so expect 4 total blinks
@@ -359,7 +367,7 @@ define pairsOnly for roll *d*
       final b = FakeDie('B', 'B', 5, dName: 'd6');
       final c = FakeDie('C', 'C', 4, dName: 'd6');
       dd.blinked.clear();
-      await parser.runRuleAsync(script, [a, b, c]);
+      await parser.runRule(script, [a, b, c]);
 
       // TOP2 should be B (5) and C (4). We have 3 blocks, each blinking both dice => 6 blinks total
       expect(dd.blinked.length, equals(6));

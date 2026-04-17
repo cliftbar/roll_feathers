@@ -2,7 +2,7 @@
 import 'package:collection/collection.dart';
 import 'package:petitparser/parser.dart' as pp;
 
-import '../../dice_sdks/dice_sdks.dart';
+import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'parser_definitions.dart';
 
 typedef RollTransform = Map<GenericDie, int> Function(Map<GenericDie, int> dieMap, List<num> args);

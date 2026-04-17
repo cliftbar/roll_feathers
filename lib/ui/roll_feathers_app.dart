@@ -3,7 +3,7 @@ import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/ui/die_screen/dice_screen.dart';
 import 'package:roll_feathers/ui/roll_feathers_app_vm.dart';
 
-import 'app_settings/app_settings_screen_vm.dart';
+import 'package:roll_feathers/ui/app_settings/app_settings_screen_vm.dart';
 
 // Main Application
 class RollFeatherApp extends StatefulWidget {

@@ -88,6 +88,10 @@ Tests exist for SDKs (GoDice, Pixel) and parser pieces.
 12. UI assumptions
    - roll_feathers_app.dart uses ListenableBuilder child as home → fine, but a missing widget update could cause stale tree if main screen depends on VM changes not captured via child.
 
+13. Web Platform Webhook CORS and Forbidden Headers
+   - File: lib/domains/webhook_domain.dart
+   - Manually setting `User-Agent` is forbidden/ignored on web and can trigger CORS preflight failures if not handled by the server. Currently, these fail silently in the background. A TODO exists to surface these errors in the UI.
+
 ## Suggested Improvements (near-term)
 
 - Correctness and stability
@@ -139,7 +143,8 @@ Milestone 2 — UX/Observability [1–2 weeks]
 
 Milestone 3 — Integrations and Rules [2 weeks]
 - Rule editor validation and example templates
-- Better error toasts for HA/API failures; retry/backoff
+- Better error toasts for HA/API/Webhook failures; retry/backoff
+- Surface Webhook CORS/forbidden header errors in UI
 - Debounce/removal strategy for disconnected dice
 
 Milestone 4 — Testing and Platform Polish [1–2 weeks]

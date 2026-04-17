@@ -3,9 +3,9 @@ import 'dart:typed_data';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 
-import '../dice_sdks/dice_sdks.dart';
-import '../util/color.dart';
-import 'message_sdk.dart';
+import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
+import 'package:roll_feathers/dice_sdks/message_sdk.dart';
+import 'package:roll_feathers/util/color.dart';
 
 String godiceServiceGuid = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
 String godiceWriteCharacteristic = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";

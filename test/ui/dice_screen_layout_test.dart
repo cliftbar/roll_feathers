@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
-import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/ui/die_screen/dice_screen.dart';
 import 'package:roll_feathers/ui/die_screen/dice_screen_vm.dart';
@@ -37,11 +35,12 @@ void main() {
     // removeAllVirtualDice is used in ListTile (Drawer)
   });
 
-  Widget _pumpTestWidget() {
+  Widget pumpTestWidget() {
     return MaterialApp(
       home: DiceScreenWidget(
         viewModel: mockDiceVm,
         settingsVm: mockSettingsVm,
+        appVersion: '0.0.0',
       ),
     );
   }
@@ -56,7 +55,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(_pumpTestWidget());
+    await tester.pumpWidget(pumpTestWidget());
     
     expect(tester.takeException(), isNull);
   });
@@ -69,7 +68,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(_pumpTestWidget());
+    await tester.pumpWidget(pumpTestWidget());
     
     expect(tester.takeException(), isNull);
   });
@@ -83,7 +82,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(_pumpTestWidget());
+    await tester.pumpWidget(pumpTestWidget());
     
     expect(tester.takeException(), isNull);
   });
@@ -95,7 +94,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    await tester.pumpWidget(_pumpTestWidget());
+    await tester.pumpWidget(pumpTestWidget());
     
     expect(tester.takeException(), isNull);
   });
@@ -110,7 +109,7 @@ void main() {
 
     when(() => mockSettingsVm.dicePaneOrientation).thenReturn(DicePaneOrientation.vertical);
 
-    await tester.pumpWidget(_pumpTestWidget());
+    await tester.pumpWidget(pumpTestWidget());
 
     expect(find.byKey(const Key('dice_screen_vertical_layout')), findsOneWidget);
     expect(find.byKey(const Key('dice_screen_horizontal_layout')), findsNothing);
@@ -127,7 +126,7 @@ void main() {
 
     when(() => mockSettingsVm.dicePaneOrientation).thenReturn(DicePaneOrientation.horizontal);
 
-    await tester.pumpWidget(_pumpTestWidget());
+    await tester.pumpWidget(pumpTestWidget());
 
     expect(find.byKey(const Key('dice_screen_horizontal_layout')), findsOneWidget);
     expect(find.byKey(const Key('dice_screen_vertical_layout')), findsNothing);
@@ -144,7 +143,7 @@ void main() {
 
     when(() => mockSettingsVm.dicePaneOrientation).thenReturn(DicePaneOrientation.auto);
 
-    await tester.pumpWidget(_pumpTestWidget());
+    await tester.pumpWidget(pumpTestWidget());
 
     expect(find.byKey(const Key('dice_screen_horizontal_layout')), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -160,7 +159,7 @@ void main() {
 
     when(() => mockSettingsVm.dicePaneOrientation).thenReturn(DicePaneOrientation.auto);
 
-    await tester.pumpWidget(_pumpTestWidget());
+    await tester.pumpWidget(pumpTestWidget());
 
     expect(find.byKey(const Key('dice_screen_vertical_layout')), findsOneWidget);
     expect(find.byKey(const Key('dice_screen_horizontal_layout')), findsNothing);
@@ -177,7 +176,7 @@ void main() {
 
     when(() => mockSettingsVm.dicePaneOrientation).thenReturn(DicePaneOrientation.vertical);
 
-    await tester.pumpWidget(_pumpTestWidget());
+    await tester.pumpWidget(pumpTestWidget());
 
     expect(find.byKey(const Key('dice_screen_compact_layout')), findsOneWidget);
     expect(tester.takeException(), isNull);

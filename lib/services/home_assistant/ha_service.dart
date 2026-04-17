@@ -1,6 +1,6 @@
 import 'dart:ui';
 
-import '../../dice_sdks/message_sdk.dart';
+import 'package:roll_feathers/dice_sdks/message_sdk.dart';
 
 enum HaDomainService {
   lightOn(domain: "light", service: "turn_on"),

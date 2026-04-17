@@ -35,7 +35,13 @@ class RuleScript {
   }
   static RuleScript fromJsonString(String jsonString) {
     Map<String, dynamic> data = jsonDecode(jsonString) as Map<String, dynamic>;
-    return RuleScript(name: data["name"], script: data["script"], enabled: data["enabled"], priority: data["priority"]);
+    return RuleScript(
+      name: data["name"] as String,
+      script: data["script"] as String,
+      enabled: data["enabled"] as bool,
+      // JS JSON.parse returns double for all numbers; cast via num to handle both
+      priority: (data["priority"] as num?)?.toInt(),
+    );
   }
 }
 

@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 // These are here to ensure the file compiles against current sources.
 // Actual assertions will be enabled once the v1.1 parser is implemented.
 // ignore: unused_import
-import 'package:roll_feathers/domains/roll_parser/parser.dart';
+import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
 
 String loadFixture(String name) {
   final file = File('test/fixtures/$name');

@@ -2,6 +2,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
+import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
+import 'package:roll_feathers/domains/webhook_domain.dart';
 import 'package:roll_feathers/testing/dsl_test_harness.dart';
 
 import '../test_util.dart';
@@ -15,7 +17,10 @@ void main() {
 
   setUp(() async {
     dieDomain = RecordingDieDomain();
-    rollDomain = await RollDomain.create(dieDomain, InMemoryAppService());
+    final appService = InMemoryAppService();
+    final rp = RuleEvaluator(dieDomain, appService, WebhookDomain(appService: appService));
+    await rp.init();
+    rollDomain = await RollDomain.create(dieDomain, appService, ruleParser: rp);
     die = TestBleDie('die-A');
     // Emit the die so rollStreamListener registers callbacks on it.
     dieDomain.emitDice({'die-A': die});

@@ -3,10 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 import 'package:petitparser/parser.dart' as pp;
 
-import '../../dice_sdks/dice_sdks.dart';
-import '../../domains/die_domain.dart';
-import '../../util/color.dart';
-import '../roll_domain.dart';
+import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
+import 'package:roll_feathers/domains/die_domain.dart';
+import 'package:roll_feathers/util/color.dart';
 import 'parser_definitions.dart';
 
 const int intMaxValue = 9000000000000000;
@@ -14,10 +13,9 @@ const int intMinValue = -9000000000000000;
 
 final Logger _rtLog = Logger('ResultTargets');
 
-typedef ResultTarget =
+typedef ActionTarget =
     Future<void> Function({
       required DieDomain dd,
-      required RollDomain rd,
       List<GenericDie>? allDice,
       List<GenericDie>? resultDice,
       required List<GenericDie> defaultDice,
@@ -94,43 +92,65 @@ final pp.Parser<ResultTargetFunction> resultTarget = (() {
         ? <String>[]
         : rest.split(RegExp(r"[\t ]+")).where((s) => s.isNotEmpty).toList();
     // ignore: avoid_print
-    print('[RESULT_TARGET_PARSE] action=sequence args=${toks.join(' ')}');
+    _rtLog.fine(() => '[RESULT_TARGET_PARSE] action=sequence args=${toks.join(" ")}');
     return ResultTargetFunction(
       rtType: entry.$1!,
-      action: 'sequence',
+      target: 'sequence',
       args: toks,
     );
   });
   choices.add(actionSequenceP);
 
-  if (resultRules.isNotEmpty) {
-    // Capture only the rest of the current line as args for rules.
-    final ruleP = (
-      ResultTargetType.rule.key.toParser().map((rt) => ResultTargetType.byKey(rt)),
-      pp.whitespace().star(),
-      resultRules.keys.map((a) => a.toParser()).toChoiceParser(),
-      // Only allow horizontal whitespace before args on the SAME line
-      hspace.optional(),
-      // Capture up to reserved keyword/newline/EOF WITHOUT consuming it
-      pp.any().starLazy(lineOrReservedSentinel).flatten(),
-    ).toSequenceParser().map((entry) {
-      final String rest = (entry.$5).trimRight();
-      List<String> toks = rest.isEmpty
-          ? <String>[]
-          : rest.split(RegExp(r"[\t ]+")).where((s) => s.isNotEmpty).toList();
-      return ResultTargetFunction(
-        rtType: entry.$1!,
-        action: entry.$3,
-        args: toks,
-      );
-    });
-    choices.add(ruleP);
-  }
+  // Webhook: "webhook [GET|POST] <url-to-end-of-line>"
+  // Method prefix is optional; defaults to POST. URL stored in action, method in args[0].
+  final webhookP = pp
+      .seq3(
+        ResultTargetType.webhook.key.toParser(),
+        pp.whitespace().plus(),
+        pp.any().plusLazy(lineOrReservedSentinel).flatten(),
+      )
+      .map3((_, __, rest) {
+        final String trimmed = rest.trimRight();
+        final parts = trimmed.split(RegExp(r'\s+'));
+        final String method;
+        final String url;
+        if (parts.isNotEmpty &&
+            (parts.first.toUpperCase() == 'GET' || parts.first.toUpperCase() == 'POST')) {
+          method = parts.first.toUpperCase();
+          url = trimmed.substring(parts.first.length).trimLeft();
+        } else {
+          method = 'POST';
+          url = trimmed;
+        }
+        return ResultTargetFunction(
+          rtType: ResultTargetType.webhook,
+          target: url,
+          args: [method],
+        );
+      });
+  choices.add(webhookP);
+
+  // Discord: "discord <url-to-end-of-line>"
+  // Always POST. URL stored in action, args is empty.
+  final discordP = pp
+      .seq3(
+        ResultTargetType.discord.key.toParser(),
+        pp.whitespace().plus(),
+        pp.any().plusLazy(lineOrReservedSentinel).flatten(),
+      )
+      .map3((_, __, rest) {
+        return ResultTargetFunction(
+          rtType: ResultTargetType.discord,
+          target: rest.trim(),
+          args: [],
+        );
+      });
+  choices.add(discordP);
 
   final actionP = (
     ResultTargetType.action.key.toParser().map((rt) => ResultTargetType.byKey(rt)),
     pp.whitespace().star(),
-    resultAction.keys.map((a) => a.toParser()).toChoiceParser(),
+    resultActionMap.keys.map((a) => a.toParser()).toChoiceParser(),
     // Only allow horizontal whitespace before args on the SAME line
     hspace.optional(),
     // Capture up to reserved keyword/newline/EOF WITHOUT consuming it
@@ -143,10 +163,10 @@ final pp.Parser<ResultTargetFunction> resultTarget = (() {
           : rest.split(RegExp(r"[\t ]+")).where((s) => s.isNotEmpty).toList();
       final action = entry.$3;
       // ignore: avoid_print
-      print('[RESULT_TARGET_PARSE] action=$action args=${args.join(' ')}');
+      _rtLog.fine(() => '[RESULT_TARGET_PARSE] action=$action args=${args.join(" ")}');
       return ResultTargetFunction(
         rtType: entry.$1!,
-        action: action,
+        target: action,
         args: args,
       );
     },
@@ -161,8 +181,8 @@ final pp.Parser<ScriptResultTarget> resultDef = pp
     .map((entry) => ScriptResultTarget(entry.$3, entry.$5));
 
 enum ResultTargetType {
-  rule("rule"),
   webhook("webhook"),
+  discord("discord"),
   action("action");
 
   final String key;
@@ -176,10 +196,10 @@ enum ResultTargetType {
 
 class ResultTargetFunction {
   ResultTargetType rtType;
-  String action;
+  String target;
   List<String> args;
 
-  ResultTargetFunction({required this.rtType, required this.action, required this.args});
+  ResultTargetFunction({required this.rtType, required this.target, required this.args});
 }
 
 class ScriptResultTarget {
@@ -212,7 +232,6 @@ class RollResultRange {
 
 Future<void> blink({
   required DieDomain dd,
-  required RollDomain rd,
   List<GenericDie>? allDice,
   List<GenericDie>? resultDice,
   required List<GenericDie> defaultDice,
@@ -229,7 +248,6 @@ Future<void> blink({
 
 Future<void> sequence({
   required DieDomain dd,
-  required RollDomain rd,
   List<GenericDie>? allDice,
   List<GenericDie>? resultDice,
   required List<GenericDie> defaultDice,
@@ -282,13 +300,4 @@ Future<void> sequence({
   }
 }
 
-Map<String, ResultTarget> resultAction = {"blink": blink, "sequence": sequence};
-
-typedef ResultRule = bool Function({List<String> args});
-
-bool ret({List<String> args = const ["false"]}) {
-  return bool.tryParse(args[0], caseSensitive: false) ?? false;
-}
-
-// v1.1: drop support for rule returns to simplify cooperative blocks
-Map<String, ResultRule> resultRules = {};
+Map<String, ActionTarget> resultActionMap = {"blink": blink, "sequence": sequence};

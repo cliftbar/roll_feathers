@@ -1,7 +1,7 @@
 // Messages
 import 'dart:ui';
 
-import '../util/color.dart';
+import 'package:roll_feathers/util/color.dart';
 
 abstract class Message {
   final int id;

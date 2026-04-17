@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -13,11 +14,13 @@ import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
 import 'package:roll_feathers/domains/webhook_domain.dart';
 import 'package:roll_feathers/repositories/app_repository.dart';
+import 'package:roll_feathers/repositories/ble/ble_noop_repository.dart';
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 import 'package:roll_feathers/repositories/ble/ble_universal_repository.dart';
 import 'package:roll_feathers/repositories/home_assistant_repository.dart';
 import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
+import 'package:roll_feathers/services/home_assistant/ha_noop_service.dart';
 import 'package:roll_feathers/services/home_assistant/ha_service.dart';
 import 'package:roll_feathers/di/http/http_client_provider.dart'
     if (dart.library.js_interop) 'package:roll_feathers/di/http/web_http_client_provider.dart'
@@ -117,4 +120,31 @@ class DiWrapper {
     this.rollDomain,
     this.apiDomain,
   );
+
+  @visibleForTesting
+  static Future<DiWrapper> forTesting({
+    required AppService appService,
+    required DieDomain dieDomain,
+    required RuleEvaluator ruleParser,
+    required WebhookDomain webhookDomain,
+    BleRepository? bleRepository,
+  }) async {
+    final ble = bleRepository ?? NoopBleRepository();
+    final ha = HaRepositoryEmpty();
+    final rollDomain = await RollDomain.create(dieDomain, appService, ruleParser: ruleParser);
+    return DiWrapper._(
+      NoopHaService(),
+      appService,
+      HaConfigService(),
+      ha,
+      AppRepository(appService),
+      dieDomain,
+      ble,
+      'test',
+      ruleParser,
+      webhookDomain,
+      rollDomain,
+      EmptyApiDomain(),
+    );
+  }
 }

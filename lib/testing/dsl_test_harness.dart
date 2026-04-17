@@ -199,9 +199,16 @@ class RecordingDieDomain extends DieDomain {
 }
 
 /// Minimal AppService that stores rules and die settings in-memory.
+/// Overrides ALL methods that would otherwise hit SharedPreferences.
 class InMemoryAppService extends AppService {
   List<String> _saved = [];
+  List<String> _ruleOrder = [];
+  List<String> _hiddenRuleNames = [];
   bool _webhooksEnabled = true;
+  bool _keepScreenOn = false;
+  bool _useAsyncEvaluator = false;
+  ThemeMode _themeMode = ThemeMode.system;
+  DicePaneOrientation _dicePaneOrientation = DicePaneOrientation.auto;
   final Map<String, DieSettings> _dieSettings = {};
 
   @override
@@ -213,11 +220,59 @@ class InMemoryAppService extends AppService {
   }
 
   @override
+  Future<List<String>> getRuleOrder() async => List.from(_ruleOrder);
+
+  @override
+  Future<void> setRuleOrder(List<String> order) async {
+    _ruleOrder = List.from(order);
+  }
+
+  @override
+  Future<List<String>> getHiddenRuleNames() async => List.from(_hiddenRuleNames);
+
+  @override
+  Future<void> setHiddenRuleNames(List<String> names) async {
+    _hiddenRuleNames = List.from(names);
+  }
+
+  @override
   Future<bool> getWebhooksEnabled() async => _webhooksEnabled;
 
   @override
   Future<void> setWebhooksEnabled(bool enabled) async {
     _webhooksEnabled = enabled;
+  }
+
+  @override
+  Future<bool> getKeepScreenOn() async => _keepScreenOn;
+
+  @override
+  Future<void> setKeepScreenOn(bool keepScreenOn) async {
+    _keepScreenOn = keepScreenOn;
+  }
+
+  @override
+  Future<bool> getUseAsyncEvaluator() async => _useAsyncEvaluator;
+
+  @override
+  Future<void> setUseAsyncEvaluator(bool useAsync) async {
+    _useAsyncEvaluator = useAsync;
+  }
+
+  @override
+  Future<ThemeMode> getThemeMode() async => _themeMode;
+
+  @override
+  Future<void> setThemeMode(ThemeMode mode) async {
+    _themeMode = mode;
+  }
+
+  @override
+  Future<DicePaneOrientation> getDicePaneOrientation() async => _dicePaneOrientation;
+
+  @override
+  Future<void> setDicePaneOrientation(DicePaneOrientation orientation) async {
+    _dicePaneOrientation = orientation;
   }
 
   @override

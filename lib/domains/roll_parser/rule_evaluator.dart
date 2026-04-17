@@ -215,81 +215,175 @@ class RuleEvaluator {
   final DieDomain _dieDomain;
   final WebhookDomain _webhookDomain;
 
-  late final List<RuleScript> _userRules;
+  late List<RuleScript> _userRules;
+  late List<String> _ruleOrder;    // canonical firing/display order (list of names)
+  late Set<String> _hiddenDefaults; // names of default rules hidden by the user
 
   List<RuleScript> getRules({bool enabledOnly = false}) {
-    final defaultNames = defaultRules.map((r) => r.name).toSet();
+    final defaultByName = {for (final r in defaultRules) r.name: r};
     final userByName = {for (final r in _userRules) r.name: r};
-    final List<RuleScript> ret = [
-      // Custom user scripts (not in defaults) in user-defined order
-      ..._userRules.where((r) => !defaultNames.contains(r.name)),
-      // Defaults in their natural order, substituted if the user has an override
-      ...defaultRules.map((r) => userByName[r.name] ?? r),
-    ];
-    if (enabledOnly) ret.removeWhere((v) => !v.enabled);
-    return ret;
+    final result = <RuleScript>[];
+    for (final name in _ruleOrder) {
+      if (_hiddenDefaults.contains(name)) continue;
+      final rule = userByName[name] ?? defaultByName[name];
+      if (rule != null) result.add(rule);
+    }
+    if (enabledOnly) result.removeWhere((r) => !r.enabled);
+    return result;
+  }
+
+  List<RuleScript> getHiddenDefaultRules() {
+    final defaultByName = {for (final r in defaultRules) r.name: r};
+    return _hiddenDefaults
+        .where((name) => defaultByName.containsKey(name))
+        .map((name) => defaultByName[name]!)
+        .toList();
+  }
+
+  bool isUserOnlyRule(String name) {
+    final defaultNames = defaultRules.map((r) => r.name).toSet();
+    return _userRules.any((r) => r.name == name) && !defaultNames.contains(name);
+  }
+
+  List<String> _buildDefaultOrder() {
+    final defaultNames = defaultRules.map((r) => r.name).toSet();
+
+    final result = <String>[];
+    for (final r in _userRules) {
+      if (!defaultNames.contains(r.name)) result.add(r.name);
+    }
+    for (final r in defaultRules) {
+      if (!_hiddenDefaults.contains(r.name)) result.add(r.name);
+    }
+    return result;
   }
 
   Future<void> addRuleScript(String ruleScript, {bool enabled = true}) async {
+    // Throws FormatException on invalid DSL — state is not mutated before this line.
     final String name = _parseRuleV11(rule: ruleScript, threshold: 0, modifier: 0, rolledCount: 0).name;
 
-    var newRule = RuleScript(name: name, script: ruleScript, enabled: enabled);
-    int idx = _userRules.indexWhere((r) => r.name == name);
+    final prevUserRules = List<RuleScript>.from(_userRules);
+    final prevRuleOrder = List<String>.from(_ruleOrder);
+
+    final newRule = RuleScript(name: name, script: ruleScript, enabled: enabled);
+    final idx = _userRules.indexWhere((r) => r.name == name);
     if (idx != -1) {
       _userRules[idx] = newRule;
     } else {
       _userRules.insert(0, newRule);
+      if (!_ruleOrder.contains(name)) {
+        _ruleOrder.insert(0, name);
+      }
     }
 
-    await _appService.setSavedScripts(_userRules.map((e) => e.toJsonString()).toList());
+    try {
+      await _appService.setSavedScripts(_userRules.map((e) => e.toJsonString()).toList());
+      await _appService.setRuleOrder(_ruleOrder);
+    } catch (e) {
+      _userRules..clear()..addAll(prevUserRules);
+      _ruleOrder..clear()..addAll(prevRuleOrder);
+      rethrow;
+    }
   }
 
   Future<void> toggleRuleScript(String name, bool enabled) async {
-    RuleScript? inUser = _userRules.firstWhereOrNull((r) => r.name == name);
-    if (inUser != null) {
-      inUser.enabled = enabled;
-      await _appService.setSavedScripts(_userRules.map((e) => e.toJsonString()).toList());
-      return;
+    final prevUserRules = List<RuleScript>.from(_userRules);
+
+    final inUserIdx = _userRules.indexWhere((r) => r.name == name);
+    if (inUserIdx != -1) {
+      final r = _userRules[inUserIdx];
+      _userRules[inUserIdx] = RuleScript(name: r.name, script: r.script, enabled: enabled, priority: r.priority);
+    } else {
+      final inDefault = defaultRules.firstWhereOrNull((r) => r.name == name);
+      if (inDefault != null) {
+        _userRules.add(RuleScript(
+          name: inDefault.name,
+          script: inDefault.script,
+          enabled: enabled,
+          priority: inDefault.priority,
+        ));
+      }
     }
 
-    RuleScript? inDefault = defaultRules.firstWhereOrNull((r) => r.name == name);
-    if (inDefault != null) {
-      RuleScript toUser = RuleScript(
-        name: inDefault.name,
-        script: inDefault.script,
-        enabled: enabled,
-        priority: inDefault.priority,
-      );
-      _userRules.add(toUser);
-
+    try {
       await _appService.setSavedScripts(_userRules.map((e) => e.toJsonString()).toList());
-      return;
+    } catch (e) {
+      _userRules..clear()..addAll(prevUserRules);
+      rethrow;
     }
   }
 
   Future<void> reorderRules(int idxFrom, int idxTo) async {
-    final item = _userRules.removeAt(idxFrom);
-    _userRules.insert(idxTo, item);
-    await _appService.setSavedScripts(_userRules.map((e) => e.toJsonString()).toList());
+    final visible = getRules();
+    if (idxFrom < 0 || idxFrom >= visible.length) return;
+    if (idxTo < 0 || idxTo >= visible.length) return;
+
+    final nameFrom = visible[idxFrom].name;
+    final nameTo = visible[idxTo].name;
+    final orderFrom = _ruleOrder.indexOf(nameFrom);
+    final orderTo = _ruleOrder.indexOf(nameTo);
+    if (orderFrom == -1 || orderTo == -1) return;
+
+    final prevRuleOrder = List<String>.from(_ruleOrder);
+    final item = _ruleOrder.removeAt(orderFrom);
+    _ruleOrder.insert(orderTo, item);
+
+    try {
+      await _appService.setRuleOrder(_ruleOrder);
+    } catch (e) {
+      _ruleOrder..clear()..addAll(prevRuleOrder);
+      rethrow;
+    }
   }
 
   Future<void> removeRule(int idx) async {
-    // Interpret idx as an index into the combined visible rules list (user + defaults).
-    // Deleting a default rule should "reset" it, which effectively means removing any
-    // user override/saved copy. So we locate by name in _userRules and remove that entry.
-    final List<RuleScript> combined = getRules();
-    if (idx < 0 || idx >= combined.length) {
-      return; // out of range; nothing to remove
-    }
-    final String name = combined[idx].name;
-    final int userIdx = _userRules.indexWhere((r) => r.name == name);
-    if (userIdx != -1) {
-      _userRules.removeAt(userIdx);
-      await _appService.setSavedScripts(_userRules.map((e) => e.toJsonString()).toList());
+    final combined = getRules();
+    if (idx < 0 || idx >= combined.length) return;
+
+    final name = combined[idx].name;
+    final isDefault = defaultRules.any((r) => r.name == name);
+
+    final prevUserRules = List<RuleScript>.from(_userRules);
+    final prevRuleOrder = List<String>.from(_ruleOrder);
+    final prevHiddenDefaults = Set<String>.from(_hiddenDefaults);
+
+    if (isDefault) {
+      _userRules.removeWhere((r) => r.name == name);
+      _hiddenDefaults.add(name);
+      _ruleOrder.remove(name);
     } else {
-      // No user-defined rule with this name; it's a built-in default with no override.
-      // Nothing to persist for removal; treat as a no-op reset.
-      return;
+      _userRules.removeWhere((r) => r.name == name);
+      _ruleOrder.remove(name);
+    }
+
+    try {
+      await _appService.setSavedScripts(_userRules.map((e) => e.toJsonString()).toList());
+      await _appService.setRuleOrder(_ruleOrder);
+      await _appService.setHiddenRuleNames(_hiddenDefaults.toList());
+    } catch (e) {
+      _userRules..clear()..addAll(prevUserRules);
+      _ruleOrder..clear()..addAll(prevRuleOrder);
+      _hiddenDefaults..clear()..addAll(prevHiddenDefaults);
+      rethrow;
+    }
+  }
+
+  Future<void> unhideRule(String name) async {
+    if (!_hiddenDefaults.contains(name)) return;
+
+    final prevHiddenDefaults = Set<String>.from(_hiddenDefaults);
+    final prevRuleOrder = List<String>.from(_ruleOrder);
+
+    _hiddenDefaults.remove(name);
+    _ruleOrder.add(name);
+
+    try {
+      await _appService.setHiddenRuleNames(_hiddenDefaults.toList());
+      await _appService.setRuleOrder(_ruleOrder);
+    } catch (e) {
+      _hiddenDefaults..clear()..addAll(prevHiddenDefaults);
+      _ruleOrder..clear()..addAll(prevRuleOrder);
+      rethrow;
     }
   }
 
@@ -299,6 +393,18 @@ class RuleEvaluator {
 
   Future<void> init() async {
     _userRules = (await _appService.getSavedScripts()).map((e) => RuleScript.fromJsonString(e)).toList();
+    _hiddenDefaults = (await _appService.getHiddenRuleNames()).toSet();
+    _ruleOrder = await _appService.getRuleOrder();
+    if (_ruleOrder.isEmpty) {
+      _ruleOrder = _buildDefaultOrder();
+    } else {
+      // Append any default rules added in a later app version that aren't yet in the saved order.
+      for (final r in defaultRules) {
+        if (!_ruleOrder.contains(r.name) && !_hiddenDefaults.contains(r.name)) {
+          _ruleOrder.add(r.name);
+        }
+      }
+    }
   }
 
   Future<ParseResult> runRule(String rule, List<GenericDie> rolls, {int threshold = 0, int modifier = 0}) async {

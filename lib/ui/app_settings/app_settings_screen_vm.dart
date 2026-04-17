@@ -242,32 +242,73 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
   }
 
   // Scripts
+  String? saveError;
+
   List<RuleScript> getRuleScripts() {
     return _diWrapper.ruleParser.getRules();
   }
 
-  void addRuleScript(String script, {bool enabled = true}) {
-    unawaited(_diWrapper.ruleParser.addRuleScript(script, enabled: enabled)
-        .onError((e, st) => debugPrint('[AppSettingsVM] addRuleScript failed: $e')));
-    notifyListeners();
+  List<RuleScript> getHiddenDefaultRules() {
+    return _diWrapper.ruleParser.getHiddenDefaultRules();
   }
 
-  void toggleRuleScript(String name, bool enabled) {
-    unawaited(_diWrapper.ruleParser.toggleRuleScript(name, enabled)
-        .onError((e, st) => debugPrint('[AppSettingsVM] toggleRuleScript failed: $e')));
-    notifyListeners();
+  bool isUserOnlyRule(String name) {
+    return _diWrapper.ruleParser.isUserOnlyRule(name);
   }
 
-  void reorderRules(int idxFrom, int idxTo) {
-    unawaited(_diWrapper.ruleParser.reorderRules(idxFrom, idxTo)
-        .onError((e, st) => debugPrint('[AppSettingsVM] reorderRules failed: $e')));
-    notifyListeners();
+  Future<void> addRuleScript(String script, {bool enabled = true}) async {
+    saveError = null;
+    try {
+      await _diWrapper.ruleParser.addRuleScript(script, enabled: enabled);
+    } catch (e) {
+      saveError = e.toString();
+    } finally {
+      notifyListeners();
+    }
   }
 
-  void removeRule(int idx) {
-    unawaited(_diWrapper.ruleParser.removeRule(idx)
-        .onError((e, st) => debugPrint('[AppSettingsVM] removeRule failed: $e')));
-    notifyListeners();
+  Future<void> toggleRuleScript(String name, bool enabled) async {
+    saveError = null;
+    try {
+      await _diWrapper.ruleParser.toggleRuleScript(name, enabled);
+    } catch (e) {
+      saveError = e.toString();
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  Future<void> reorderRules(int idxFrom, int idxTo) async {
+    saveError = null;
+    try {
+      await _diWrapper.ruleParser.reorderRules(idxFrom, idxTo);
+    } catch (e) {
+      saveError = e.toString();
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  Future<void> removeRule(int idx) async {
+    saveError = null;
+    try {
+      await _diWrapper.ruleParser.removeRule(idx);
+    } catch (e) {
+      saveError = e.toString();
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  Future<void> unhideRule(String name) async {
+    saveError = null;
+    try {
+      await _diWrapper.ruleParser.unhideRule(name);
+    } catch (e) {
+      saveError = e.toString();
+    } finally {
+      notifyListeners();
+    }
   }
 
 

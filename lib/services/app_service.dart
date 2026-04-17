@@ -62,6 +62,8 @@ class AppService {
   static String themeKey = 'theme_mode';
   static String keepScreenOnKey = 'keep_screen_on';
   static String ruleScriptsKey = 'rule_scripts';
+  static String ruleOrderKey = 'rule_order';
+  static String hiddenRuleNamesKey = 'hidden_rule_names';
   static String useAsyncEvaluatorKey = 'use_async_evaluator';
   static String dicePaneOrientationKey = 'dice_pane_orientation';
   static String webhooksEnabledKey = 'webhooks_enabled';
@@ -96,6 +98,26 @@ class AppService {
   Future<void> setSavedScripts(List<String> scripts) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(ruleScriptsKey, scripts);
+  }
+
+  Future<List<String>> getRuleOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(ruleOrderKey) ?? [];
+  }
+
+  Future<void> setRuleOrder(List<String> order) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(ruleOrderKey, order);
+  }
+
+  Future<List<String>> getHiddenRuleNames() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList(hiddenRuleNamesKey) ?? [];
+  }
+
+  Future<void> setHiddenRuleNames(List<String> names) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(hiddenRuleNamesKey, names);
   }
 
   // Evaluator toggle: gate async evaluator usage behind a preference

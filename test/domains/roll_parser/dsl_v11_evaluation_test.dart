@@ -97,6 +97,8 @@ class FakeDieDomain extends DieDomain {
 
 class FakeAppService extends AppService {
   List<String> _saved = [];
+  List<String> _ruleOrder = [];
+  List<String> _hiddenRuleNames = [];
 
   @override
   Future<List<String>> getSavedScripts() async => _saved;
@@ -104,6 +106,22 @@ class FakeAppService extends AppService {
   @override
   Future<void> setSavedScripts(List<String> rules) async {
     _saved = rules;
+  }
+
+  @override
+  Future<List<String>> getRuleOrder() async => List.from(_ruleOrder);
+
+  @override
+  Future<void> setRuleOrder(List<String> order) async {
+    _ruleOrder = List.from(order);
+  }
+
+  @override
+  Future<List<String>> getHiddenRuleNames() async => List.from(_hiddenRuleNames);
+
+  @override
+  Future<void> setHiddenRuleNames(List<String> names) async {
+    _hiddenRuleNames = List.from(names);
   }
 
   @override

@@ -1,3 +1,4 @@
+// TODO: streamline settings UI
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/domains/roll_parser/parser_rules.dart';
 
@@ -13,22 +14,39 @@ class ScriptScreenWidget extends StatefulWidget {
 
   final AppSettingsScreenViewModel viewModel;
 
-  static Future<ScriptScreenWidget> create(DiWrapper di) async {
-    var vm = AppSettingsScreenViewModel(di);
-    var widget = ScriptScreenWidget(viewModel: vm);
-
-    return widget;
-  }
 }
 
 class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
-  // This is just a placeholder list for UI demonstration
-  // In a real implementation, this would be fetched from a data source
-  // List<Map<String, dynamic>> scripts = [
-  //   {'name': 'Example Script 1', 'content': 'Script content goes here...', 'selected': false},
-  //   {'name': 'Example Script 2', 'content': 'Another script content...', 'selected': false},
-  //   {'name': 'Example Script 3', 'content': 'Yet another script content...', 'selected': false},
-  // ];
+  String? _lastShownError;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.viewModel.addListener(_onViewModelChanged);
+  }
+
+  void _onViewModelChanged() {
+    final err = widget.viewModel.saveError;
+    if (err == null) {
+      _lastShownError = null;
+      return;
+    }
+    if (err == _lastShownError || !mounted) return;
+    _lastShownError = err;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Save failed: $err')),
+        );
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    widget.viewModel.removeListener(_onViewModelChanged);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -54,60 +72,92 @@ class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
             child: ListenableBuilder(
               listenable: widget.viewModel,
               builder: (context, _) {
-                List<RuleScript> scripts = widget.viewModel.getRuleScripts();
+                final List<RuleScript> scripts = widget.viewModel.getRuleScripts();
                 return scripts.isEmpty
                     ? const Center(child: Text('No scripts added'))
                     : ReorderableListView.builder(
-                      padding: EdgeInsets.only(
-                          bottom: MediaQuery.of(context).padding.bottom),
-                      itemCount: scripts.length,
-                      onReorder: (oldIndex, newIndex) {
-                        if (oldIndex < newIndex) {
-                          newIndex -= 1;
-                        }
-                        widget.viewModel.reorderRules(oldIndex, newIndex);
-                        // setState(() {
-                        //   if (oldIndex < newIndex) {
-                        //     newIndex -= 1;
-                        //   }
-                        //
-                        // });
-                      },
-                      itemBuilder: (context, index) {
-                        return ListTile(
-                          key: Key('script_$index'),
-                          leading: Checkbox(
-                            value: scripts[index].enabled,
-                            onChanged: (bool? value) {
-                              widget.viewModel.toggleRuleScript(scripts[index].name, value ?? false);
-                              // setState(() {
-                              //
-                              //   // scripts[index].enabled = value ?? false;
-                              // });
-                            },
-                          ),
-                          title: Text(scripts[index].name),
-                          subtitle: Text(scripts[index].script, maxLines: 1, overflow: TextOverflow.ellipsis),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.edit),
-                                onPressed: () => _showEditScriptDialog(context, index, scripts),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete),
-                                onPressed: () {
-                                  widget.viewModel.removeRule(index);
-                                },
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    );
+                        padding: EdgeInsets.only(
+                            bottom: MediaQuery.of(context).padding.bottom),
+                        itemCount: scripts.length,
+                        onReorder: (oldIndex, newIndex) {
+                          if (oldIndex < newIndex) {
+                            newIndex -= 1;
+                          }
+                          widget.viewModel.reorderRules(oldIndex, newIndex);
+                        },
+                        itemBuilder: (context, index) {
+                          final isUserRule =
+                              widget.viewModel.isUserOnlyRule(scripts[index].name);
+                          return ListTile(
+                            key: Key('script_$index'),
+                            leading: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (isUserRule)
+                                  const Padding(
+                                    padding: EdgeInsets.only(right: 4),
+                                    child: Icon(Icons.star, size: 16, color: Colors.amber),
+                                  ),
+                                Checkbox(
+                                  value: scripts[index].enabled,
+                                  onChanged: (bool? value) {
+                                    widget.viewModel.toggleRuleScript(
+                                        scripts[index].name, value ?? false);
+                                  },
+                                ),
+                              ],
+                            ),
+                            title: Text(scripts[index].name),
+                            subtitle: Text(scripts[index].script,
+                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.edit),
+                                  onPressed: () =>
+                                      _showEditScriptDialog(context, index, scripts),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete),
+                                  onPressed: () {
+                                    widget.viewModel.removeRule(index);
+                                  },
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      );
               },
             ),
+          ),
+          ListenableBuilder(
+            listenable: widget.viewModel,
+            builder: (context, _) {
+              final hidden = widget.viewModel.getHiddenDefaultRules();
+              if (hidden.isEmpty) return const SizedBox.shrink();
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: Text(
+                      '${hidden.length} hidden rule${hidden.length == 1 ? '' : 's'}',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                  ),
+                  ...hidden.map((rule) => ListTile(
+                        title: Text(rule.name),
+                        trailing: TextButton(
+                          onPressed: () => widget.viewModel.unhideRule(rule.name),
+                          child: const Text('Restore'),
+                        ),
+                      )),
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -119,84 +169,109 @@ class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
 
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Add New Script'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 16),
-                TextField(
-                  controller: contentController,
-                  decoration: const InputDecoration(labelText: 'Script Content', hintText: 'Enter your script here'),
-                  maxLines: 10,
+      builder: (BuildContext dialogContext) {
+        String? dialogError;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              title: const Text('Add New Script'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: contentController,
+                      decoration: InputDecoration(
+                        labelText: 'Script Content',
+                        hintText: 'Enter your script here',
+                        errorText: dialogError,
+                      ),
+                      maxLines: 10,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                ),
+                TextButton(
+                  child: const Text('Save'),
+                  onPressed: () async {
+                    if (contentController.text.isNotEmpty) {
+                      await widget.viewModel.addRuleScript(contentController.text);
+                      final err = widget.viewModel.saveError;
+                      if (err != null) {
+                        setDialogState(() => dialogError = err);
+                      } else {
+                        if (ctx.mounted) Navigator.of(ctx).pop();
+                      }
+                    }
+                  },
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('Save'),
-              onPressed: () {
-                if (contentController.text.isNotEmpty) {
-                  widget.viewModel.addRuleScript(contentController.text);
-                  Navigator.of(context).pop();
-                }
-              },
-            ),
-          ],
+            );
+          },
         );
       },
     );
   }
 
-  void _showEditScriptDialog(BuildContext context, int index, List<RuleScript> scripts) {
-    // Get the current script values
-    String currentContent = scripts[index].script;
-
-    // Create controllers with the current values
-    final TextEditingController contentController = TextEditingController(text: currentContent);
+  void _showEditScriptDialog(
+      BuildContext context, int index, List<RuleScript> scripts) {
+    final TextEditingController contentController =
+        TextEditingController(text: scripts[index].script);
 
     showDialog(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Edit Script'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const SizedBox(height: 16),
-                TextField(
-                  controller: contentController,
-                  decoration: const InputDecoration(labelText: 'Script Content', hintText: 'Enter your script here'),
-                  maxLines: 10,
+      builder: (BuildContext dialogContext) {
+        String? dialogError;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              title: const Text('Edit Script'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: contentController,
+                      decoration: InputDecoration(
+                        labelText: 'Script Content',
+                        hintText: 'Enter your script here',
+                        errorText: dialogError,
+                      ),
+                      maxLines: 10,
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  child: const Text('Cancel'),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                ),
+                TextButton(
+                  child: const Text('Save'),
+                  onPressed: () async {
+                    await widget.viewModel.addRuleScript(
+                      contentController.text,
+                      enabled: scripts[index].enabled,
+                    );
+                    final err = widget.viewModel.saveError;
+                    if (err != null) {
+                      setDialogState(() => dialogError = err);
+                    } else {
+                      if (ctx.mounted) Navigator.of(ctx).pop();
+                    }
+                  },
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('Save'),
-              onPressed: () {
-                widget.viewModel.addRuleScript(contentController.text, enabled: scripts[index].enabled);
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
+            );
+          },
         );
       },
     );

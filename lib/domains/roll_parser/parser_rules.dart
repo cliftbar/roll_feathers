@@ -1,29 +1,34 @@
 import 'dart:convert';
 
+import 'package:roll_feathers/domains/roll_parser/parser_definitions.dart';
 import 'package:roll_feathers/domains/roll_parser/result_targets.dart';
 
 final List<RuleScript> defaultRules = [
-  RuleScript(name: 'Percentiles (2d20)', script: d20percentiles, enabled: false),
-  RuleScript(name: 'Percentiles (1d10,1d100)', script: percentiles, enabled: false),
-  RuleScript(name: 'Doubles', script: doubles, enabled: false),
-  RuleScript(name: 'Duplicates', script: nDupes, enabled: false),
-  RuleScript(name: 'Advantage', script: advantage, enabled: false),
-  RuleScript(name: 'Disadvantage', script: disadvantage, enabled: false),
-  RuleScript(name: 'Basic Blink', script: standardRoll, enabled: true),
-  RuleScript(name: 'Max (with Modifier)', script: maxWithModifier, enabled: false),
-  RuleScript(name: 'All Above Threshold', script: allAboveThreshold, enabled: false),
-  RuleScript(name: 'Avg Pass/Fail (d10)', script: averagePassFailD10, enabled: false),
-  RuleScript(name: 'High/Low/Tie All', script: highLowAllTies, enabled: false),
-  RuleScript(name: 'High/Low/Tie Single', script: highLowTiesSingle, enabled: false),
-  RuleScript(name: 'High/Low', script: highLowSinglePreferMax, enabled: false),
+  RuleScript(name: 'd20percentiles', script: d20percentiles, enabled: false),
+  RuleScript(name: 'percentiles', script: percentiles, enabled: false),
+  RuleScript(name: 'doubles', script: doubles, enabled: false),
+  RuleScript(name: 'nDupes', script: nDupes, enabled: false),
+  RuleScript(name: 'advantage', script: advantage, enabled: false),
+  RuleScript(name: 'disadvantage', script: disadvantage, enabled: false),
+  RuleScript(name: 'standardRoll', script: standardRoll, enabled: true),
+  RuleScript(name: 'webhookExample', script: webhookExample, enabled: false),
+  RuleScript(name: 'maxWithModifier', script: maxWithModifier, enabled: false),
+  RuleScript(name: 'allAboveThreshold', script: allAboveThreshold, enabled: false),
+  RuleScript(name: 'averagePassFailD10', script: averagePassFailD10, enabled: false),
+  RuleScript(name: 'highLowAllTiesExclusive', script: highLowAllTies, enabled: false),
+  RuleScript(name: 'highLowTiesSingle', script: highLowTiesSingle, enabled: false),
+  RuleScript(name: 'highLowSinglePreferMax', script: highLowSinglePreferMax, enabled: false),
 ];
 
 class RuleScript {
-  final String name;
+  final String name;   // ruleId: define block identifier, unique key
   final String script;
   bool enabled;
   int? priority;
   RuleScript({required this.name, required this.script, required this.enabled, this.priority = intMaxValue});
+
+  // Derived from the optional "Display Name" in the define line; falls back to name.
+  late final String displayName = parseDisplayName(script) ?? name;
 
   String toJsonString() {
     return jsonEncode({
@@ -46,7 +51,7 @@ class RuleScript {
 }
 
 const String d20percentiles = """
-define d20percentiles for roll 2d20
+define d20percentiles "Percentiles (2d20)" for roll 2d20
 
   make selection @ALL
     with match [*:*]
@@ -64,7 +69,7 @@ define d20percentiles for roll 2d20
 """;
 
 const String percentiles = """
-define percentiles for roll 1d10,1d00
+define percentiles "Percentiles (1d10,1d100)" for roll 1d10,1d00
 
   use selection \$ALL_DICE
     aggregate over selection sum
@@ -78,7 +83,7 @@ define percentiles for roll 1d10,1d00
 """;
 
 const String doubles = """
-define doubles for roll *d*
+define doubles "Doubles" for roll *d*
 
   make selection @DUPE2
     with dupes [2:2]
@@ -89,7 +94,7 @@ define doubles for roll *d*
 """;
 
 const String nDupes = """
-define nDupes for roll *d*
+define nDupes "Duplicates" for roll *d*
 
   make selection @NDUPE
     with dupes [\$THRESHOLD:\$THRESHOLD]
@@ -100,7 +105,7 @@ define nDupes for roll *d*
 """;
 
 const String advantage = """
-define advantage for roll 2d20
+define advantage "Advantage" for roll 2d20
 
   make selection @TOP
     with top 1
@@ -111,7 +116,7 @@ define advantage for roll 2d20
 """;
 
 const String disadvantage = """
-define disadvantage for roll 2d20
+define disadvantage "Disadvantage" for roll 2d20
 
   make selection @BOT
     with bottom 1
@@ -122,15 +127,28 @@ define disadvantage for roll 2d20
 """;
 
 const String standardRoll = """
-define standardRoll for roll *d*
+define standardRoll "Basic Blink" for roll *d*
 
   use selection \$ALL_DICE
     aggregate over selection sum
     on result [*:*] action blink
 """;
 
+const String webhookExample = """
+define webhookExample "Webhook Example" for roll *d*
+
+  make selection @TOP
+    with top 1
+
+  use selection @TOP
+    aggregate over selection max
+    on result [*:*] action blink green
+    on result [*:*] webhook POST http://localhost:8765/hook
+    on result [*:*] discord https://discord.com/api/webhooks/your_webhook_id/your_webhook_token
+""";
+
 const String maxWithModifier = """
-define maxWithModifier for roll *d*
+define maxWithModifier "Max (with Modifier)" for roll *d*
 # blink one die with the highest value after applying the modifier
 
   make selection @ALL_MOD
@@ -144,7 +162,7 @@ define maxWithModifier for roll *d*
 """;
 
 const String allAboveThreshold = """
-define allAboveThreshold for roll *d*
+define allAboveThreshold "All Above Threshold" for roll *d*
 
   make selection @ALL_THRESH
     with match [*:*]
@@ -156,7 +174,7 @@ define allAboveThreshold for roll *d*
 """;
 
 const String averagePassFailD10 = """
-define averagePassFailD10 for roll *d10
+define averagePassFailD10 "Avg Pass/Fail (d10)" for roll *d10
 
   make selection @ALL
     with match [*:*]
@@ -168,7 +186,7 @@ define averagePassFailD10 for roll *d10
 """;
 
 const String highLowAllTies = """
-define highLowAllTiesExclusive for roll *d*
+define highLowAllTiesExclusive "High/Low/Tie All" for roll *d*
 # Blink all High and Low dice, and if all are Tied
 
   make selection @ALL_MAX
@@ -198,7 +216,7 @@ define highLowAllTiesExclusive for roll *d*
 
 // Variant: blink only one highest (green) and one lowest (red); on tie blink only one purple
 const String highLowTiesSingle = """
-define highLowTiesSingle for roll *d*
+define highLowTiesSingle "High/Low/Tie Single" for roll *d*
 # Blink exactly one die: highest (green) and lowest (red). If all dice tie, blink one die purple and suppress green/red.
 
   make selection @HIGH
@@ -222,7 +240,7 @@ define highLowTiesSingle for roll *d*
 // Variant: blink a single highest (green) and a single lowest (red);
 // on tie, prefer the max (blink only the single max green; no red/purple)
 const String highLowSinglePreferMax = """
-define highLowSinglePreferMax for roll *d*
+define highLowSinglePreferMax "High/Low" for roll *d*
 # Blink exactly one highest (green) and one lowest (red). If all dice tie, prefer the max: blink the top die green and do not blink red.
 
   make selection @HIGH

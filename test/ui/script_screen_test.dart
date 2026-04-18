@@ -119,7 +119,7 @@ void main() {
     await tester.pumpWidget(createWidgetUnderTest());
     await tester.pumpAndSettle();
 
-    expect(find.byIcon(Icons.star), findsOneWidget);
+    expect(find.byIcon(Icons.person), findsOneWidget);
   });
 
   testWidgets('hidden rules section shown when getHiddenDefaultRules() is non-empty', (WidgetTester tester) async {

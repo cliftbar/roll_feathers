@@ -178,7 +178,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
 
   Widget _buildDiceHeader() {
     return Wrap(
-      // TODO: second row so alignment works?
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         _makeAutoRollSwitch(),
         TextButton.icon(
@@ -413,7 +413,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
       color: Colors.transparent,
       shadowColor: Colors.transparent,
       child: Padding(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         child: Wrap(
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [

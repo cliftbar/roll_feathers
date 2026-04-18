@@ -178,7 +178,7 @@ class RuleEvaluator {
   // Mixed-block v1.1 script parser: after header, parse a sequence of either make- or use-blocks by leading keyword
   static final pp.Parser<ParsedScriptV11> v11ScriptParser = pp
       .seq4(
-        pp.seq3(pp.string("define ").times(1).flatten(), alphanumericParser, pp.whitespace().star()),
+        defineHeaderParser,
         pp.seq3(
           pp.string("for roll ").times(1).flatten(),
           dieParser.plusSeparated(",".toParser()),
@@ -189,7 +189,7 @@ class RuleEvaluator {
         pp.whitespace().star(),
       )
       .map((e) {
-        final name = e.$1.$2;
+        final name = e.$1.$1;
         final rolls = e.$2.$2.elements;
         final List blocks = e.$3;
         final List<MakeSelectionDef> makes = [];
@@ -201,7 +201,6 @@ class RuleEvaluator {
             uses.add(b);
           }
         }
-        // Debug: how many blocks parsed
         Logger(
           "RuleEvaluator",
         ).finer(() => "[DSL v1.1] parsed blocks name=$name makes=${makes.length} uses=${uses.length}");

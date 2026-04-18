@@ -96,7 +96,7 @@ class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
                                 if (isUserRule)
                                   const Padding(
                                     padding: EdgeInsets.only(right: 4),
-                                    child: Icon(Icons.star, size: 16, color: Colors.amber),
+                                    child: Icon(Icons.person, size: 16),
                                   ),
                                 Checkbox(
                                   value: scripts[index].enabled,
@@ -107,7 +107,7 @@ class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
                                 ),
                               ],
                             ),
-                            title: Text(scripts[index].name),
+                            title: Text(scripts[index].displayName),
                             subtitle: Text(scripts[index].script,
                                 maxLines: 1, overflow: TextOverflow.ellipsis),
                             trailing: Row(
@@ -149,7 +149,7 @@ class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
                     ),
                   ),
                   ...hidden.map((rule) => ListTile(
-                        title: Text(rule.name),
+                        title: Text(rule.displayName),
                         trailing: TextButton(
                           onPressed: () => widget.viewModel.unhideRule(rule.name),
                           child: const Text('Restore'),

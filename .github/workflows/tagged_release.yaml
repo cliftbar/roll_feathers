@@ -77,6 +77,8 @@ jobs:  # Telling what jobs we need to happen
     steps:
       - name: Clone repository
         uses: actions/checkout@v4
+      - name: Install yq
+        run: winget install -e --id MikeFarah.yq --accept-source-agreements --accept-package-agreements
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:

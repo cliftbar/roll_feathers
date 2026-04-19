@@ -1,10 +1,58 @@
 # Changelog
 
-## Unreleased
+## 0.12.17
 
 ### Features
 
-- **Webhook targets** — DSL rules now support `on result [range] webhook [GET|POST] <url>`. On match, fires an HTTP request to the configured URL. POST sends a full JSON payload with rule name, timestamp, aggregate value, matched range, result dice, all dice, and co-actions. GET appends `aggregate` and `rule` as query params. Errors are caught and logged; dice behavior is never interrupted.
+- **Webhook example rule** — New built-in `webhookExample` rule (hidden by default) demonstrates all three action targets firing together — blink, webhook POST, and Discord embed — on any roll. Serves as a copy-paste starting point for webhook and Discord rules.
+- **Rule display names** — Rules can now declare a quoted display name on the `define` line (e.g. `define myRule "My Rule" for roll *d*`). The display name is derived from the script itself at parse time; nothing extra is stored in JSON. All built-in default rules now embed their display names this way. User rules without a quoted name fall back to showing the identifier. Old saved JSON with a `displayName` key is silently ignored (backwards compatible).
+- **Dash support in rule IDs** — Rule identifiers now allow hyphens in non-leading positions (`my-rule`, `advantage-v2`). The first character must still be alphanumeric or underscore.
+
+### Bug Fixes
+
+- **Auto-roll switch alignment** — The auto-roll toggle on the main dice screen was vertically misaligned with the Add Die / Pair Die / Roll buttons. Fixed by adding `WrapCrossAlignment.center` to the header row and removing excess vertical padding from the switch card.
+- **User rule indicator** — Changed the user-defined rule indicator icon from ⭐ to 👤 to better distinguish user rules from default rules.
+
+## 0.12.16
+
+### Bug Fixes
+
+- **Rule persistence (fire-and-forget)** — All four rule management operations (add, toggle, reorder, remove) were discarding their async futures, so `notifyListeners` could fire before the write to `SharedPreferences` completed. Each operation now `await`s persistence before notifying listeners.
+- **Invalid DSL silently accepted** — Parse errors on rule save were swallowed. Errors now propagate to the VM, which sets a `saveError` state; the add/edit dialog stays open and shows the error message inline rather than saving a broken rule.
+- **Remove default rule was a no-op** — Removing a built-in default rule had no effect. Default rules are now hidden rather than deleted (stored under a `hidden_rule_names` key). A "N hidden rules" section appears at the bottom of the list with individual Restore buttons.
+- **Reorder only applied to user rules** — Drag-to-reorder operated on the user rules list only, making it impossible to interleave user and default rules. Ordering is now driven by an explicit `rule_order` list (stored under a `rule_order` key) that spans both user and default rules.
+- **No rollback on persistence failure** — If a write to `SharedPreferences` failed, the in-memory state was already mutated with no way to recover. All four mutation methods now snapshot state before mutating and restore the snapshot on failure.
+- **New default rules invisible to returning users** — Default rules added in a new app version would not appear for users who already had a saved rule order. `init()` now appends any default rule entries absent from the saved order, so new built-in rules surface automatically on upgrade.
+- **Snackbar spam on save error** — A save error snackbar could re-fire on every unrelated `notifyListeners()` call while `saveError` was set. A `_lastShownError` guard now prevents duplicate snackbars.
+
+### Features
+
+- **New rules inserted at top of list** — Newly added user rules appear at the top of the rules list rather than the bottom.
+- **User rule indicator** — User-defined rules now display a star icon (amber) to distinguish them from built-in default rules.
+
+### Internal
+
+- **Test infrastructure** — Added `NoopBleRepository`, `NoopHaService`, `DiWrapper.forTesting()`, and an extended `InMemoryAppService` to support rule VM and widget tests without a full DI graph. Added 44 new tests across the rule evaluator, settings screen VM, and script screen widget layers.
+
+## 0.12.15
+
+### Features
+
+- **Webhook targets** — DSL rules now support `on result [range] webhook [GET|POST] <url>`. On match, fires an HTTP request to the configured URL. POST sends a structured JSON payload (`RollResultDTO`) with rule name, timestamp, aggregate value, matched range, result dice, all dice, and co-actions. GET appends `aggregate` and `rule` as query parameters. Errors are caught and logged; dice behavior is never interrupted. A `webhooks_enabled` app setting gates all outbound webhook and Discord requests.
+- **Discord targets** — DSL rules support `on result [range] discord <webhook_url>`. Fires a Discord embed (`DiscordRollDTO`) with roll metadata, matched range, and dice values formatted as embed fields.
+- **`RuleEvaluator`** — The rule evaluation engine (previously `RuleParser`) has been renamed, refactored, and lifted into top-level DI as a singleton. The legacy v1.0 synchronous evaluation path and all dead rule target types have been removed. `WebhookDomain` and `RuleEvaluator` are now injected where needed rather than constructed inline.
+- **`webhook_listener.py`** — Added a development utility script (`scripts/webhook_listener.py`) for testing webhook targets locally.
+
+### Bug Fixes
+
+- **Rule persistence (missing await)** — `setSavedScripts` was missing `await` on its `setStringList` call, causing saves to complete out of order under load.
+- **Rule VM silently discarded async errors** — Rule management VM methods were not propagating async errors, masking persistence failures.
+- **JSON type coercion on web** — `fromJsonString` field casts have been hardened to handle JS integer/double type coercion differences that caused deserialization failures on web.
+
+### Internal
+
+- **Import normalization** — All `lib/` source files converted from relative imports to `package:roll_feathers/` style for consistency.
+- **Test coverage** — 48 new tests covering DSL parsing, evaluation, HTTP dispatch (GET/POST), Discord payloads, and integration scenarios.
 
 ## 0.12.14
 

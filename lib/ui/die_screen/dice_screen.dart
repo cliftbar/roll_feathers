@@ -389,10 +389,12 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
       rollType = TextSpan(text: " <${roll.ruleName}>: ${roll.rollResult}");
     }
     List<TextSpan> dynamicText = <TextSpan>[rollType, TextSpan(text: " (")];
-    dynamicText.add(rollsWithColors[0]);
-    for (var r in rollsWithColors.sublist(1)) {
-      dynamicText.add(TextSpan(text: ", "));
-      dynamicText.add(r);
+    if (rollsWithColors.isNotEmpty) {
+      dynamicText.add(rollsWithColors[0]);
+      for (var r in rollsWithColors.sublist(1)) {
+        dynamicText.add(TextSpan(text: ", "));
+        dynamicText.add(r);
+      }
     }
     dynamicText.add(TextSpan(text: ")"));
 

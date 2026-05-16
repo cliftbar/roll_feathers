@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:collection/collection.dart';
+import 'package:logging/logging.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
@@ -52,6 +53,7 @@ class RollDomain {
 
   Timer? _rollUpdateTimer;
 
+  final Logger _log = Logger("RollDomain");
   final RuleEvaluator _ruleParser;
   final AppService appService;
   bool useAsyncEvaluator = false; // gated via AppService pref
@@ -108,14 +110,20 @@ class RollDomain {
   }
 
   Future<int> _stopRollWithResult({RollType rollType = RollType.normal}) async {
+    // Phase 1: pure evaluation — collect effects, no I/O
+    final pendingEffects = <Future<void> Function()>[];
     ParseResult? ruleResult;
     for (var r in _ruleParser.getRules(enabledOnly: true)) {
-      ruleResult = await _ruleParser.runRule(r.script, _rolledDie.values.toList());
-      if (ruleResult.ruleReturn) {
+      final eval = _ruleParser.runRule(r.script, _rolledDie.values.toList());
+      pendingEffects.addAll(eval.effects);
+      if (eval.result.ruleReturn) {
+        ruleResult = eval.result;
         rollType = RollType.rule;
         break;
       }
     }
+
+    // Phase 2: guaranteed recording — always runs
     late Map<String, int> resultRolls;
     late int resultValue;
     String? ruleName;
@@ -127,10 +135,18 @@ class RollDomain {
       resultRolls = Map.fromEntries(_rolledDie.entries.map((e) => MapEntry(e.key, e.value.getFaceValueOrElse())));
       resultValue = resultRolls.values.sum;
     }
-    var result = RollResult(rollType: rollType, rolls: resultRolls, rollResult: resultValue, ruleName: ruleName);
+    final result = RollResult(rollType: rollType, rolls: resultRolls, rollResult: resultValue, ruleName: ruleName);
     _rollHistory.insert(0, result);
     _rollStatusStream.add(RollStatus.rollEnded);
     _rollResultStream.add(_rollHistory);
+
+    // Phase 3: best-effort side effects — fire-and-forget, errors logged
+    for (final effect in pendingEffects) {
+      effect().catchError((Object e, StackTrace st) {
+        _log.warning('side effect error', e, st);
+      });
+    }
+
     return result.rollResult;
   }
 
@@ -206,10 +222,10 @@ class RollDomain {
     _rollStartVirtualDice(force: force);
 
     // Use a timer to simulate the rolling animation
-    Timer(const Duration(milliseconds: 500), () {
+    Timer(const Duration(milliseconds: 500), () async {
       _rollEndVirtualDie(force: force);
       _stopRolling();
-      _stopRollWithResult(rollType: rollType);
+      await _stopRollWithResult(rollType: rollType);
     });
   }
 }

@@ -42,6 +42,15 @@ class ParseResult {
   });
 }
 
+class RuleEvaluation {
+  final ParseResult result;
+  final List<Future<void> Function()> effects;
+
+  const RuleEvaluation({required this.result, required this.effects});
+
+  Future<void> runEffects() => Future.wait(effects.map((e) => e()));
+}
+
 // ===== DSL v1.1 data model =====
 class MakeSelectionDef {
   final String name; // @NAME
@@ -406,14 +415,14 @@ class RuleEvaluator {
     }
   }
 
-  Future<ParseResult> runRule(String rule, List<GenericDie> rolls, {int threshold = 0, int modifier = 0}) async {
+  RuleEvaluation runRule(String rule, List<GenericDie> rolls, {int threshold = 0, int modifier = 0}) {
     final ParsedScriptV11 v11 = _parseRuleV11(
       rule: rule,
       threshold: threshold,
       modifier: modifier,
       rolledCount: rolls.length,
     );
-    return await _evaluateRuleV11(rolls, v11);
+    return _evaluateRuleV11(rolls, v11);
   }
 
   ParsedScriptV11 _parseRuleV11({
@@ -548,9 +557,10 @@ class RuleEvaluator {
     ruleReturn: passed,
   );
 
-  Future<ParseResult> _evaluateRuleV11(List<GenericDie> rolls, ParsedScriptV11 result) async {
+  RuleEvaluation _evaluateRuleV11(List<GenericDie> rolls, ParsedScriptV11 result) {
     final ctx = _prepareEvaluation(rolls, result);
     final rollTimestamp = DateTime.now().toUtc();
+    final effects = <Future<void> Function()>[];
     int rollResultAggregate = 0;
     int blockIdx = 0;
     for (final block in ctx.result.useBlocks) {
@@ -570,52 +580,62 @@ class RuleEvaluator {
         if (!rr.valueIn(aggValue)) continue;
         _log.fine(
           () =>
-              "[DSL v1.1]  on result matched range -> firing target ${res.targetFunction.target} args=${res.targetFunction.args.join(' ')}",
+              "[DSL v1.1]  on result matched range -> queuing target ${res.targetFunction.target} args=${res.targetFunction.args.join(' ')}",
         );
         switch (res.targetFunction.rtType) {
           case ResultTargetType.action:
             final call = _buildActionCallArgs(res, rolls, selMap);
             if (call.fn != null) {
-              await call.fn!(
+              effects.add(() => call.fn!(
                 dd: _dieDomain,
                 allDice: call.actionAllDice,
                 resultDice: call.actionResultDice,
                 defaultDice: call.defaultDice,
                 args: call.filteredArgs,
-              );
+              ));
             }
             break;
           case ResultTargetType.webhook:
-            await _webhookDomain.fireWebhook(
-              url: res.targetFunction.target,
-              method: res.targetFunction.args.isNotEmpty ? res.targetFunction.args[0] : 'POST',
+            final capturedRes = res;
+            final capturedAggValue = aggValue;
+            final capturedSelMap = selMap;
+            final capturedCoActions = coActions;
+            effects.add(() => _webhookDomain.fireWebhook(
+              url: capturedRes.targetFunction.target,
+              method: capturedRes.targetFunction.args.isNotEmpty ? capturedRes.targetFunction.args[0] : 'POST',
               payload: RollResultDTO.fromRollData(
                 ruleName: ctx.result.name,
-                aggregate: aggValue,
+                aggregate: capturedAggValue,
                 timestamp: rollTimestamp,
-                matchedRange: res.resultRange,
+                matchedRange: capturedRes.resultRange,
                 allDice: rolls,
-                resultDiceMap: selMap,
-                coActions: coActions,
+                resultDiceMap: capturedSelMap,
+                coActions: capturedCoActions,
               ),
-            );
+            ));
             break;
           case ResultTargetType.discord:
-            await _webhookDomain.fireWebhook(
-              url: res.targetFunction.target,
+            final capturedRes = res;
+            final capturedAggValue = aggValue;
+            final capturedSelMap = selMap;
+            effects.add(() => _webhookDomain.fireWebhook(
+              url: capturedRes.targetFunction.target,
               method: 'POST',
               payload: DiscordRollDTO.fromRollData(
                 ruleName: ctx.result.name,
-                aggregate: aggValue,
+                aggregate: capturedAggValue,
                 timestamp: rollTimestamp,
-                resultDiceMap: selMap,
+                resultDiceMap: capturedSelMap,
               ),
-            );
+            ));
             break;
         }
       }
     }
-    return _buildParseResult(rollResultAggregate, rolls, ctx.baseMap, ctx.result.name, ctx.passed);
+    return RuleEvaluation(
+      result: _buildParseResult(rollResultAggregate, rolls, ctx.baseMap, ctx.result.name, ctx.passed),
+      effects: effects,
+    );
   }
 
   bool _checkRollConditions(List<String> expandedResults, List<String> rolls) {

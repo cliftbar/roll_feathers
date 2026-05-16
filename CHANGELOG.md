@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.12.18
+
+### Bug Fixes
+
+- **Roll history silently lost on mobile Chrome** — Virtual dice rolls were never recorded to roll history on mobile Chrome (desktop and iOS Safari unaffected). `_stopRollWithResult` ran fire-and-forget inside a `Timer`, and rule evaluation fired side effects (blink / webhook / Discord) inline. The blink path always read Home Assistant config via `SharedPreferencesAsync` (IndexedDB on web), which can throw on mobile Chrome (stricter storage policy, private mode, aggressive eviction). That exception propagated through the un-awaited call and prevented the roll from ever being inserted into history. The fix separates evaluation, recording, and side effects so a side-effect failure can no longer destroy the roll record on any platform.
+
+### Internal
+
+- **Rule evaluation / recording / side-effect separation** — `runRule` and `_evaluateRuleV11` no longer fire blink/webhook/Discord actions inline; they collect them as deferred closures on a new `RuleEvaluation { result, effects }` return type. `_stopRollWithResult` now runs in three explicit phases: pure evaluation → guaranteed history recording (no I/O in front of it) → best-effort side effects, fired fire-and-forget with errors logged via `_log.warning`. `runRule` is now synchronous (previously `Future<ParseResult>`) since evaluation no longer performs I/O.
+- **Home Assistant blink early-exit** — `blinkEntity` now returns immediately when HA is unavailable and not forced, skipping four `SharedPreferencesAsync` reads on every roll even when HA is disabled or all dice are virtual.
+- **Virtual roll Timer awaits result** — the `rollAllVirtualDice` Timer callback now `await`s `_stopRollWithResult` rather than discarding it.
+- **Empty-roll bounds guard** — `_makeRollText` no longer unconditionally indexes `rollsWithColors[0]`, which could throw `RangeError` when there were no colored rolls.
+- **DSL test harness** — updated for the new `RuleEvaluation` return type; it now explicitly runs the deferred effects (`runEffects()`) before mapping blink actions, since effects are no longer fired during `runRule`.
+
 ## 0.12.17
 
 ### Features

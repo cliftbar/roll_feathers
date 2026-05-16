@@ -349,7 +349,8 @@ class DslTestRunner {
   }) async {
     dieDomain.blinked.clear();
     final testDice = _makeDice(dice);
-    final result = await parser.runRule(rule, testDice, threshold: threshold, modifier: modifier);
+    final result = parser.runRule(rule, testDice, threshold: threshold, modifier: modifier);
+    await result.runEffects();
 
     // Map blink events to ActionLogEntries. We infer 'blink' action; 'sequence' results in blink calls too.
     final actions = <ActionLogEntry>[];
@@ -361,6 +362,6 @@ class DslTestRunner {
       actions.add(ActionLogEntry(dieId: dieId, action: 'blink', colorValue: color, args: const []));
     }
 
-    return DslTestResult(actions: actions, parse: result);
+    return DslTestResult(actions: actions, parse: result.result);
   }
 }

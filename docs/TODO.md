@@ -54,7 +54,21 @@ into a `RuleParser` (pure parse → `ParsedScriptV11`) and a `RuleEvaluator` (ta
 + runtime context → `ParseResult`). This would make unit-testing the parse step in isolation
 straightforward and decouple the two phases.
 
+Note (2026-05-16): `evaluateRule` is now synchronous and pure (returns a
+`RuleEvaluation` plan, no I/O), which makes this split materially more tractable.
+
 **Affected files:** `lib/domains/roll_parser/rule_evaluator.dart`
+
+### Dead `useAsyncEvaluator` config
+After the evaluation/recording/effect separation (see
+`docs/design/rule_effect_separation.md`), `runRuleAsync` was removed and nothing
+branches on `useAsyncEvaluator` anymore. `RollDomain.useAsyncEvaluator`,
+`AppService.getUseAsyncEvaluator` / `setUseAsyncEvaluator` / `useAsyncEvaluatorKey`,
+and the `dsl_test_harness` mirror are dead config — read but never consulted.
+Remove them (and any UI toggle) in a dedicated cleanup.
+
+**Affected files:** `lib/domains/roll_domain.dart`, `lib/services/app_service.dart`,
+`lib/testing/dsl_test_harness.dart`
 
 ## iOS
 

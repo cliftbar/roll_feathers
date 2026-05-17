@@ -60,7 +60,7 @@ void main() {
       final parser = await _parser(dd, app, rec.client);
       final die = FakeDie('d1', 'Main Die', 20, dName: 'd20');
       
-      await parser.runRule(_discordScript(), [die]);
+      await parser.runRule(_discordScript(), [die]).runEffects();
       
       expect(rec.requests.length, equals(1));
       expect(rec.requests.first.method, equals('POST'));
@@ -82,11 +82,11 @@ void main() {
       final die = FakeDie('d1', 'A', 5);
       
       // Range [10:*] should not fire for sum=5
-      await parser.runRule(_discordScript(range: '[10:*]'), [die]);
+      await parser.runRule(_discordScript(range: '[10:*]'), [die]).runEffects();
       expect(rec.requests.length, equals(0));
       
       // Range [5:*] should fire
-      await parser.runRule(_discordScript(range: '[5:*]'), [die]);
+      await parser.runRule(_discordScript(range: '[5:*]'), [die]).runEffects();
       expect(rec.requests.length, equals(1));
     });
   });

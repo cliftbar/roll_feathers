@@ -85,7 +85,7 @@ void main() {
       await parser.runRule(
         _integrationScript(url: '${server.url}/roll'),
         [FakeDie('a', 'A', 5)],
-      );
+      ).runEffects();
       expect(server.received.length, equals(1));
       expect(server.received.first.method, equals('POST'));
     });
@@ -95,7 +95,7 @@ void main() {
       await parser.runRule(
         _integrationScript(url: '${server.url}/roll'),
         [FakeDie('a', 'A', 6)],
-      );
+      ).runEffects();
       final body = jsonDecode(server.received.first.body) as Map<String, dynamic>;
       expect(body.containsKey('rule'), isTrue);
       expect(body.containsKey('aggregate'), isTrue);
@@ -106,7 +106,7 @@ void main() {
       await parser.runRule(
         _integrationScript(method: 'GET', url: '${server.url}/hook'),
         [FakeDie('a', 'A', 8)],
-      );
+      ).runEffects();
       expect(server.received.length, equals(1));
       expect(server.received.first.method, equals('GET'));
       expect(server.received.first.uri.queryParameters['aggregate'], equals('8'));
@@ -128,7 +128,7 @@ void main() {
         parser.runRule(
           _integrationScript(url: 'http://127.0.0.1:${server500.port}/roll'),
           [FakeDie('a', 'A', 3)],
-        ),
+        ).runEffects(),
         completes,
       );
     });
@@ -140,7 +140,7 @@ void main() {
         parser.runRule(
           _integrationScript(url: 'http://127.0.0.1:19999/roll'),
           [FakeDie('a', 'A', 3)],
-        ),
+        ).runEffects(),
         completes,
       );
     });

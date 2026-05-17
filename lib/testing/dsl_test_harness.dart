@@ -10,6 +10,7 @@ import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 import 'package:roll_feathers/repositories/home_assistant_repository.dart';
 import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
+import 'package:roll_feathers/testing/rule_evaluation_test_effects.dart';
 
 /// Fake BLE-type die (type=pixel) for use in RollDomain tests where the
 /// virtual-die filter must be bypassed.  Has no real BLE; roll state is
@@ -349,7 +350,7 @@ class DslTestRunner {
   }) async {
     dieDomain.blinked.clear();
     final testDice = _makeDice(dice);
-    final result = parser.runRule(rule, testDice, threshold: threshold, modifier: modifier);
+    final result = parser.evaluateRule(rule, testDice, threshold: threshold, modifier: modifier);
     await result.runEffects();
 
     // Map blink events to ActionLogEntries. We infer 'blink' action; 'sequence' results in blink calls too.

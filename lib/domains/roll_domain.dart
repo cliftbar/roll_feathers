@@ -110,12 +110,12 @@ class RollDomain {
   }
 
   Future<int> _stopRollWithResult({RollType rollType = RollType.normal}) async {
-    // Phase 1: pure evaluation — collect effects, no I/O
-    final pendingEffects = <Future<void> Function()>[];
+    // Phase 1: pure evaluation — collect evaluations, no I/O
+    final evaluations = <RuleEvaluation>[];
     ParseResult? ruleResult;
     for (var r in _ruleParser.getRules(enabledOnly: true)) {
-      final eval = _ruleParser.runRule(r.script, _rolledDie.values.toList());
-      pendingEffects.addAll(eval.effects);
+      final eval = _ruleParser.evaluateRule(r.script, _rolledDie.values.toList());
+      evaluations.add(eval);
       if (eval.result.ruleReturn) {
         ruleResult = eval.result;
         rollType = RollType.rule;
@@ -141,10 +141,8 @@ class RollDomain {
     _rollResultStream.add(_rollHistory);
 
     // Phase 3: best-effort side effects — fire-and-forget, errors logged
-    for (final effect in pendingEffects) {
-      effect().catchError((Object e, StackTrace st) {
-        _log.warning('side effect error', e, st);
-      });
+    for (final eval in evaluations) {
+      eval.fireEffects((e, st) => _log.warning('side effect error', e, st));
     }
 
     return result.rollResult;

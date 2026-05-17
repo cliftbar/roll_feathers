@@ -48,7 +48,14 @@ class RuleEvaluation {
 
   const RuleEvaluation({required this.result, required this.effects});
 
-  Future<void> runEffects() => Future.wait(effects.map((e) => e()));
+  /// Fires each effect independently, fire-and-forget. A failing effect is
+  /// isolated via [onError] and never affects other effects or the caller —
+  /// this is how the roll path runs side effects, after the roll is recorded.
+  void fireEffects(void Function(Object error, StackTrace stack) onError) {
+    for (final effect in effects) {
+      effect().catchError((Object e, StackTrace st) => onError(e, st));
+    }
+  }
 }
 
 // ===== DSL v1.1 data model =====
@@ -415,7 +422,7 @@ class RuleEvaluator {
     }
   }
 
-  RuleEvaluation runRule(String rule, List<GenericDie> rolls, {int threshold = 0, int modifier = 0}) {
+  RuleEvaluation evaluateRule(String rule, List<GenericDie> rolls, {int threshold = 0, int modifier = 0}) {
     final ParsedScriptV11 v11 = _parseRuleV11(
       rule: rule,
       threshold: threshold,

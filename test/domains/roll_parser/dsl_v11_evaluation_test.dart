@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
+import 'package:roll_feathers/testing/rule_evaluation_test_effects.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/services/app_service.dart';
@@ -156,7 +157,7 @@ void main() {
       final d3 = FakeDie('C', 'C', 4, dName: 'd6');
       final rolls = [d1, d2, d3];
 
-      final res = parser.runRule(script, rolls);
+      final res = parser.evaluateRule(script, rolls);
       await res.runEffects();
       expect(res.result.ruleName, equals('extremes'));
       // Expect two blinks: highest (B) green and lowest (A) red
@@ -201,7 +202,7 @@ define pairsPlus for roll *d*
       final parsed = RuleEvaluator.v11ScriptParser.parse(script);
       expect(parsed.isSuccess, isTrue);
 
-      await parser.runRule(script, [d1, d2, d3, d4, d5]).runEffects();
+      await parser.evaluateRule(script, [d1, d2, d3, d4, d5]).runEffects();
       // Two 5s + three 2s => 5 dice selected, expect one blink per selection count target
       // We check that at least one blink occurred (exact color value from util map)
       expect(dd.blinked.isNotEmpty, isTrue);
@@ -229,7 +230,7 @@ define pairsOnly for roll *d*
       final parsed = RuleEvaluator.v11ScriptParser.parse(script);
       expect(parsed.isSuccess, isTrue);
 
-      await parser.runRule(script, [d1, d2, d3, d4, d5]).runEffects();
+      await parser.evaluateRule(script, [d1, d2, d3, d4, d5]).runEffects();
       // Only the two 5s should be selected (not the triple 2s). Count == 2 triggers the action
       expect(dd.blinked.isNotEmpty, isTrue);
     });
@@ -261,7 +262,7 @@ define pairsOnly for roll *d*
       final b = FakeDie('B', 'B', 4, dName: 'd6');
       final c = FakeDie('C', 'C', 6, dName: 'd6');
       final rolls = [a, b, c];
-      await parser.runRule(script, rolls).runEffects();
+      await parser.evaluateRule(script, rolls).runEffects();
 
       final ids = dd.blinked.map((s) => s.split(':').first).toSet();
       expect(ids, containsAll(<String>['A', 'B', 'C']));
@@ -273,7 +274,7 @@ define pairsOnly for roll *d*
           'use selection \$ALL_DICE aggregate over selection sum on result [*:*] action blink blue';
       final a = FakeDie('A', 'A', 1, dName: 'd6');
       final b = FakeDie('B', 'B', 2, dName: 'd6');
-      await parser.runRule(script, [a, b]).runEffects();
+      await parser.evaluateRule(script, [a, b]).runEffects();
       final ids = dd.blinked.map((s) => s.split(':').first).toList();
       expect(ids, containsAll(<String>['A', 'B']));
     });
@@ -288,7 +289,7 @@ define pairsOnly for roll *d*
       final a = FakeDie('A', 'A', 2, dName: 'd20');
       final b = FakeDie('B', 'B', 19, dName: 'd20');
       final c = FakeDie('C', 'C', 7, dName: 'd20');
-      await parser.runRule(script, [a, b, c]).runEffects();
+      await parser.evaluateRule(script, [a, b, c]).runEffects();
       final ids = dd.blinked.map((s) => s.split(':').first).toList();
       expect(ids, equals(['B']));
     });
@@ -304,12 +305,12 @@ define pairsOnly for roll *d*
 
       // First, value 12 triggers first block only
       dd.blinked.clear();
-      await parser.runRule(script, [a]).runEffects();
+      await parser.evaluateRule(script, [a]).runEffects();
       expect(dd.blinked.map((s) => s.split(':').first).toList(), equals(['A']));
 
       // Second, value 18 triggers second block only
       dd.blinked.clear();
-      await parser.runRule(script, [b]).runEffects();
+      await parser.evaluateRule(script, [b]).runEffects();
       final ids2 = dd.blinked.map((s) => s.split(':').first).toList();
       // Sequence emits multiple blink events; assert that only die 'B' was acted on
       expect(ids2.toSet().toList(), equals(['B']));
@@ -324,7 +325,7 @@ define pairsOnly for roll *d*
           'use selection @ALL aggregate over selection sum on result [*:*] action blink red';
       final a = FakeDie('A', 'A', 3, dName: 'd6');
       dd.blinked.clear();
-      await parser.runRule(script, [a]).runEffects();
+      await parser.evaluateRule(script, [a]).runEffects();
       // two blocks × one blink each = 2
       expect(dd.blinked.length, equals(2));
     });
@@ -340,7 +341,7 @@ define pairsOnly for roll *d*
 
       final a = FakeDie('X', 'X', 5, dName: 'd6');
       dd.blinked.clear();
-      await parser.runRule(script, [a]).runEffects();
+      await parser.evaluateRule(script, [a]).runEffects();
 
       // Expect exactly two blinks in order: red then blue
       expect(dd.blinked.length, equals(2));
@@ -362,7 +363,7 @@ define pairsOnly for roll *d*
       final a = FakeDie('A', 'A', 3, dName: 'd6');
       final b = FakeDie('B', 'B', 4, dName: 'd6');
       dd.blinked.clear();
-      await parser.runRule(script, [a, b]).runEffects();
+      await parser.evaluateRule(script, [a, b]).runEffects();
 
       // Both blocks should trigger: first due to max >= 4, second due to min <= 3
       // Each block blinks all dice in the selection, so expect 4 total blinks
@@ -386,7 +387,7 @@ define pairsOnly for roll *d*
       final b = FakeDie('B', 'B', 5, dName: 'd6');
       final c = FakeDie('C', 'C', 4, dName: 'd6');
       dd.blinked.clear();
-      await parser.runRule(script, [a, b, c]).runEffects();
+      await parser.evaluateRule(script, [a, b, c]).runEffects();
 
       // TOP2 should be B (5) and C (4). We have 3 blocks, each blinking both dice => 6 blinks total
       expect(dd.blinked.length, equals(6));

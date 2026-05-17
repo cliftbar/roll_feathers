@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
+import 'package:roll_feathers/testing/rule_evaluation_test_effects.dart';
 import 'package:roll_feathers/domains/webhook_domain.dart';
 
 import '../../helpers/fakes.dart';
@@ -82,7 +83,7 @@ void main() {
 
     test('4.1 POST reaches real server', () async {
       final parser = await makeParser(WebhookDomain(appService: app));
-      await parser.runRule(
+      await parser.evaluateRule(
         _integrationScript(url: '${server.url}/roll'),
         [FakeDie('a', 'A', 5)],
       ).runEffects();
@@ -92,7 +93,7 @@ void main() {
 
     test('4.2 POST body is valid JSON with rule and aggregate', () async {
       final parser = await makeParser(WebhookDomain(appService: app));
-      await parser.runRule(
+      await parser.evaluateRule(
         _integrationScript(url: '${server.url}/roll'),
         [FakeDie('a', 'A', 6)],
       ).runEffects();
@@ -103,7 +104,7 @@ void main() {
 
     test('4.3 GET reaches real server with correct query params', () async {
       final parser = await makeParser(WebhookDomain(appService: app));
-      await parser.runRule(
+      await parser.evaluateRule(
         _integrationScript(method: 'GET', url: '${server.url}/hook'),
         [FakeDie('a', 'A', 8)],
       ).runEffects();
@@ -125,7 +126,7 @@ void main() {
       final parser = await makeParser(WebhookDomain(appService: app));
       // Should complete without throwing.
       await expectLater(
-        parser.runRule(
+        parser.evaluateRule(
           _integrationScript(url: 'http://127.0.0.1:${server500.port}/roll'),
           [FakeDie('a', 'A', 3)],
         ).runEffects(),
@@ -137,7 +138,7 @@ void main() {
       // Use a port with no server listening.
       final parser = await makeParser(WebhookDomain(appService: app));
       await expectLater(
-        parser.runRule(
+        parser.evaluateRule(
           _integrationScript(url: 'http://127.0.0.1:19999/roll'),
           [FakeDie('a', 'A', 3)],
         ).runEffects(),

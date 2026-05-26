@@ -64,7 +64,6 @@ class AppService {
   static String ruleScriptsKey = 'rule_scripts';
   static String ruleOrderKey = 'rule_order';
   static String hiddenRuleNamesKey = 'hidden_rule_names';
-  static String useAsyncEvaluatorKey = 'use_async_evaluator';
   static String dicePaneOrientationKey = 'dice_pane_orientation';
   static String webhooksEnabledKey = 'webhooks_enabled';
 
@@ -118,18 +117,6 @@ class AppService {
   Future<void> setHiddenRuleNames(List<String> names) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setStringList(hiddenRuleNamesKey, names);
-  }
-
-  // Evaluator toggle: gate async evaluator usage behind a preference
-  Future<void> setUseAsyncEvaluator(bool useAsync) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(useAsyncEvaluatorKey, useAsync);
-  }
-
-  Future<bool> getUseAsyncEvaluator() async {
-    final prefs = await SharedPreferences.getInstance();
-    // Default to false in production; tests can opt-in explicitly
-    return prefs.getBool(useAsyncEvaluatorKey) ?? false;
   }
 
   Future<void> setDicePaneOrientation(DicePaneOrientation orientation) async {

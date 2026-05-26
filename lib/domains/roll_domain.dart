@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:collection/collection.dart';
+import 'package:logging/logging.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
@@ -52,21 +53,12 @@ class RollDomain {
 
   Timer? _rollUpdateTimer;
 
+  final Logger _log = Logger("RollDomain");
   final RuleEvaluator _ruleParser;
   final AppService appService;
-  bool useAsyncEvaluator = false; // gated via AppService pref
 
   RollDomain._(this._diceDomain, this.appService, this._ruleParser) {
     _deviceStreamListener = _diceDomain.getDiceStream().listen(rollStreamListener);
-  }
-
-  Future<void> init() async {
-    // Load evaluator preference (default false to avoid changing runtime behavior)
-    try {
-      useAsyncEvaluator = await appService.getUseAsyncEvaluator();
-    } catch (_) {
-      useAsyncEvaluator = false;
-    }
   }
 
   Stream<List<RollResult>> subscribeRollResults() => _rollResultStream.stream;
@@ -75,9 +67,7 @@ class RollDomain {
 
   static Future<RollDomain> create(DieDomain dieDomain, AppService appService,
       {required RuleEvaluator ruleParser}) async {
-    var rollDomain = RollDomain._(dieDomain, appService, ruleParser);
-    await rollDomain.init();
-    return rollDomain;
+    return RollDomain._(dieDomain, appService, ruleParser);
   }
 
   bool areDieRolling(List<GenericDie> allDie) {
@@ -108,14 +98,20 @@ class RollDomain {
   }
 
   Future<int> _stopRollWithResult({RollType rollType = RollType.normal}) async {
+    // Phase 1: pure evaluation — collect evaluations, no I/O
+    final evaluations = <RuleEvaluation>[];
     ParseResult? ruleResult;
     for (var r in _ruleParser.getRules(enabledOnly: true)) {
-      ruleResult = await _ruleParser.runRule(r.script, _rolledDie.values.toList());
-      if (ruleResult.ruleReturn) {
+      final eval = _ruleParser.evaluateRule(r.script, _rolledDie.values.toList());
+      evaluations.add(eval);
+      if (eval.result.ruleReturn) {
+        ruleResult = eval.result;
         rollType = RollType.rule;
         break;
       }
     }
+
+    // Phase 2: guaranteed recording — always runs
     late Map<String, int> resultRolls;
     late int resultValue;
     String? ruleName;
@@ -127,10 +123,16 @@ class RollDomain {
       resultRolls = Map.fromEntries(_rolledDie.entries.map((e) => MapEntry(e.key, e.value.getFaceValueOrElse())));
       resultValue = resultRolls.values.sum;
     }
-    var result = RollResult(rollType: rollType, rolls: resultRolls, rollResult: resultValue, ruleName: ruleName);
+    final result = RollResult(rollType: rollType, rolls: resultRolls, rollResult: resultValue, ruleName: ruleName);
     _rollHistory.insert(0, result);
     _rollStatusStream.add(RollStatus.rollEnded);
     _rollResultStream.add(_rollHistory);
+
+    // Phase 3: best-effort side effects — fire-and-forget, errors logged
+    for (final eval in evaluations) {
+      eval.fireEffects((e, st) => _log.warning('side effect error', e, st));
+    }
+
     return result.rollResult;
   }
 
@@ -206,10 +208,10 @@ class RollDomain {
     _rollStartVirtualDice(force: force);
 
     // Use a timer to simulate the rolling animation
-    Timer(const Duration(milliseconds: 500), () {
+    Timer(const Duration(milliseconds: 500), () async {
       _rollEndVirtualDie(force: force);
       _stopRolling();
-      _stopRollWithResult(rollType: rollType);
+      await _stopRollWithResult(rollType: rollType);
     });
   }
 }

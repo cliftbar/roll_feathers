@@ -54,7 +54,11 @@ into a `RuleParser` (pure parse → `ParsedScriptV11`) and a `RuleEvaluator` (ta
 + runtime context → `ParseResult`). This would make unit-testing the parse step in isolation
 straightforward and decouple the two phases.
 
+Note (2026-05-16): `evaluateRule` is now synchronous and pure (returns a
+`RuleEvaluation` plan, no I/O), which makes this split materially more tractable.
+
 **Affected files:** `lib/domains/roll_parser/rule_evaluator.dart`
+
 
 ## iOS
 

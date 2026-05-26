@@ -74,6 +74,7 @@ class HaRepositoryImpl extends HaRepository {
 
   @override
   Future<void> blinkEntity({required Blinker blink, String? entity, bool force = false}) async {
+    if (!available && !force) return;
     var conf = await _haConfigService.getConfig();
     isEnabled = conf.enabled;
     if (enabled || force) {

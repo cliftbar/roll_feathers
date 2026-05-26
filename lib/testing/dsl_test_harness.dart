@@ -10,6 +10,7 @@ import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 import 'package:roll_feathers/repositories/home_assistant_repository.dart';
 import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
+import 'package:roll_feathers/testing/rule_evaluation_test_effects.dart';
 
 /// Fake BLE-type die (type=pixel) for use in RollDomain tests where the
 /// virtual-die filter must be bypassed.  Has no real BLE; roll state is
@@ -206,7 +207,6 @@ class InMemoryAppService extends AppService {
   List<String> _hiddenRuleNames = [];
   bool _webhooksEnabled = true;
   bool _keepScreenOn = false;
-  bool _useAsyncEvaluator = false;
   ThemeMode _themeMode = ThemeMode.system;
   DicePaneOrientation _dicePaneOrientation = DicePaneOrientation.auto;
   final Map<String, DieSettings> _dieSettings = {};
@@ -249,14 +249,6 @@ class InMemoryAppService extends AppService {
   @override
   Future<void> setKeepScreenOn(bool keepScreenOn) async {
     _keepScreenOn = keepScreenOn;
-  }
-
-  @override
-  Future<bool> getUseAsyncEvaluator() async => _useAsyncEvaluator;
-
-  @override
-  Future<void> setUseAsyncEvaluator(bool useAsync) async {
-    _useAsyncEvaluator = useAsync;
   }
 
   @override
@@ -349,7 +341,8 @@ class DslTestRunner {
   }) async {
     dieDomain.blinked.clear();
     final testDice = _makeDice(dice);
-    final result = await parser.runRule(rule, testDice, threshold: threshold, modifier: modifier);
+    final result = parser.evaluateRule(rule, testDice, threshold: threshold, modifier: modifier);
+    await result.runEffects();
 
     // Map blink events to ActionLogEntries. We infer 'blink' action; 'sequence' results in blink calls too.
     final actions = <ActionLogEntry>[];
@@ -361,6 +354,6 @@ class DslTestRunner {
       actions.add(ActionLogEntry(dieId: dieId, action: 'blink', colorValue: color, args: const []));
     }
 
-    return DslTestResult(actions: actions, parse: result);
+    return DslTestResult(actions: actions, parse: result.result);
   }
 }

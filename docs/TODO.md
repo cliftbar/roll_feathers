@@ -59,16 +59,6 @@ Note (2026-05-16): `evaluateRule` is now synchronous and pure (returns a
 
 **Affected files:** `lib/domains/roll_parser/rule_evaluator.dart`
 
-### Dead `useAsyncEvaluator` config
-After the evaluation/recording/effect separation (see
-`docs/design/rule_effect_separation.md`), `runRuleAsync` was removed and nothing
-branches on `useAsyncEvaluator` anymore. `RollDomain.useAsyncEvaluator`,
-`AppService.getUseAsyncEvaluator` / `setUseAsyncEvaluator` / `useAsyncEvaluatorKey`,
-and the `dsl_test_harness` mirror are dead config — read but never consulted.
-Remove them (and any UI toggle) in a dedicated cleanup.
-
-**Affected files:** `lib/domains/roll_domain.dart`, `lib/services/app_service.dart`,
-`lib/testing/dsl_test_harness.dart`
 
 ## iOS
 

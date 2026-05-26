@@ -207,7 +207,6 @@ class InMemoryAppService extends AppService {
   List<String> _hiddenRuleNames = [];
   bool _webhooksEnabled = true;
   bool _keepScreenOn = false;
-  bool _useAsyncEvaluator = false;
   ThemeMode _themeMode = ThemeMode.system;
   DicePaneOrientation _dicePaneOrientation = DicePaneOrientation.auto;
   final Map<String, DieSettings> _dieSettings = {};
@@ -250,14 +249,6 @@ class InMemoryAppService extends AppService {
   @override
   Future<void> setKeepScreenOn(bool keepScreenOn) async {
     _keepScreenOn = keepScreenOn;
-  }
-
-  @override
-  Future<bool> getUseAsyncEvaluator() async => _useAsyncEvaluator;
-
-  @override
-  Future<void> setUseAsyncEvaluator(bool useAsync) async {
-    _useAsyncEvaluator = useAsync;
   }
 
   @override

@@ -56,19 +56,9 @@ class RollDomain {
   final Logger _log = Logger("RollDomain");
   final RuleEvaluator _ruleParser;
   final AppService appService;
-  bool useAsyncEvaluator = false; // gated via AppService pref
 
   RollDomain._(this._diceDomain, this.appService, this._ruleParser) {
     _deviceStreamListener = _diceDomain.getDiceStream().listen(rollStreamListener);
-  }
-
-  Future<void> init() async {
-    // Load evaluator preference (default false to avoid changing runtime behavior)
-    try {
-      useAsyncEvaluator = await appService.getUseAsyncEvaluator();
-    } catch (_) {
-      useAsyncEvaluator = false;
-    }
   }
 
   Stream<List<RollResult>> subscribeRollResults() => _rollResultStream.stream;
@@ -77,9 +67,7 @@ class RollDomain {
 
   static Future<RollDomain> create(DieDomain dieDomain, AppService appService,
       {required RuleEvaluator ruleParser}) async {
-    var rollDomain = RollDomain._(dieDomain, appService, ruleParser);
-    await rollDomain.init();
-    return rollDomain;
+    return RollDomain._(dieDomain, appService, ruleParser);
   }
 
   bool areDieRolling(List<GenericDie> allDie) {

@@ -52,3 +52,4 @@ app.*.map.json
 deploy.sh
 *.keystore
 *.junie
+.worktree/

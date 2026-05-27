@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.12.19
+
+### Internal
+
+- **Ignore worktrees** — Added `.worktree/` to `.gitignore`.
+
 ## 0.12.18
 
 ### Bug Fixes

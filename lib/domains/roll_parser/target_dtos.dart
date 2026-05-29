@@ -98,6 +98,7 @@ class RollResultDTO implements WebhookPayload {
         'actions': actions.map((a) => a.toJson()).toList(),
       };
 
+  // GET webhooks only carry rule + aggregate. Consumers needing per-die detail must use POST.
   @override
   Map<String, String> toQueryParams() => {
         'rule': rule,

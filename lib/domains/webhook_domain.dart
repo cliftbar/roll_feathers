@@ -59,6 +59,8 @@ class WebhookDomain {
           _log.warning('[fireWebhook] $method to $url failed with status ${response.statusCode}');
         }
       }
+    } on FormatException catch (e) {
+      _log.warning('[fireWebhook] invalid URL "$url": $e');
     } catch (e) {
       _log.warning('[fireWebhook] error firing to $url: $e');
     } finally {

@@ -60,7 +60,9 @@ class DiWrapper {
     try {
       final info = await PackageInfo.fromPlatform();
       appVersion = info.buildNumber.isNotEmpty ? '${info.version}+${info.buildNumber}' : info.version;
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('PackageInfo.fromPlatform() failed: $e');
+    }
 
     AppService appService = AppService();
     AppRepository appRepo = AppRepository(appService);

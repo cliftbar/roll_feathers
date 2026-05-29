@@ -2,13 +2,6 @@
 
 ## Webhook / Discord Targets
 
-### Discord embed format
-The current `DiscordRollDTO.toJson()` produces a generic embed with a title, color, and fields
-(Aggregate + one field per die). The official Pixels Companion app uses a specific embed schema for
-dice rolls. We should verify whether that format is published and align with it if possible.
-
-**Tracking:** `lib/domains/roll_parser/target_dtos.dart` — `DiscordRollDTO.toJson()`
-
 ### Test helper consolidation
 `_Recorder` (MockClient + request/body capture) is duplicated across
 `dsl_webhook_evaluation_test.dart` and `dsl_discord_evaluation_test.dart`. Extract to

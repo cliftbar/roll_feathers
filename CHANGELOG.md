@@ -2,6 +2,10 @@
 
 ## 0.12.19
 
+### Bug Fixes
+
+- **HTTP webhook URLs now work on iOS** — Added `NSAllowsArbitraryLoads` to `NSAppTransportSecurity` in `Info.plist`. Previously, iOS App Transport Security silently blocked all plain-HTTP webhook requests regardless of app settings.
+
 ### Internal
 
 - **Ignore worktrees** — Added `.worktree/` to `.gitignore`.

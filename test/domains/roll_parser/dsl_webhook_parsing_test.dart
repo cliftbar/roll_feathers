@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:petitparser/petitparser.dart' as pp;
-import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
+import 'package:roll_feathers/domains/roll_parser/rule_parser.dart';
 import 'package:roll_feathers/domains/roll_parser/result_targets.dart';
 
 void main() {
@@ -69,7 +69,7 @@ define hook_test for roll *d*
     aggregate over selection sum
     on result [*:*] webhook POST https://example.com/roll
 ''';
-      final result = RuleEvaluator.v11ScriptParser.parse(script);
+      final result = RuleParser.v11ScriptParser.parse(script);
       if (!result.isSuccess) fail('Failed to parse script: ${(result as pp.Failure).message}');
       final block = result.value.useBlocks.first;
       expect(block.targets.length, equals(1));
@@ -85,7 +85,7 @@ define hook_get for roll *d*
     aggregate over selection sum
     on result [5:15] webhook GET https://example.com/hook
 ''';
-      final result = RuleEvaluator.v11ScriptParser.parse(script);
+      final result = RuleParser.v11ScriptParser.parse(script);
       if (!result.isSuccess) fail('Failed to parse script: ${(result as pp.Failure).message}');
       final target = result.value.useBlocks.first.targets.first;
       expect(target.targetFunction.rtType, equals(ResultTargetType.webhook));
@@ -108,7 +108,7 @@ define coexist for roll *d*
     on result [*:*] action blink blue
     on result [*:*] webhook POST https://example.com/roll
 ''';
-      final result = RuleEvaluator.v11ScriptParser.parse(script);
+      final result = RuleParser.v11ScriptParser.parse(script);
       if (!result.isSuccess) fail('Failed to parse script: ${(result as pp.Failure).message}');
       final targets = result.value.useBlocks.first.targets;
       expect(targets.length, equals(2));

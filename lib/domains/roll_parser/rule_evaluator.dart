@@ -1,28 +1,13 @@
 import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
-import 'package:petitparser/petitparser.dart' as pp;
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
-import 'package:roll_feathers/domains/roll_parser/parser_aggregates.dart';
-import 'package:roll_feathers/domains/roll_parser/parser_definitions.dart';
 import 'package:roll_feathers/domains/roll_parser/parser_rules.dart';
-import 'package:roll_feathers/domains/roll_parser/parser_transforms.dart';
 import 'package:roll_feathers/domains/roll_parser/result_targets.dart';
+import 'package:roll_feathers/domains/roll_parser/rule_parser.dart';
 import 'package:roll_feathers/domains/roll_parser/target_dtos.dart';
 import 'package:roll_feathers/domains/webhook_domain.dart';
-
 import 'package:roll_feathers/services/app_service.dart';
-
-const String modifierKey = "\$MODIFIER";
-const String thresholdKey = "\$THRESHOLD";
-const String allDiceKey = "\$ALL_DICE";
-const String resultDiceKey = "\$RESULT_DICE";
-const String rolledCountKey = "\$ROLLED_COUNT";
-const String rolledAliasKey = "\$ROLLED"; // alias for total dice rolled
-const String maxValueKey = "\$MAX"; // global max of initial roll values
-const String minValueKey = "\$MIN"; // global min of initial roll values
-
-final pp.Parser<String> dieParser = (numberOrStarParser & 'd'.toParser() & numberOrStarParser).flatten();
 
 class ParseResult {
   final int result;
@@ -58,42 +43,6 @@ class RuleEvaluation {
   }
 }
 
-// ===== DSL v1.1 data model =====
-class MakeSelectionDef {
-  final String name; // @NAME
-  final String? parent; // @PARENT
-  final List<ScriptTransform> steps;
-
-  MakeSelectionDef({required this.name, this.parent, required this.steps});
-}
-
-class UseSelectionBlockV11 {
-  // either @NAME or $ALL_DICE
-  final String selectionToken;
-  final RollAggregate aggregate;
-  final List<ScriptResultTarget> targets;
-
-  bool get isAllDice => selectionToken == allDiceKey;
-
-  UseSelectionBlockV11({required this.selectionToken, required this.aggregate, required this.targets});
-}
-
-class ParsedScriptV11 {
-  final String name;
-  final List<String> roll; // like legacy
-  final List<MakeSelectionDef> selections; // make selection blocks
-  final List<UseSelectionBlockV11> useBlocks; // use selection blocks
-  String? script;
-
-  ParsedScriptV11({
-    required this.name,
-    required this.roll,
-    required this.selections,
-    required this.useBlocks,
-    this.script,
-  });
-}
-
 class _PreparedEval {
   final bool passed;
   final Map<GenericDie, int> baseMap;
@@ -120,112 +69,6 @@ class _ActionCallArgs {
 }
 
 class RuleEvaluator {
-  // --- Helpers for v1.1 ---
-  // Strip whole-line comments starting with '#'. Inline comments are NOT allowed.
-  static String _stripComments(String s) {
-    // Remove any line that starts with optional whitespace then '#'
-    final withoutLines = s.replaceAll(RegExp(r'^\s*#.*$', multiLine: true), '');
-    // Also remove trailing spaces left by deletions; keep newlines structure intact
-    return withoutLines;
-  }
-
-  static final pp.Parser<String> _atNameParser = ("@".toParser() & wholeWordParser).flatten();
-
-  static final pp.Parser<MakeSelectionDef> _makeSelectionParser = pp
-      .seq8(
-        pp.whitespace().star(),
-        pp.string("make selection ").times(1).flatten(),
-        _atNameParser,
-        pp.whitespace().star(),
-        (
-          pp.string("from ").times(1).flatten(),
-          [_atNameParser, variableParser].toChoiceParser(),
-        ).toSequenceParser().optional(),
-        pp.whitespace().star(),
-        // allow zero or more steps to support "make selection @ALL from $ALL_DICE"
-        transformDef.starSeparated(pp.whitespace().star()),
-        pp.whitespace().star(),
-      )
-      .map((e) {
-        final String name = e.$3;
-        final String? parent = e.$5?.$2;
-        final List<ScriptTransform> steps = (e.$7).elements;
-        return MakeSelectionDef(name: name, parent: parent, steps: steps);
-      });
-
-  static final pp.Parser<UseSelectionBlockV11> _useSelectionParser = pp
-      .seq9(
-        pp.whitespace().star(),
-        pp.string("use selection ").times(1).flatten(),
-        [_atNameParser, variableParser].toChoiceParser(),
-        pp.whitespace().star(),
-        pp.string("aggregate over selection ").times(1).flatten(),
-        aggregateParsers,
-        pp.whitespace().star(),
-        // v1.1 uses 'on result [range] ...'
-        // IMPORTANT: require a non-empty separator between multiple 'on result' lines.
-        // Using .star() here prevents the parser from advancing (zero-length sep),
-        // so only the first target is kept. With .plus(), all subsequent targets parse.
-        _v11ResultDef.plusSeparated(pp.whitespace().plus()),
-        pp.whitespace().star(),
-      )
-      .map((e) {
-        final String sel = e.$3;
-        final RollAggregate agg = e.$6;
-        final List<ScriptResultTarget> targets = e.$8.elements;
-        // Debug: emit how many targets were parsed for this use block
-        Logger("RuleEvaluator").finer(() => "[DSL v1.1] parsed use-block targets=${targets.length} for sel=$sel");
-        return UseSelectionBlockV11(selectionToken: sel, aggregate: agg, targets: targets);
-      });
-
-  // v1.1 result line: 'on result [range] action|rule ...'
-  static final pp.Parser<ScriptResultTarget> _v11ResultDef = pp
-      .seq7(
-        "on".toParser(),
-        pp.whitespace().star(),
-        pp.string("result").times(1).flatten(),
-        pp.whitespace().star(),
-        resultRangeParser,
-        pp.whitespace().star(),
-        resultTarget,
-      )
-      .map((entry) => ScriptResultTarget(entry.$5, entry.$7));
-
-  // Mixed-block v1.1 script parser: after header, parse a sequence of either make- or use-blocks by leading keyword
-  static final pp.Parser<ParsedScriptV11> v11ScriptParser = pp
-      .seq4(
-        defineHeaderParser,
-        pp.seq3(
-          pp.string("for roll ").times(1).flatten(),
-          dieParser.plusSeparated(",".toParser()),
-          pp.whitespace().star(),
-        ),
-        // parse one or more blocks; we discriminate on the next keyword
-        _v11BlocksParser.plus(),
-        pp.whitespace().star(),
-      )
-      .map((e) {
-        final name = e.$1.$1;
-        final rolls = e.$2.$2.elements;
-        final List blocks = e.$3;
-        final List<MakeSelectionDef> makes = [];
-        final List<UseSelectionBlockV11> uses = [];
-        for (final b in blocks) {
-          if (b is MakeSelectionDef) {
-            makes.add(b);
-          } else if (b is UseSelectionBlockV11) {
-            uses.add(b);
-          }
-        }
-        Logger(
-          "RuleEvaluator",
-        ).finer(() => "[DSL v1.1] parsed blocks name=$name makes=${makes.length} uses=${uses.length}");
-        return ParsedScriptV11(name: name, roll: rolls, selections: makes, useBlocks: uses);
-      });
-
-  // One v1.1 block, chosen by leading keyword
-  static final pp.Parser _v11BlocksParser = [_makeSelectionParser, _useSelectionParser].toChoiceParser();
-
   final Logger _log = Logger("RuleEvaluator");
   final DieDomain _dieDomain;
   final WebhookDomain _webhookDomain;
@@ -275,7 +118,7 @@ class RuleEvaluator {
 
   Future<void> addRuleScript(String ruleScript, {bool enabled = true}) async {
     // Throws FormatException on invalid DSL — state is not mutated before this line.
-    final String name = _parseRuleV11(rule: ruleScript, threshold: 0, modifier: 0, rolledCount: 0).name;
+    final String name = RuleParser.parse(rule: ruleScript, threshold: 0, modifier: 0, rolledCount: 0).name;
 
     final prevUserRules = List<RuleScript>.from(_userRules);
     final prevRuleOrder = List<String>.from(_ruleOrder);
@@ -423,42 +266,13 @@ class RuleEvaluator {
   }
 
   RuleEvaluation evaluateRule(String rule, List<GenericDie> rolls, {int threshold = 0, int modifier = 0}) {
-    final ParsedScriptV11 v11 = _parseRuleV11(
+    final ParsedScriptV11 v11 = RuleParser.parse(
       rule: rule,
       threshold: threshold,
       modifier: modifier,
       rolledCount: rolls.length,
     );
     return _evaluateRuleV11(rolls, v11);
-  }
-
-  ParsedScriptV11 _parseRuleV11({
-    required String rule,
-    required int threshold,
-    required int modifier,
-    required int rolledCount,
-  }) {
-    String replacedRule = rule.replaceAll(thresholdKey, threshold.toString());
-    replacedRule = replacedRule.replaceAll(modifierKey, modifier.toString());
-    // compute global max/min from the incoming rolls for substitution below
-    // Note: we don't have the rolls here, so we only substitute $ROLLED and defer $MAX/$MIN to evaluation time path.
-    // For v1.1 we will also substitute $ROLLED alias here.
-    replacedRule = replacedRule.replaceAll(rolledCountKey, rolledCount.toString());
-    replacedRule = replacedRule.replaceAll(rolledAliasKey, rolledCount.toString());
-    // strip comments to allow inline '#' comments in scripts
-    replacedRule = _stripComments(replacedRule);
-
-    final pp.Result<ParsedScriptV11> res = v11ScriptParser.parse(replacedRule);
-    final ParsedScriptV11 value = res.value;
-    value.script = rule;
-    // DEBUG LOGS: summarize parsed structure
-    try {
-      _log.fine(
-        () =>
-            "[DSL v1.1] Parsed rule '${value.name}': rolls=${value.roll.join(',')} makeBlocks=${value.selections.length} useBlocks=${value.useBlocks.length}",
-      );
-    } catch (_) {}
-    return value;
   }
 
   // ── Shared evaluation helpers ────────────────────────────────────────────────
@@ -481,12 +295,12 @@ class RuleEvaluator {
       final values = baseMap.values.toList();
       final gMax = values.reduce((a, b) => a > b ? a : b);
       final gMin = values.reduce((a, b) => a < b ? a : b);
-      final substituted = _stripComments(result.script!)
+      final substituted = RuleParser.stripComments(result.script!)
           .replaceAll(maxValueKey, gMax.toString())
           .replaceAll(minValueKey, gMin.toString())
           .replaceAll(rolledAliasKey, rolls.length.toString())
           .replaceAll(rolledCountKey, rolls.length.toString());
-      final reparsed = v11ScriptParser.parse(substituted);
+      final reparsed = RuleParser.v11ScriptParser.parse(substituted);
       result = reparsed.value..script = substituted;
       _log.fine(() => "[DSL v1.1] Substituted globals: MAX=$gMax MIN=$gMin ROLLED=${rolls.length}");
     }

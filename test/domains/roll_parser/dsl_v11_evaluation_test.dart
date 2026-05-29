@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
+import 'package:roll_feathers/domains/roll_parser/rule_parser.dart';
 import 'package:roll_feathers/testing/rule_evaluation_test_effects.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
@@ -199,7 +200,7 @@ define pairsPlus for roll *d*
     on result [5:5] action blink green
 ''';
 
-      final parsed = RuleEvaluator.v11ScriptParser.parse(script);
+      final parsed = RuleParser.v11ScriptParser.parse(script);
       expect(parsed.isSuccess, isTrue);
 
       await parser.evaluateRule(script, [d1, d2, d3, d4, d5]).runEffects();
@@ -227,7 +228,7 @@ define pairsOnly for roll *d*
     on result [2:2] action blink blue
 ''';
 
-      final parsed = RuleEvaluator.v11ScriptParser.parse(script);
+      final parsed = RuleParser.v11ScriptParser.parse(script);
       expect(parsed.isSuccess, isTrue);
 
       await parser.evaluateRule(script, [d1, d2, d3, d4, d5]).runEffects();

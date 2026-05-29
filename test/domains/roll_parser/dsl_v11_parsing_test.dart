@@ -4,12 +4,12 @@ import 'package:petitparser/petitparser.dart' as pp;
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:roll_feathers/domains/roll_parser/parser_rules.dart';
-import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
+import 'package:roll_feathers/domains/roll_parser/rule_parser.dart';
 
 void main() {
   group('DSL v1.1 parsing', () {
     final fixturesDir = Directory('test/fixtures');
-    final parser = RuleEvaluator.v11ScriptParser;
+    final parser = RuleParser.v11ScriptParser;
 
     test('all .rule fixtures should parse with v1.1 grammar', () {
       expect(fixturesDir.existsSync(), isTrue, reason: 'fixtures directory missing');
@@ -62,7 +62,7 @@ define my-rule "My Rule" for roll *d*
     aggregate over selection sum
     on result [*:*] action blink
 ''';
-      final result = RuleEvaluator.v11ScriptParser.parse(script);
+      final result = RuleParser.v11ScriptParser.parse(script);
       expect(result.isSuccess, isTrue);
       expect(result.value.name, 'my-rule');
       final rule = RuleScript(name: 'my-rule', script: script, enabled: true);

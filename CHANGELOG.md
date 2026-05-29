@@ -5,6 +5,7 @@
 ### Internal
 
 - **Ignore worktrees** — Added `.worktree/` to `.gitignore`.
+- **Split `RuleParser` out of `RuleEvaluator`** — DSL parsing (data classes, constants, static petitparser combinators, and `parse()`) now lives in a dedicated `RuleParser` class with static-only access. `RuleEvaluator` retains rule management and roll evaluation. No behaviour change; all 260 tests pass.
 
 ## 0.12.18
 

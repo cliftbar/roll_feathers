@@ -6,6 +6,9 @@
 
 - **Ignore worktrees** — Added `.worktree/` to `.gitignore`.
 - **Split `RuleParser` out of `RuleEvaluator`** — DSL parsing (data classes, constants, static petitparser combinators, and `parse()`) now lives in a dedicated `RuleParser` class with static-only access. `RuleEvaluator` retains rule management and roll evaluation. No behaviour change; all 260 tests pass.
+- **PackageInfo failure now visible** — `PackageInfo.fromPlatform()` errors were silently swallowed; they now `debugPrint` so unexpected platform failures are diagnosable.
+- **`FormatException` from malformed webhook URLs logged distinctly** — `fireWebhook` previously caught URL parse errors and network errors in the same `catch` block with the same message; `FormatException` now gets its own branch with a URL-specific warning.
+- **GET webhook payload documented** — `RollResultDTO.toQueryParams()` now carries a comment noting that GET only sends `rule` + `aggregate`; consumers needing per-die detail must use POST.
 
 ## 0.12.18
 

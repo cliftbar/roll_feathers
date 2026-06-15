@@ -34,8 +34,6 @@ class TestBleDie extends GenericDie {
     }
   }
 
-  Future<void> _init() async {}
-
   @override
   String get dieId => id;
 
@@ -67,8 +65,6 @@ class TestGoDiceDie extends GenericDie {
   Color? _blinkColor;
 
   TestGoDiceDie(this.id);
-
-  Future<void> _init() async {}
 
   @override
   String get dieId => id;
@@ -109,8 +105,6 @@ class TestDie extends GenericDie {
     _dType = GenericDTypeFactory.getKnownChecked(dName);
     state = DiceState(currentFaceValue: value);
   }
-
-  Future<void> _init() async {}
 
   @override
   String get dieId => id;

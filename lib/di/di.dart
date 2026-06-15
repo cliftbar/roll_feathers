@@ -12,8 +12,11 @@ import 'package:roll_feathers/domains/api_domain.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
+import 'package:roll_feathers/domains/dddice_domain.dart';
 import 'package:roll_feathers/domains/webhook_domain.dart';
 import 'package:roll_feathers/repositories/app_repository.dart';
+import 'package:roll_feathers/repositories/dddice_repository.dart';
+import 'package:roll_feathers/services/dddice/dddice_config_service.dart';
 import 'package:roll_feathers/repositories/ble/ble_noop_repository.dart';
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 import 'package:roll_feathers/repositories/ble/ble_universal_repository.dart';
@@ -41,6 +44,7 @@ class DiWrapper {
   final WebhookDomain webhookDomain;
   final RollDomain rollDomain;
   final ApiDomain apiDomain;
+  final DddiceDomain dddiceDomain;
 
   static Future<DiWrapper> initDi() async {
     late HaRepository haRepository;
@@ -80,11 +84,15 @@ class DiWrapper {
     WebhookDomain webhookDomain =
         WebhookDomain(httpClient: httpClient, appVersion: appVersion, appService: appService);
 
+    DddiceConfigService dddiceConfigService = DddiceConfigService();
+    DddiceRepository dddiceRepository = DddiceRepository(httpClient);
+    DddiceDomain dddiceDomain = DddiceDomain(dddiceRepository, dddiceConfigService);
+
     RuleEvaluator ruleParser = RuleEvaluator(dieDomain, appService, webhookDomain);
     await ruleParser.init();
 
     RollDomain rollDomain = await RollDomain.create(dieDomain, appService,
-        ruleParser: ruleParser);
+        ruleParser: ruleParser, observers: [dddiceDomain]);
     late ApiDomain apiDomain;
     if (kIsWeb) {
       apiDomain = EmptyApiDomain();
@@ -105,6 +113,7 @@ class DiWrapper {
       webhookDomain,
       rollDomain,
       apiDomain,
+      dddiceDomain,
     );
   }
 
@@ -121,6 +130,7 @@ class DiWrapper {
     this.webhookDomain,
     this.rollDomain,
     this.apiDomain,
+    this.dddiceDomain,
   );
 
   @visibleForTesting
@@ -130,10 +140,15 @@ class DiWrapper {
     required RuleEvaluator ruleParser,
     required WebhookDomain webhookDomain,
     BleRepository? bleRepository,
+    DddiceConfigService? dddiceConfigService,
+    DddiceRepository? dddiceRepository,
   }) async {
     final ble = bleRepository ?? NoopBleRepository();
     final ha = HaRepositoryEmpty();
-    final rollDomain = await RollDomain.create(dieDomain, appService, ruleParser: ruleParser);
+    final dddiceCs = dddiceConfigService ?? DddiceConfigService();
+    final dddiceRepo = dddiceRepository ?? DddiceRepository(http_factory.provideHttpClient());
+    final rollDomain = await RollDomain.create(dieDomain, appService,
+        ruleParser: ruleParser);
     return DiWrapper._(
       NoopHaService(),
       appService,
@@ -147,6 +162,7 @@ class DiWrapper {
       webhookDomain,
       rollDomain,
       EmptyApiDomain(),
+      DddiceDomain(dddiceRepo, dddiceCs),
     );
   }
 }

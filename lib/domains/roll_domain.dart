@@ -4,6 +4,7 @@ import 'package:collection/collection.dart';
 import 'package:logging/logging.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
+import 'package:roll_feathers/domains/roll_lifecycle_observer.dart';
 import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
 import 'package:roll_feathers/services/app_service.dart';
 
@@ -56,8 +57,9 @@ class RollDomain {
   final Logger _log = Logger("RollDomain");
   final RuleEvaluator _ruleParser;
   final AppService appService;
+  final List<RollLifecycleObserver> _observers;
 
-  RollDomain._(this._diceDomain, this.appService, this._ruleParser) {
+  RollDomain._(this._diceDomain, this.appService, this._ruleParser, this._observers) {
     _deviceStreamListener = _diceDomain.getDiceStream().listen(rollStreamListener);
   }
 
@@ -66,8 +68,8 @@ class RollDomain {
   Stream<RollStatus> subscribeRollStatus() => _rollStatusStream.stream;
 
   static Future<RollDomain> create(DieDomain dieDomain, AppService appService,
-      {required RuleEvaluator ruleParser}) async {
-    return RollDomain._(dieDomain, appService, ruleParser);
+      {required RuleEvaluator ruleParser, List<RollLifecycleObserver> observers = const []}) async {
+    return RollDomain._(dieDomain, appService, ruleParser, observers);
   }
 
   bool areDieRolling(List<GenericDie> allDie) {
@@ -132,6 +134,11 @@ class RollDomain {
     for (final eval in evaluations) {
       eval.fireEffects((e, st) => _log.warning('side effect error', e, st));
     }
+    final completedDice = _rolledDie.values.toList();
+    for (final o in _observers) {
+      o.onRollComplete(completedDice, result)
+          .catchError((Object e, StackTrace st) => _log.warning('observer onRollComplete error', e, st));
+    }
 
     return result.rollResult;
   }
@@ -169,7 +176,12 @@ class RollDomain {
         }
         if (!dieBlinking) {
           dieBlinking = true;
-          _diceDomain.blinkRolling(die);
+          _diceDomain.blinkRolling(die)
+              .catchError((Object e, StackTrace st) => _log.warning('blinkRolling error', e, st));
+          for (final o in _observers) {
+            o.onDieRolling(die)
+                .catchError((Object e, StackTrace st) => _log.warning('observer onDieRolling error', e, st));
+          }
         }
       });
 

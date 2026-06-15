@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/domains/roll_parser/parser_rules.dart';
 
-import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/ui/app_settings/app_settings_screen_vm.dart';
 
 /// A screen that displays and manages rule scripts.

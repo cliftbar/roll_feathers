@@ -227,7 +227,7 @@ abstract class GenericBleDie extends GenericDie {
     await _sendMessageBuffer(msg.toBuffer());
   }
 
-  // keep for overrides!!
+  // ignore: unused_element — abstract contract for subclasses; analyzer can't see override-only usage
   void _readNotify(List<int> data);
 
   void addMessageCallback(int messageType, String callbackKey, Function(RxMessage) callback) {

@@ -41,18 +41,6 @@ final pp.Parser<RollResultRange> resultRangeParser = pp
     );
 
 // Limit args to safe tokens so we don't greedily consume the next block keyword.
-// Allowed: variables like $ALL_DICE/$RESULT_DICE, known color names, and numbers (e.g., for sequence loops).
-// As a final fallback, accept generic whole words so we don't drop valid colors
-// that aren't present in colorMap yet; action handlers can ignore unknowns.
-final pp.Parser<String> _colorWordParser =
-    colorMap.keys.map((k) => k.toParser()).toChoiceParser();
-final pp.Parser<String> _argToken = [
-  variableParser, // $ALL_DICE, $RESULT_DICE
-  _colorWordParser,
-  numberParser.flatten(),
-  wholeWordParser, // fallback to keep parsing remaining args safely
-].toChoiceParser();
-
 final pp.Parser<ResultTargetFunction> resultTarget = (() {
   final List<pp.Parser<ResultTargetFunction>> choices = [];
 

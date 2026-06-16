@@ -1,4 +1,3 @@
-import 'dart:ui' show FontFeature;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
@@ -195,10 +194,11 @@ class DddiceSettingsContentState extends State<DddiceSettingsContent> {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Text('dddice Settings', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 16),
           if (_error != null) ...[
@@ -228,6 +228,7 @@ class DddiceSettingsContentState extends State<DddiceSettingsContent> {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -246,15 +247,15 @@ class DddiceSettingsContentState extends State<DddiceSettingsContent> {
   List<Widget> _buildUnauthenticated() => [
         const Text('Connect to dddice to mirror your rolls as 3D animations for remote players.'),
         const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ElevatedButton.icon(
               icon: const Icon(Icons.login),
               label: const Text('Sign in with dddice'),
               onPressed: _startActivation,
             ),
-            const SizedBox(width: 12),
+            const SizedBox(height: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.person_outline),
               label: const Text('Use guest account'),

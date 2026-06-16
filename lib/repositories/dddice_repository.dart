@@ -39,12 +39,15 @@ class DddiceApiException implements Exception {
 }
 
 class DddiceRepository {
-  static const _base = 'https://dddice.com/api/1.0';
+  static const _defaultBase = 'https://dddice.com/api/1.0';
 
+  final String _base;
   final http.Client _client;
   final _log = Logger('DddiceRepository');
 
-  DddiceRepository(this._client);
+  /// [baseUrl] lets tests point the repository at a local mock server (see
+  /// `lib/testing/dddice_mock_server.dart`) instead of the real dddice API.
+  DddiceRepository(this._client, {String? baseUrl}) : _base = baseUrl ?? _defaultBase;
 
   Map<String, String> _authHeaders(String token) => {
         'Authorization': 'Bearer $token',
@@ -164,6 +167,35 @@ class DddiceRepository {
             ))
         .where((t) => t.id.isNotEmpty)
         .toList();
+  }
+
+  /// Creates a new room for the given [token]. Returns the created room on
+  /// success, or null if the request fails (caller may continue without a room).
+  Future<DddiceRoom?> createRoom(String token) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$_base/room'),
+        headers: _authHeaders(token),
+        body: '{}',
+      );
+      if (response.statusCode != 200 && response.statusCode != 201) {
+        _log.warning('createRoom failed: ${response.statusCode}');
+        return null;
+      }
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final data = json['data'] as Map<String, dynamic>?;
+      final slug =
+          data?['slug'] as String? ?? data?['custom_slug'] as String?;
+      final name = data?['name'] as String?;
+      if (slug == null || slug.isEmpty) {
+        _log.warning('createRoom: no slug in response');
+        return null;
+      }
+      return DddiceRoom(slug: slug, name: name ?? slug);
+    } catch (e, st) {
+      _log.warning('createRoom error', e, st);
+      return null;
+    }
   }
 
   Future<String?> createGuestUser() async {

@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
+import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
@@ -60,6 +62,10 @@ Future<(AppSettingsScreenViewModel, _FailingAppService)> _buildVm() async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty();
+  });
 
   group('VM rule methods', () {
     testWidgets('addRuleScript success → saveError is null, rules updated', (tester) async {

@@ -14,7 +14,7 @@ const String rolledAliasKey = "\$ROLLED";
 const String maxValueKey = "\$MAX";
 const String minValueKey = "\$MIN";
 
-final pp.Parser<String> dieParser = (numberOrStarParser & 'd'.toParser() & numberOrStarParser).flatten();
+final pp.Parser<String> dieParser = (numberOrStarParser & 'd'.toParser() & numberOrStarParser).flatten().map((s) => s.trim());
 
 class MakeSelectionDef {
   final String name;
@@ -40,6 +40,8 @@ class ParsedScriptV11 {
   final List<MakeSelectionDef> selections;
   final List<UseSelectionBlockV11> useBlocks;
   String? script;
+  int threshold;
+  int modifier;
 
   ParsedScriptV11({
     required this.name,
@@ -47,6 +49,8 @@ class ParsedScriptV11 {
     required this.selections,
     required this.useBlocks,
     this.script,
+    this.threshold = 0,
+    this.modifier = 0,
   });
 }
 
@@ -161,6 +165,8 @@ class RuleParser {
     final pp.Result<ParsedScriptV11> res = v11ScriptParser.parse(replacedRule);
     final ParsedScriptV11 value = res.value;
     value.script = rule;
+    value.threshold = threshold;
+    value.modifier = modifier;
     try {
       _log.fine(
         () =>

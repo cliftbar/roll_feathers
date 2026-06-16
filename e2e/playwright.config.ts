@@ -6,7 +6,7 @@ export default defineConfig({
   retries: 0,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:55646',
+    baseURL: 'http://localhost:1337',
     headless: false,
     viewport: { width: 1200, height: 864 },
   },

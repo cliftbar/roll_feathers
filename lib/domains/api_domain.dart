@@ -18,12 +18,29 @@ class EmptyApiDomain extends ApiDomain {
   }
 }
 
+/// Builds the request handler in isolation from [shelf_io.serve], so tests
+/// can exercise routes by calling it directly with constructed [Request]s
+/// instead of binding a real socket.
+Handler buildApiHandler(RollDomain rollDomain) {
+  var router = Router();
+
+  router.get("/api/last-roll", (Request request) {
+    var result = rollDomain.rollHistory.firstOrNull;
+    if (result == null) {
+      return Response.notFound(result);
+    }
+    return JsonResponse.ok(result.toJson());
+  });
+
+  return const Pipeline().addMiddleware(logRequests()).addHandler(router.call);
+}
+
 class ApiDomainServer extends ApiDomain {
   final List<NetworkInterface> _networkInterfaces;
 
   ApiDomainServer._(this._networkInterfaces);
 
-  static Future<ApiDomain> create({required RollDomain rollDomain}) async {
+  static Future<ApiDomain> create({required RollDomain rollDomain, int port = 8080}) async {
     List<NetworkInterface> iFaces = [];
     try {
       iFaces = await NetworkInterface.list(
@@ -34,19 +51,12 @@ class ApiDomainServer extends ApiDomain {
     } on Exception catch (_) {
       // Ignored for now
     }
-    var router = Router();
 
-    router.get("/api/last-roll", (Request request) {
-      var result = rollDomain.rollHistory.firstOrNull;
-      if (result == null) {
-        return Response.notFound(result);
-      }
-      return JsonResponse.ok(result.toJson());
-    });
-
-    final app = const Pipeline().addMiddleware(logRequests()).addHandler(router.call);
-
-    await shelf_io.serve(app, InternetAddress.anyIPv4, 8080);
+    try {
+      await shelf_io.serve(buildApiHandler(rollDomain), InternetAddress.anyIPv4, port);
+    } on SocketException {
+      return EmptyApiDomain();
+    }
     return ApiDomainServer._(iFaces);
   }
 

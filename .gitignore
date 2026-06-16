@@ -53,3 +53,4 @@ deploy.sh
 *.keystore
 *.junie
 .worktree/
+.playwright-mcp/

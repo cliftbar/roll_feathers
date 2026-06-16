@@ -348,8 +348,8 @@ define pairsOnly for roll *d*
       expect(dd.blinked.length, equals(2));
       final firstColorVal = int.parse(dd.blinked[0].split(':')[1]);
       final secondColorVal = int.parse(dd.blinked[1].split(':')[1]);
-      expect(firstColorVal, equals(colorMap['red']!.value));
-      expect(secondColorVal, equals(colorMap['blue']!.value));
+      expect(firstColorVal, equals(colorMap['red']!.toARGB32()));
+      expect(secondColorVal, equals(colorMap['blue']!.toARGB32()));
     });
 
     test('cross-block independence: different aggregates do not affect each other', () async {

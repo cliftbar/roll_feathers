@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/repositories/dddice_repository.dart';
 
@@ -179,7 +178,7 @@ void main() {
   // ─── fireRoll — die type mapping ──────────────────────────────────────────
 
   group('fireRoll — die type mapping', () {
-    Future<String> _mappedType(String dName) async {
+    Future<String> mappedType0(String dName) async {
       String? mappedType;
       final repo = _repo(_capture(
         onRequest: (r) {
@@ -195,23 +194,23 @@ void main() {
       return mappedType!;
     }
 
-    test('d4 → d4', () async => expect(await _mappedType('d4'), equals('d4')));
-    test('d6 → d6', () async => expect(await _mappedType('d6'), equals('d6')));
-    test('d8 → d8', () async => expect(await _mappedType('d8'), equals('d8')));
-    test('d10 → d10', () async => expect(await _mappedType('d10'), equals('d10')));
-    test('d00 → d10x', () async => expect(await _mappedType('d00'), equals('d10x')));
-    test('d12 → d12', () async => expect(await _mappedType('d12'), equals('d12')));
-    test('d20 → d20', () async => expect(await _mappedType('d20'), equals('d20')));
+    test('d4 → d4', () async => expect(await mappedType0('d4'), equals('d4')));
+    test('d6 → d6', () async => expect(await mappedType0('d6'), equals('d6')));
+    test('d8 → d8', () async => expect(await mappedType0('d8'), equals('d8')));
+    test('d10 → d10', () async => expect(await mappedType0('d10'), equals('d10')));
+    test('d00 → d10x', () async => expect(await mappedType0('d00'), equals('d10x')));
+    test('d12 → d12', () async => expect(await mappedType0('d12'), equals('d12')));
+    test('d20 → d20', () async => expect(await mappedType0('d20'), equals('d20')));
     test('unknown die type → mod', () async {
       // 'unknown' is a valid GenericDTypeFactory key that maps to a die with name 'unknown'
-      expect(await _mappedType('unknown'), equals('mod'));
+      expect(await mappedType0('unknown'), equals('mod'));
     });
   });
 
   // ─── fireRoll — operator ─────────────────────────────────────────────────
 
   group('fireRoll — operator field', () {
-    Future<Map<String, dynamic>?> _rollBody(RollType type) async {
+    Future<Map<String, dynamic>?> rollBody(RollType type) async {
       Map<String, dynamic>? body;
       final repo = _repo(_capture(onRequest: (r) => body = _captureBody(r)));
       await repo.fireRoll(
@@ -222,7 +221,7 @@ void main() {
     }
 
     test('max roll sends operator k with string key "1"', () async {
-      final body = await _rollBody(RollType.max);
+      final body = await rollBody(RollType.max);
       final op = body?['operator'] as Map<String, dynamic>?;
       expect(op, isNotNull);
       expect(op!.containsKey('k'), isTrue);
@@ -232,7 +231,7 @@ void main() {
     });
 
     test('min roll sends operator d with string key "1"', () async {
-      final body = await _rollBody(RollType.min);
+      final body = await rollBody(RollType.min);
       final op = body?['operator'] as Map<String, dynamic>?;
       expect(op, isNotNull);
       expect(op!.containsKey('d'), isTrue);
@@ -241,17 +240,17 @@ void main() {
     });
 
     test('sum roll does NOT send operator', () async {
-      final body = await _rollBody(RollType.sum);
+      final body = await rollBody(RollType.sum);
       expect(body?.containsKey('operator'), isFalse);
     });
 
     test('normal roll does NOT send operator', () async {
-      final body = await _rollBody(RollType.normal);
+      final body = await rollBody(RollType.normal);
       expect(body?.containsKey('operator'), isFalse);
     });
 
     test('rule roll does NOT send operator', () async {
-      final body = await _rollBody(RollType.rule);
+      final body = await rollBody(RollType.rule);
       expect(body?.containsKey('operator'), isFalse);
     });
   });
@@ -356,11 +355,11 @@ void main() {
   // ─── listRooms ────────────────────────────────────────────────────────────
 
   group('listRooms', () {
-    DddiceRepository _roomRepo(http.Client client) => _repo(client);
+    DddiceRepository roomRepo(http.Client client) => _repo(client);
 
     test('sends GET to /room endpoint', () async {
       Uri? captured;
-      final repo = _roomRepo(_capture(
+      final repo = roomRepo(_capture(
         onRequest: (r) => captured = r.url,
         body: '{"data":[]}',
       ));
@@ -370,7 +369,7 @@ void main() {
 
     test('sends Bearer token in Authorization header', () async {
       String? auth;
-      final repo = _roomRepo(_capture(
+      final repo = roomRepo(_capture(
         onRequest: (r) => auth = r.headers['authorization'],
         body: '{"data":[]}',
       ));
@@ -379,14 +378,14 @@ void main() {
     });
 
     test('returns empty list when data array is empty', () async {
-      final repo = _roomRepo(
+      final repo = roomRepo(
         MockClient((_) async => http.Response('{"data":[]}', 200)),
       );
       expect(await repo.listRooms('tok'), isEmpty);
     });
 
     test('parses name and slug from data array', () async {
-      final repo = _roomRepo(MockClient((_) async => http.Response(
+      final repo = roomRepo(MockClient((_) async => http.Response(
             jsonEncode({
               'data': [
                 {'name': 'Alpha Room', 'slug': 'alpha'},
@@ -403,7 +402,7 @@ void main() {
     });
 
     test('uses custom_slug when slug field is absent', () async {
-      final repo = _roomRepo(MockClient((_) async => http.Response(
+      final repo = roomRepo(MockClient((_) async => http.Response(
             jsonEncode({
               'data': [
                 {'name': 'Custom Room', 'custom_slug': 'cust-slug'}
@@ -417,7 +416,7 @@ void main() {
     });
 
     test('uses slug over custom_slug when both present', () async {
-      final repo = _roomRepo(MockClient((_) async => http.Response(
+      final repo = roomRepo(MockClient((_) async => http.Response(
             jsonEncode({
               'data': [
                 {'name': 'Room', 'slug': 'real-slug', 'custom_slug': 'old-slug'}
@@ -430,7 +429,7 @@ void main() {
     });
 
     test('filters out rooms with no usable slug', () async {
-      final repo = _roomRepo(MockClient((_) async => http.Response(
+      final repo = roomRepo(MockClient((_) async => http.Response(
             jsonEncode({
               'data': [
                 {'name': 'No Slug Room'},
@@ -445,7 +444,7 @@ void main() {
     });
 
     test('throws on non-200 status', () async {
-      final repo = _roomRepo(MockClient((_) async => http.Response('{}', 401)));
+      final repo = roomRepo(MockClient((_) async => http.Response('{}', 401)));
       await expectLater(repo.listRooms('tok'), throwsException);
     });
   });
@@ -453,11 +452,11 @@ void main() {
   // ─── listThemes ───────────────────────────────────────────────────────────
 
   group('listThemes', () {
-    DddiceRepository _themeRepo(http.Client client) => _repo(client);
+    DddiceRepository themeRepo(http.Client client) => _repo(client);
 
     test('sends GET to /dice-box endpoint (NOT /theme)', () async {
       Uri? captured;
-      final repo = _themeRepo(_capture(
+      final repo = themeRepo(_capture(
         onRequest: (r) => captured = r.url,
         body: '{"data":[]}',
       ));
@@ -467,7 +466,7 @@ void main() {
 
     test('sends Bearer token in Authorization header', () async {
       String? auth;
-      final repo = _themeRepo(_capture(
+      final repo = themeRepo(_capture(
         onRequest: (r) => auth = r.headers['authorization'],
         body: '{"data":[]}',
       ));
@@ -476,14 +475,14 @@ void main() {
     });
 
     test('returns empty list when data array is empty', () async {
-      final repo = _themeRepo(
+      final repo = themeRepo(
         MockClient((_) async => http.Response('{"data":[]}', 200)),
       );
       expect(await repo.listThemes('tok'), isEmpty);
     });
 
     test('parses id and name from data array', () async {
-      final repo = _themeRepo(MockClient((_) async => http.Response(
+      final repo = themeRepo(MockClient((_) async => http.Response(
             jsonEncode({
               'data': [
                 {'id': 'theme-abc', 'name': 'Cool Theme'},
@@ -499,7 +498,7 @@ void main() {
     });
 
     test('filters out themes with empty id', () async {
-      final repo = _themeRepo(MockClient((_) async => http.Response(
+      final repo = themeRepo(MockClient((_) async => http.Response(
             jsonEncode({
               'data': [
                 {'id': '', 'name': 'Bad Theme'},
@@ -514,19 +513,123 @@ void main() {
     });
 
     test('throws on non-200 status', () async {
-      final repo = _themeRepo(MockClient((_) async => http.Response('{}', 403)));
+      final repo = themeRepo(MockClient((_) async => http.Response('{}', 403)));
       await expectLater(repo.listThemes('tok'), throwsException);
+    });
+  });
+
+  // ─── createRoom ───────────────────────────────────────────────────────────
+
+  group('createRoom', () {
+    DddiceRepository createRoomRepo(http.Client client) => _repo(client);
+
+    test('sends POST to /room endpoint', () async {
+      Uri? captured;
+      final repo = createRoomRepo(_capture(
+        onRequest: (r) => captured = r.url,
+        body: jsonEncode({'data': {'slug': 's', 'name': 'Room'}}),
+      ));
+      await repo.createRoom(_testToken);
+      expect(captured?.path, endsWith('/room'));
+    });
+
+    test('sends Bearer token in Authorization header', () async {
+      String? auth;
+      final repo = createRoomRepo(_capture(
+        onRequest: (r) => auth = r.headers['authorization'],
+        body: jsonEncode({'data': {'slug': 's', 'name': 'Room'}}),
+      ));
+      await repo.createRoom('my-token');
+      expect(auth, equals('Bearer my-token'));
+    });
+
+    test('sends POST method', () async {
+      String? method;
+      final repo = createRoomRepo(_capture(
+        onRequest: (r) => method = r.method,
+        body: jsonEncode({'data': {'slug': 's', 'name': 'Room'}}),
+      ));
+      await repo.createRoom(_testToken);
+      expect(method, equals('POST'));
+    });
+
+    test('returns DddiceRoom with slug and name on 200', () async {
+      final repo = createRoomRepo(MockClient((_) async => http.Response(
+            jsonEncode({'data': {'slug': 'my-slug', 'name': 'My Room'}}),
+            200,
+          )));
+      final room = await repo.createRoom(_testToken);
+      expect(room?.slug, equals('my-slug'));
+      expect(room?.name, equals('My Room'));
+    });
+
+    test('returns DddiceRoom with slug and name on 201', () async {
+      final repo = createRoomRepo(MockClient((_) async => http.Response(
+            jsonEncode({'data': {'slug': 'new-slug', 'name': 'New Room'}}),
+            201,
+          )));
+      final room = await repo.createRoom(_testToken);
+      expect(room?.slug, equals('new-slug'));
+      expect(room?.name, equals('New Room'));
+    });
+
+    test('falls back to custom_slug when slug field is absent', () async {
+      final repo = createRoomRepo(MockClient((_) async => http.Response(
+            jsonEncode({'data': {'custom_slug': 'cust', 'name': 'C'}}),
+            200,
+          )));
+      final room = await repo.createRoom(_testToken);
+      expect(room?.slug, equals('cust'));
+    });
+
+    test('uses slug as name when name field is absent', () async {
+      final repo = createRoomRepo(MockClient((_) async => http.Response(
+            jsonEncode({'data': {'slug': 'only-slug'}}),
+            200,
+          )));
+      final room = await repo.createRoom(_testToken);
+      expect(room?.slug, equals('only-slug'));
+      expect(room?.name, equals('only-slug'));
+    });
+
+    test('returns null on 4xx response', () async {
+      final repo = createRoomRepo(
+        MockClient((_) async => http.Response('{}', 400)),
+      );
+      expect(await repo.createRoom(_testToken), isNull);
+    });
+
+    test('returns null on 5xx response', () async {
+      final repo = createRoomRepo(
+        MockClient((_) async => http.Response('Server Error', 500)),
+      );
+      expect(await repo.createRoom(_testToken), isNull);
+    });
+
+    test('returns null when slug is missing from data', () async {
+      final repo = createRoomRepo(MockClient((_) async => http.Response(
+            jsonEncode({'data': {'name': 'No Slug Room'}}),
+            200,
+          )));
+      expect(await repo.createRoom(_testToken), isNull);
+    });
+
+    test('returns null without throwing on network error', () async {
+      final repo = createRoomRepo(
+        MockClient((_) async => throw Exception('network down')),
+      );
+      await expectLater(repo.createRoom(_testToken), completion(isNull));
     });
   });
 
   // ─── createGuestUser ──────────────────────────────────────────────────────
 
   group('createGuestUser', () {
-    DddiceRepository _guestRepo(http.Client client) => _repo(client);
+    DddiceRepository guestRepo(http.Client client) => _repo(client);
 
     test('sends POST to /user endpoint', () async {
       Uri? captured;
-      final repo = _guestRepo(_capture(
+      final repo = guestRepo(_capture(
         onRequest: (r) => captured = r.url,
         status: 201,
         body: '{"token":"t"}',
@@ -537,7 +640,7 @@ void main() {
 
     test('does NOT send Authorization header', () async {
       String? auth;
-      final repo = _guestRepo(_capture(
+      final repo = guestRepo(_capture(
         onRequest: (r) => auth = r.headers['authorization'],
         status: 201,
         body: '{"token":"t"}',
@@ -547,14 +650,14 @@ void main() {
     });
 
     test('returns token from top-level response field', () async {
-      final repo = _guestRepo(
+      final repo = guestRepo(
         MockClient((_) async => http.Response('{"token":"top-level-tok"}', 201)),
       );
       expect(await repo.createGuestUser(), equals('top-level-tok'));
     });
 
     test('returns token from data as bare string (actual API response format)', () async {
-      final repo = _guestRepo(MockClient((_) async => http.Response(
+      final repo = guestRepo(MockClient((_) async => http.Response(
             jsonEncode({'type': 'token', 'data': 'bare-string-tok'}),
             201,
           )));
@@ -562,7 +665,7 @@ void main() {
     });
 
     test('returns token from data.token fallback when data is a map', () async {
-      final repo = _guestRepo(MockClient((_) async => http.Response(
+      final repo = guestRepo(MockClient((_) async => http.Response(
             jsonEncode({'data': {'token': 'nested-tok'}}),
             201,
           )));
@@ -570,28 +673,28 @@ void main() {
     });
 
     test('returns token from 200 response (not just 201)', () async {
-      final repo = _guestRepo(
+      final repo = guestRepo(
         MockClient((_) async => http.Response('{"token":"tok-200"}', 200)),
       );
       expect(await repo.createGuestUser(), equals('tok-200'));
     });
 
     test('returns null when neither token field exists', () async {
-      final repo = _guestRepo(
+      final repo = guestRepo(
         MockClient((_) async => http.Response('{"user":{"name":"guest"}}', 201)),
       );
       expect(await repo.createGuestUser(), isNull);
     });
 
     test('returns null on 4xx response', () async {
-      final repo = _guestRepo(
+      final repo = guestRepo(
         MockClient((_) async => http.Response('{}', 429)),
       );
       expect(await repo.createGuestUser(), isNull);
     });
 
     test('returns null without throwing on network error', () async {
-      final repo = _guestRepo(
+      final repo = guestRepo(
         MockClient((_) async => throw Exception('network down')),
       );
       await expectLater(repo.createGuestUser(), completion(isNull));
@@ -601,11 +704,11 @@ void main() {
   // ─── createActivationCode ─────────────────────────────────────────────────
 
   group('createActivationCode', () {
-    DddiceRepository _activateRepo(http.Client client) => _repo(client);
+    DddiceRepository activateRepo(http.Client client) => _repo(client);
 
     test('sends POST to /activate endpoint', () async {
       Uri? captured;
-      final repo = _activateRepo(_capture(
+      final repo = activateRepo(_capture(
         onRequest: (r) => captured = r.url,
         status: 201,
         body: jsonEncode({'data': {'code': 'ABCD', 'secret': 'shhh'}}),
@@ -616,7 +719,7 @@ void main() {
 
     test('does NOT send Authorization header', () async {
       String? auth;
-      final repo = _activateRepo(_capture(
+      final repo = activateRepo(_capture(
         onRequest: (r) => auth = r.headers['authorization'],
         status: 201,
         body: jsonEncode({'data': {'code': 'ABCD', 'secret': 'shhh'}}),
@@ -626,7 +729,7 @@ void main() {
     });
 
     test('returns code and secret from response.data', () async {
-      final repo = _activateRepo(MockClient((_) async => http.Response(
+      final repo = activateRepo(MockClient((_) async => http.Response(
             jsonEncode({'data': {'code': 'CODE1', 'secret': 'SEC1'}}),
             201,
           )));
@@ -636,7 +739,7 @@ void main() {
     });
 
     test('returns code and secret from top-level response when no data wrapper', () async {
-      final repo = _activateRepo(MockClient((_) async => http.Response(
+      final repo = activateRepo(MockClient((_) async => http.Response(
             jsonEncode({'code': 'CODE2', 'secret': 'SEC2'}),
             201,
           )));
@@ -646,7 +749,7 @@ void main() {
     });
 
     test('returns null when code field is missing', () async {
-      final repo = _activateRepo(MockClient((_) async => http.Response(
+      final repo = activateRepo(MockClient((_) async => http.Response(
             jsonEncode({'secret': 'SEC'}),
             201,
           )));
@@ -654,7 +757,7 @@ void main() {
     });
 
     test('returns null when secret field is missing', () async {
-      final repo = _activateRepo(MockClient((_) async => http.Response(
+      final repo = activateRepo(MockClient((_) async => http.Response(
             jsonEncode({'code': 'CODE'}),
             201,
           )));
@@ -662,14 +765,14 @@ void main() {
     });
 
     test('returns null on 4xx response', () async {
-      final repo = _activateRepo(
+      final repo = activateRepo(
         MockClient((_) async => http.Response('{}', 400)),
       );
       expect(await repo.createActivationCode(), isNull);
     });
 
     test('returns null without throwing on network error', () async {
-      final repo = _activateRepo(
+      final repo = activateRepo(
         MockClient((_) async => throw Exception('network down')),
       );
       await expectLater(repo.createActivationCode(), completion(isNull));
@@ -679,11 +782,11 @@ void main() {
   // ─── pollActivation ───────────────────────────────────────────────────────
 
   group('pollActivation', () {
-    DddiceRepository _pollRepo(http.Client client) => _repo(client);
+    DddiceRepository pollRepo(http.Client client) => _repo(client);
 
     test('sends GET to /activate/{code}', () async {
       Uri? captured;
-      final repo = _pollRepo(_capture(
+      final repo = pollRepo(_capture(
         onRequest: (r) => captured = r.url,
         body: jsonEncode({'data': {'token': 'tok'}}),
       ));
@@ -693,7 +796,7 @@ void main() {
 
     test('sends Authorization: Secret <secret> header', () async {
       String? auth;
-      final repo = _pollRepo(_capture(
+      final repo = pollRepo(_capture(
         onRequest: (r) => auth = r.headers['authorization'],
         body: jsonEncode({'data': {'token': 'tok'}}),
       ));
@@ -703,7 +806,7 @@ void main() {
 
     test('does NOT send Bearer token', () async {
       String? auth;
-      final repo = _pollRepo(_capture(
+      final repo = pollRepo(_capture(
         onRequest: (r) => auth = r.headers['authorization'],
         body: jsonEncode({'data': {'token': 'tok'}}),
       ));
@@ -712,7 +815,7 @@ void main() {
     });
 
     test('returns token from data.token when activation complete', () async {
-      final repo = _pollRepo(MockClient((_) async => http.Response(
+      final repo = pollRepo(MockClient((_) async => http.Response(
             jsonEncode({'data': {'token': 'final-tok'}}),
             200,
           )));
@@ -720,7 +823,7 @@ void main() {
     });
 
     test('returns token from top-level when no data wrapper', () async {
-      final repo = _pollRepo(MockClient((_) async => http.Response(
+      final repo = pollRepo(MockClient((_) async => http.Response(
             jsonEncode({'token': 'top-tok'}),
             200,
           )));
@@ -728,12 +831,12 @@ void main() {
     });
 
     test('returns null on non-200 status (activation pending)', () async {
-      final repo = _pollRepo(MockClient((_) async => http.Response('{}', 202)));
+      final repo = pollRepo(MockClient((_) async => http.Response('{}', 202)));
       expect(await repo.pollActivation('CODE', 'secret'), isNull);
     });
 
     test('returns null when data has no token field', () async {
-      final repo = _pollRepo(MockClient((_) async => http.Response(
+      final repo = pollRepo(MockClient((_) async => http.Response(
             jsonEncode({'data': {'status': 'pending'}}),
             200,
           )));
@@ -741,7 +844,7 @@ void main() {
     });
 
     test('throws on network error so caller can distinguish failure from pending', () async {
-      final repo = _pollRepo(
+      final repo = pollRepo(
         MockClient((_) async => throw Exception('network down')),
       );
       await expectLater(repo.pollActivation('CODE', 'secret'), throwsException);
@@ -751,42 +854,42 @@ void main() {
   // ─── joinRoom ─────────────────────────────────────────────────────────────
 
   group('joinRoom', () {
-    DddiceRepository _joinRepo(http.Client client) => _repo(client);
+    DddiceRepository joinRepo(http.Client client) => _repo(client);
 
     test('sends POST to /room/{slug}/participant', () async {
       Uri? captured;
-      final repo = _joinRepo(_capture(onRequest: (r) => captured = r.url));
+      final repo = joinRepo(_capture(onRequest: (r) => captured = r.url));
       await repo.joinRoom('tok', 'my-room');
       expect(captured?.path, endsWith('/room/my-room/participant'));
     });
 
     test('sends Bearer token in Authorization header', () async {
       String? auth;
-      final repo = _joinRepo(
+      final repo = joinRepo(
           _capture(onRequest: (r) => auth = r.headers['authorization']));
       await repo.joinRoom('my-tok', 'room');
       expect(auth, equals('Bearer my-tok'));
     });
 
     test('completes normally on 200', () async {
-      final repo = _joinRepo(MockClient((_) async => http.Response('{}', 200)));
+      final repo = joinRepo(MockClient((_) async => http.Response('{}', 200)));
       await expectLater(repo.joinRoom('tok', 'room'), completes);
     });
 
     test('completes normally on 409 (already a participant)', () async {
-      final repo = _joinRepo(MockClient(
+      final repo = joinRepo(MockClient(
           (_) async => http.Response('{"data":{"message":"Room participant already exists"}}', 409)));
       await expectLater(repo.joinRoom('tok', 'room'), completes);
     });
 
     test('throws on 403', () async {
-      final repo = _joinRepo(MockClient(
+      final repo = joinRepo(MockClient(
           (_) async => http.Response('{"data":{"message":"Forbidden"}}', 403)));
       await expectLater(repo.joinRoom('tok', 'room'), throwsException);
     });
 
     test('throws on other 4xx', () async {
-      final repo = _joinRepo(MockClient((_) async => http.Response('{}', 400)));
+      final repo = joinRepo(MockClient((_) async => http.Response('{}', 400)));
       await expectLater(repo.joinRoom('tok', 'room'), throwsException);
     });
   });

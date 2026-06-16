@@ -102,9 +102,15 @@ class DddiceDomain extends RollLifecycleObserver {
   Future<bool> signInAsGuest() async {
     final token = await _repository.createGuestUser();
     if (token == null) return false;
+    final room = await _repository.createRoom(token);
     final existing = await _configService.getConfig();
-    await _configService.setConfig(
-        existing.copyWith(token: token, isGuest: true, needsReauth: false));
+    await _configService.setConfig(existing.copyWith(
+      token: token,
+      isGuest: true,
+      needsReauth: false,
+      roomSlug: room?.slug,
+      roomName: room?.name,
+    ));
     return true;
   }
 

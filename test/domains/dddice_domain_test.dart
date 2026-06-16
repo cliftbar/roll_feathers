@@ -93,19 +93,19 @@ void main() {
     when(() => mockRepo.joinRoom(any(), any())).thenAnswer((_) async {});
   });
 
-  DddiceDomain _domain(DddiceConfig config) =>
+  DddiceDomain domain0(DddiceConfig config) =>
       DddiceDomain(mockRepo, FakeDddiceConfigService(config));
 
   // ─── guard: enabled ───────────────────────────────────────────────────────
 
   group('onRollComplete — guard: enabled', () {
     test('does NOT call fireRoll when enabled is false', () async {
-      await _domain(_readyConfig.copyWith(enabled: false)).onRollComplete(_dice(), _roll());
+      await domain0(_readyConfig.copyWith(enabled: false)).onRollComplete(_dice(), _roll());
       _verifyNeverFireRoll(mockRepo);
     });
 
     test('calls fireRoll when enabled is true', () async {
-      await _domain(_readyConfig).onRollComplete(_dice(), _roll());
+      await domain0(_readyConfig).onRollComplete(_dice(), _roll());
       _verifyFireRoll(mockRepo);
     });
   });
@@ -114,12 +114,12 @@ void main() {
 
   group('onRollComplete — guard: isAuthenticated (token)', () {
     test('does NOT call fireRoll when token is empty', () async {
-      await _domain(_readyConfig.copyWith(token: '')).onRollComplete(_dice(), _roll());
+      await domain0(_readyConfig.copyWith(token: '')).onRollComplete(_dice(), _roll());
       _verifyNeverFireRoll(mockRepo);
     });
 
     test('calls fireRoll when token is non-empty', () async {
-      await _domain(_readyConfig).onRollComplete(_dice(), _roll());
+      await domain0(_readyConfig).onRollComplete(_dice(), _roll());
       _verifyFireRoll(mockRepo);
     });
   });
@@ -128,12 +128,12 @@ void main() {
 
   group('onRollComplete — guard: needsReauth', () {
     test('does NOT call fireRoll when needsReauth is true', () async {
-      await _domain(_readyConfig.copyWith(needsReauth: true)).onRollComplete(_dice(), _roll());
+      await domain0(_readyConfig.copyWith(needsReauth: true)).onRollComplete(_dice(), _roll());
       _verifyNeverFireRoll(mockRepo);
     });
 
     test('calls fireRoll when needsReauth is false', () async {
-      await _domain(_readyConfig.copyWith(needsReauth: false)).onRollComplete(_dice(), _roll());
+      await domain0(_readyConfig.copyWith(needsReauth: false)).onRollComplete(_dice(), _roll());
       _verifyFireRoll(mockRepo);
     });
   });
@@ -142,12 +142,12 @@ void main() {
 
   group('onRollComplete — guard: roomSlug', () {
     test('does NOT call fireRoll when roomSlug is empty', () async {
-      await _domain(_readyConfig.copyWith(roomSlug: '')).onRollComplete(_dice(), _roll());
+      await domain0(_readyConfig.copyWith(roomSlug: '')).onRollComplete(_dice(), _roll());
       _verifyNeverFireRoll(mockRepo);
     });
 
     test('calls fireRoll when roomSlug is non-empty', () async {
-      await _domain(_readyConfig).onRollComplete(_dice(), _roll());
+      await domain0(_readyConfig).onRollComplete(_dice(), _roll());
       _verifyFireRoll(mockRepo);
     });
   });
@@ -156,12 +156,12 @@ void main() {
 
   group('onRollComplete — guard: dice list', () {
     test('does NOT call fireRoll when dice list is empty', () async {
-      await _domain(_readyConfig).onRollComplete([], _roll());
+      await domain0(_readyConfig).onRollComplete([], _roll());
       _verifyNeverFireRoll(mockRepo);
     });
 
     test('calls fireRoll when dice list has at least one die', () async {
-      await _domain(_readyConfig).onRollComplete(_dice(), _roll());
+      await domain0(_readyConfig).onRollComplete(_dice(), _roll());
       _verifyFireRoll(mockRepo);
     });
   });
@@ -170,7 +170,7 @@ void main() {
 
   group('onRollComplete — theme resolution', () {
     test('non-guest: passes config.themeId to fireRoll', () async {
-      await _domain(_readyConfig.copyWith(themeId: 'cool-theme'))
+      await domain0(_readyConfig.copyWith(themeId: 'cool-theme'))
           .onRollComplete(_dice(), _roll());
       verify(() => mockRepo.fireRoll(
             token: any(named: 'token'),
@@ -182,7 +182,7 @@ void main() {
     });
 
     test('guest: passes dddice-bees regardless of themeId', () async {
-      await _domain(_guestConfig.copyWith(themeId: 'should-be-ignored'))
+      await domain0(_guestConfig.copyWith(themeId: 'should-be-ignored'))
           .onRollComplete(_dice(), _roll());
       verify(() => mockRepo.fireRoll(
             token: any(named: 'token'),
@@ -194,13 +194,13 @@ void main() {
     });
 
     test('non-guest with empty themeId does NOT call fireRoll', () async {
-      await _domain(_readyConfig.copyWith(themeId: ''))
+      await domain0(_readyConfig.copyWith(themeId: ''))
           .onRollComplete(_dice(), _roll());
       _verifyNeverFireRoll(mockRepo);
     });
 
     test('guest with empty themeId still calls fireRoll (uses dddice-bees)', () async {
-      await _domain(_guestConfig.copyWith(themeId: ''))
+      await domain0(_guestConfig.copyWith(themeId: ''))
           .onRollComplete(_dice(), _roll());
       _verifyFireRoll(mockRepo);
     });
@@ -238,13 +238,13 @@ void main() {
     test('onRollComplete does not throw on DddiceAuthException', () async {
       _stubFireRoll(mockRepo, throws: const DddiceAuthException());
       await expectLater(
-          _domain(_readyConfig).onRollComplete(_dice(), _roll()), completes);
+          domain0(_readyConfig).onRollComplete(_dice(), _roll()), completes);
     });
 
     test('onRollComplete does not throw on DddiceApiException', () async {
       _stubFireRoll(mockRepo, throws: const DddiceApiException(500));
       await expectLater(
-          _domain(_readyConfig).onRollComplete(_dice(), _roll()), completes);
+          domain0(_readyConfig).onRollComplete(_dice(), _roll()), completes);
     });
   });
 
@@ -252,12 +252,12 @@ void main() {
 
   group('onRollComplete — guest join', () {
     test('joins room before first roll for guest', () async {
-      await _domain(_guestConfig).onRollComplete(_dice(), _roll());
+      await domain0(_guestConfig).onRollComplete(_dice(), _roll());
       verify(() => mockRepo.joinRoom('guest-tok', 'my-room')).called(1);
     });
 
     test('does not join again for the same room on second roll', () async {
-      final domain = _domain(_guestConfig);
+      final domain = domain0(_guestConfig);
       await domain.onRollComplete(_dice(), _roll());
       await domain.onRollComplete(_dice(), _roll());
       verify(() => mockRepo.joinRoom(any(), any())).called(1);
@@ -273,14 +273,14 @@ void main() {
     });
 
     test('does NOT join room for non-guest', () async {
-      await _domain(_readyConfig).onRollComplete(_dice(), _roll());
+      await domain0(_readyConfig).onRollComplete(_dice(), _roll());
       verifyNever(() => mockRepo.joinRoom(any(), any()));
     });
 
     test('join failure aborts roll (fireRoll not called)', () async {
       when(() => mockRepo.joinRoom(any(), any()))
           .thenThrow(Exception('join failed'));
-      await _domain(_guestConfig).onRollComplete(_dice(), _roll());
+      await domain0(_guestConfig).onRollComplete(_dice(), _roll());
       _verifyNeverFireRoll(mockRepo);
     });
 
@@ -288,7 +288,7 @@ void main() {
       when(() => mockRepo.joinRoom(any(), any()))
           .thenThrow(Exception('join failed'));
       await expectLater(
-          _domain(_guestConfig).onRollComplete(_dice(), _roll()), completes);
+          domain0(_guestConfig).onRollComplete(_dice(), _roll()), completes);
     });
   });
 
@@ -297,7 +297,7 @@ void main() {
   group('onRollComplete — error handling', () {
     test('does not throw when repository.fireRoll throws an unexpected error', () async {
       _stubFireRoll(mockRepo, throws: Exception('API down'));
-      await expectLater(_domain(_readyConfig).onRollComplete(_dice(), _roll()), completes);
+      await expectLater(domain0(_readyConfig).onRollComplete(_dice(), _roll()), completes);
     });
 
     test('does not throw when configService.getConfig throws', () async {
@@ -443,6 +443,8 @@ void _signInAsGuestTests() {
   setUp(() {
     repo = MockDddiceRepository();
     when(() => repo.createGuestUser()).thenAnswer((_) async => 'guest-tok');
+    when(() => repo.createRoom(any())).thenAnswer(
+        (_) async => const DddiceRoom(slug: 'auto-slug', name: 'Auto Room'));
   });
 
   group('signInAsGuest', () {
@@ -464,6 +466,41 @@ void _signInAsGuestTests() {
     test('returns true on success', () async {
       final domain = DddiceDomain(repo, FakeDddiceConfigService());
       expect(await domain.signInAsGuest(), isTrue);
+    });
+
+    test('calls createRoom with the newly obtained guest token', () async {
+      final cs = FakeDddiceConfigService(const DddiceConfig());
+      await DddiceDomain(repo, cs).signInAsGuest();
+      verify(() => repo.createRoom('guest-tok')).called(1);
+    });
+
+    test('saves room slug and name from createRoom', () async {
+      final cs = FakeDddiceConfigService(const DddiceConfig());
+      await DddiceDomain(repo, cs).signInAsGuest();
+      expect(cs.storedConfig.roomSlug, equals('auto-slug'));
+      expect(cs.storedConfig.roomName, equals('Auto Room'));
+    });
+
+    test('returns true even when createRoom returns null', () async {
+      when(() => repo.createRoom(any())).thenAnswer((_) async => null);
+      final domain = DddiceDomain(repo, FakeDddiceConfigService());
+      expect(await domain.signInAsGuest(), isTrue);
+    });
+
+    test('saves token when createRoom returns null (room stays empty)', () async {
+      when(() => repo.createRoom(any())).thenAnswer((_) async => null);
+      final cs = FakeDddiceConfigService(const DddiceConfig());
+      await DddiceDomain(repo, cs).signInAsGuest();
+      expect(cs.storedConfig.token, equals('guest-tok'));
+      expect(cs.storedConfig.roomSlug, isEmpty);
+    });
+
+    test('preserves existing roomSlug when createRoom returns null', () async {
+      when(() => repo.createRoom(any())).thenAnswer((_) async => null);
+      final cs =
+          FakeDddiceConfigService(const DddiceConfig(roomSlug: 'pre-existing'));
+      await DddiceDomain(repo, cs).signInAsGuest();
+      expect(cs.storedConfig.roomSlug, equals('pre-existing'));
     });
   });
 }

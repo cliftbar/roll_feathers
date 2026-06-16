@@ -71,9 +71,10 @@ class DiWrapper {
     AppService appService = AppService();
     AppRepository appRepo = AppRepository(appService);
 
-    BleRepository bleRepo = BleUniversalRepository();
+    const bool integrationTest = bool.fromEnvironment('INTEGRATION_TEST');
+    BleRepository bleRepo = integrationTest ? NoopBleRepository() : BleUniversalRepository();
     await bleRepo.init();
-    if (!kIsWeb) {
+    if (!kIsWeb && !integrationTest) {
       // Windows: no service filter — improves discovery reliability on WinRT
       final services = Platform.isWindows ? const <String>[] : [pixelsService, godiceServiceGuid];
       bleRepo.scan(services: services, namePrefix: ['GoDice_']);
@@ -84,8 +85,13 @@ class DiWrapper {
     WebhookDomain webhookDomain =
         WebhookDomain(httpClient: httpClient, appVersion: appVersion, appService: appService);
 
+    // Lets integration tests redirect dddice traffic to a local mock server
+    // (see lib/testing/dddice_mock_server.dart) via
+    // --dart-define=DDDICE_BASE_URL=http://127.0.0.1:<port>/api/1.0
+    const String dddiceBaseUrlOverride = String.fromEnvironment('DDDICE_BASE_URL');
     DddiceConfigService dddiceConfigService = DddiceConfigService();
-    DddiceRepository dddiceRepository = DddiceRepository(httpClient);
+    DddiceRepository dddiceRepository = DddiceRepository(httpClient,
+        baseUrl: dddiceBaseUrlOverride.isEmpty ? null : dddiceBaseUrlOverride);
     DddiceDomain dddiceDomain = DddiceDomain(dddiceRepository, dddiceConfigService);
 
     RuleEvaluator ruleParser = RuleEvaluator(dieDomain, appService, webhookDomain);

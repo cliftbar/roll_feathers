@@ -295,14 +295,20 @@ class RuleEvaluator {
       final values = baseMap.values.toList();
       final gMax = values.reduce((a, b) => a > b ? a : b);
       final gMin = values.reduce((a, b) => a < b ? a : b);
+      final savedThreshold = result.threshold;
+      final savedModifier = result.modifier;
       final substituted = RuleParser.stripComments(result.script!)
+          .replaceAll(thresholdKey, savedThreshold.toString())
+          .replaceAll(modifierKey, savedModifier.toString())
           .replaceAll(maxValueKey, gMax.toString())
           .replaceAll(minValueKey, gMin.toString())
           .replaceAll(rolledAliasKey, rolls.length.toString())
           .replaceAll(rolledCountKey, rolls.length.toString());
       final reparsed = RuleParser.v11ScriptParser.parse(substituted);
       result = reparsed.value..script = substituted;
-      _log.fine(() => "[DSL v1.1] Substituted globals: MAX=$gMax MIN=$gMin ROLLED=${rolls.length}");
+      result.threshold = savedThreshold;
+      result.modifier = savedModifier;
+      _log.fine(() => "[DSL v1.1] Substituted globals: MAX=$gMax MIN=$gMin ROLLED=${rolls.length} THRESHOLD=$savedThreshold MODIFIER=$savedModifier");
     }
 
     final named = <String, Map<GenericDie, int>>{};

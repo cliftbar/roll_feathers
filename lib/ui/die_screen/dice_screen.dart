@@ -441,46 +441,54 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Add Virtual Die'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Die Name', hintText: 'Enter a name for the die'),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: faceCountController,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                  decoration: const InputDecoration(
-                    labelText: 'Number of Faces',
-                    hintText: 'Enter the number of faces',
+        return Dialog(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 280, maxWidth: 560),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Add Virtual Die', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nameController,
+                    decoration: const InputDecoration(labelText: 'Die Name', hintText: 'Enter a name for the die'),
                   ),
-                  keyboardType: TextInputType.number,
-                ),
-              ],
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: faceCountController,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(
+                      labelText: 'Number of Faces',
+                      hintText: 'Enter the number of faces',
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          final name = nameController.text;
+                          final faceCount = int.tryParse(faceCountController.text) ?? 6;
+                          widget.viewModel.addVirtualDie.execute(faceCount, name);
+                          Navigator.of(context).pop();
+                        },
+                        child: const Text('Add'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-          actions: [
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text('Add'),
-              onPressed: () {
-                final name = nameController.text;
-                final faceCount = int.tryParse(faceCountController.text) ?? 6;
-                widget.viewModel.addVirtualDie.execute(faceCount, name);
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
         );
       },
     );

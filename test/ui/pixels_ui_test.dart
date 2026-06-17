@@ -174,22 +174,50 @@ void main() {
       expect(find.text('Animations — TestDie'), findsOneWidget);
     });
 
-    testWidgets('add button navigates to editor and returns profile', (tester) async {
+    testWidgets('add button shows preset picker then editor, saves profile', (tester) async {
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle();
+
+      // Tap + → preset picker bottom sheet
+      await tester.tap(find.byIcon(Icons.add));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Choose a starting point'), findsOneWidget);
+
+      // Pick "Blank profile"
+      await tester.tap(find.text('Blank profile'));
+      await tester.pumpAndSettle();
+
+      // Editor screen opens
+      expect(find.text('Edit Profile'), findsOneWidget);
+
+      // Save
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      // Profile now listed
+      expect(find.text('New Profile'), findsOneWidget);
+    });
+
+    testWidgets('add from preset creates profile with preset name', (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle();
 
       await tester.tap(find.byIcon(Icons.add));
       await tester.pumpAndSettle();
 
-      // Editor screen should be open
+      // Choose "High / Low" preset
+      await tester.tap(find.text('High / Low'));
+      await tester.pumpAndSettle();
+
+      // Editor opens with the preset name pre-filled
+      expect(find.text('High / Low'), findsWidgets); // name field + app bar tile
       expect(find.text('Edit Profile'), findsOneWidget);
 
-      // Tap Save
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
 
-      // Profile should now appear
-      expect(find.text('New Profile'), findsOneWidget);
+      expect(find.text('High / Low'), findsOneWidget);
     });
 
     testWidgets('delete profile shows confirmation dialog', (tester) async {

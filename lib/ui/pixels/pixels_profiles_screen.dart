@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/dice_sdks/pixels_profile_transfer.dart';
 import 'package:roll_feathers/services/pixels/pixel_profile_store.dart';
 import 'package:roll_feathers/ui/pixels/pixels_profile_editor_screen.dart';
@@ -44,25 +45,21 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
   }
 
   Future<void> _addProfile() async {
-    final newProfile = PixelProfile(
-      id: const Uuid().v4(),
-      name: 'New Profile',
-      animations: [
-        PixelAnimationSimple(
-          durationMs: 500,
-          color: const PixelColor(255, 0, 0),
-          count: 1,
-          fade: 128,
-        ),
-      ],
-      rules: [
-        PixelRule(
-          condition: PixelConditionRolled(),
-          actions: [PixelActionPlayAnimation(animIndex: 0)],
-        ),
-      ],
+    final chosen = await showModalBottomSheet<PixelProfile>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _PresetPickerSheet(),
     );
-    final saved = await _openEditor(newProfile);
+    if (chosen == null) return;
+
+    final withId = PixelProfile(
+      id: const Uuid().v4(),
+      name: chosen.name,
+      brightness: chosen.brightness,
+      animations: chosen.animations,
+      rules: chosen.rules,
+    );
+    final saved = await _openEditor(withId);
     if (saved != null) {
       await widget.store.upsert(saved);
       await _load();
@@ -257,3 +254,77 @@ class _ProfileActions extends StatelessWidget {
 }
 
 enum _Action { edit, delete }
+
+// ─── Preset picker ────────────────────────────────────────────────────────────
+
+class _PresetPickerSheet extends StatelessWidget {
+  const _PresetPickerSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    final presets = kBuiltinProfiles;
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Text(
+              'Choose a starting point',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          const Divider(),
+          ...presets.map((p) => ListTile(
+            leading: _presetIcon(p.name),
+            title: Text(p.name),
+            subtitle: Text(p.description, maxLines: 2, overflow: TextOverflow.ellipsis),
+            onTap: () => Navigator.pop(context, p.build()),
+          )),
+          const Divider(),
+          ListTile(
+            leading: const CircleAvatar(child: Icon(Icons.add, size: 18)),
+            title: const Text('Blank profile'),
+            subtitle: const Text('Start from scratch'),
+            onTap: () => Navigator.pop(
+              context,
+              PixelProfile(
+                id: '',
+                name: 'New Profile',
+                animations: [
+                  PixelAnimationSimple(
+                    durationMs: 500,
+                    color: const PixelColor(255, 0, 0),
+                    count: 1,
+                    fade: 128,
+                  ),
+                ],
+                rules: [
+                  PixelRule(
+                    condition: PixelConditionRolled(),
+                    actions: [PixelActionPlayAnimation(animIndex: 0)],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _presetIcon(String name) {
+    final (color, icon) = switch (name) {
+      'High / Low'  => (Colors.green, Icons.trending_up),
+      'Flashy'      => (Colors.purple, Icons.auto_awesome),
+      'Rainbow'     => (Colors.orange, Icons.colorize),
+      _             => (Colors.blue, Icons.star),
+    };
+    return CircleAvatar(
+      backgroundColor: color.withOpacity(0.2),
+      child: Icon(icon, color: color, size: 20),
+    );
+  }
+}

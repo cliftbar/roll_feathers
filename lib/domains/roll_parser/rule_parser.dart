@@ -36,6 +36,7 @@ class UseSelectionBlockV11 {
 
 class ParsedScriptV11 {
   final String name;
+  final String? displayName;
   final List<String> roll;
   final List<MakeSelectionDef> selections;
   final List<UseSelectionBlockV11> useBlocks;
@@ -45,6 +46,7 @@ class ParsedScriptV11 {
 
   ParsedScriptV11({
     required this.name,
+    this.displayName,
     required this.roll,
     required this.selections,
     required this.useBlocks,
@@ -133,6 +135,7 @@ class RuleParser {
       )
       .map((e) {
         final name = e.$1.$1;
+        final displayName = e.$1.$2;
         final rolls = e.$2.$2.elements;
         final List blocks = e.$3;
         final List<MakeSelectionDef> makes = [];
@@ -147,7 +150,7 @@ class RuleParser {
         Logger(
           "RuleParser",
         ).finer(() => "[DSL v1.1] parsed blocks name=$name makes=${makes.length} uses=${uses.length}");
-        return ParsedScriptV11(name: name, roll: rolls, selections: makes, useBlocks: uses);
+        return ParsedScriptV11(name: name, displayName: displayName, roll: rolls, selections: makes, useBlocks: uses);
       });
 
   static ParsedScriptV11 parse({

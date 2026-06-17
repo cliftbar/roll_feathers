@@ -72,6 +72,7 @@ class DddiceSettingsContentState extends State<DddiceSettingsContent> {
           _themes = null;
           _error = null;
         });
+        _saveEnabled(true);
         _loadDropdowns();
       } else {
         final err = widget.vm.activationError;
@@ -110,6 +111,8 @@ class DddiceSettingsContentState extends State<DddiceSettingsContent> {
       setState(() { _error = 'Failed to create guest account. Please try again.'; });
       return;
     }
+    await _saveEnabled(true);
+    if (!mounted) return;
     setState(() {
       _config = widget.vm.getDddiceConfig();
       _dialogState = DddiceDialogState.authenticated;
@@ -458,14 +461,7 @@ class DddiceSettingsContentState extends State<DddiceSettingsContent> {
           const SizedBox(height: 4),
           Row(children: [
             const Expanded(flex: 2, child: Text('Theme')),
-            Expanded(
-              flex: 5,
-              child: Semantics(
-                container: true,
-                label: 'dddice-bees (guest default)',
-                child: const Text('dddice-bees (guest default)'),
-              ),
-            ),
+            const Expanded(flex: 5, child: Text('dddice-bees (guest default)')),
             const SizedBox(width: 40),
           ]),
         ],
@@ -689,14 +685,9 @@ class AppSettingsWidget extends StatelessWidget {
                             ? "supported"
                             : "enabled"
                         : "disabled${kIsWeb ? "\nBLE only supported in Chrome" : ""}"}',
-                    // 'Bluetooth: ${parentVm.bleIsEnabled() ? "enabled" : "disabled${kIsWeb ? "\nBLE only supported in Chrome" : ""}"}',
                   ),
-                  // trailing: Text(bleEnabled ? "enabled" : kIsWeb ? "BLE only supported on Chrome" : "disabled"),
                   leading: vm.bleIsEnabled() ? const Icon(Icons.bluetooth) : const Icon(Icons.bluetooth_disabled),
                   enabled: vm.bleIsEnabled(),
-                  onTap: () {
-                    // About screen navigation would be handled by the ViewModel
-                  },
                 );
               },
             ),
@@ -781,13 +772,18 @@ class AppSettingsWidget extends StatelessWidget {
               builder: (context, _) {
                 return SwitchListTile(
                   secondary: const Icon(Icons.webhook),
-                  title: const Text('Webhooks'),
-                  subtitle: kIsWeb
-                      ? const Text(
-                          'CORS preflight (OPTIONS) must be supported by the target server for JSON payloads.',
-                          style: TextStyle(fontSize: 12),
-                        )
-                      : null,
+                  title: Row(
+                    children: [
+                      const Flexible(child: Text('Webhooks')),
+                      if (kIsWeb) ...[
+                        const SizedBox(width: 4),
+                        Tooltip(
+                          message: 'CORS preflight (OPTIONS) must be supported by the target server for JSON payloads.',
+                          child: const Icon(Icons.info_outline, size: 16),
+                        ),
+                      ],
+                    ],
+                  ),
                   value: vm.webhooksEnabled,
                   onChanged: (bool value) {
                     vm.toggleWebhooksEnabled.execute();

@@ -198,9 +198,9 @@ void main() {
       await _pumpDialog(tester);
       expect(find.text('Cancel'), findsOneWidget);
       expect(find.text('Save'), findsOneWidget);
-      // Preview is a labeled TextButton, Disconnect is an icon button (link_off)
+      // Preview is a labeled TextButton; virtual die shows delete_outline icon
       expect(find.text('Preview'), findsOneWidget);
-      expect(find.byIcon(Icons.link_off), findsOneWidget);
+      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
     });
 
     testWidgets('HA entity field hidden when haEnabled=false', (tester) async {
@@ -509,7 +509,7 @@ void main() {
       expect(blinkColor, isNotNull);
     });
 
-    testWidgets('Disconnect icon calls onDisconnect with die id and closes', (tester) async {
+    testWidgets('Delete icon calls onDisconnect with die id and closes', (tester) async {
       String? disconnectedId;
       final die = _virtualDie();
       await _pumpDialog(
@@ -517,7 +517,7 @@ void main() {
         die: die,
         onDisconnect: (id) => disconnectedId = id,
       );
-      await tester.tap(find.byIcon(Icons.link_off));
+      await tester.tap(find.byIcon(Icons.delete_outline));
       await tester.pumpAndSettle();
       expect(disconnectedId, equals(die.dieId));
       expect(find.byType(SingleDieSettingsDialog), findsNothing);
@@ -745,6 +745,43 @@ void main() {
       // 'Result' should be much wider than one character.
       expect(resultSwatchLabelBox.width, greaterThan(20.0),
           reason: 'Label "Result" is too narrow, likely wrapping vertically.');
+    });
+  });
+
+  // ── Disconnect / Delete button ─────────────────────────────────────────────
+
+  group('disconnect/delete button', () {
+    testWidgets('virtual die shows Delete tooltip', (tester) async {
+      await _pumpDialog(tester, die: _virtualDie());
+      expect(find.byTooltip('Delete'), findsOneWidget);
+      expect(find.byTooltip('Disconnect'), findsNothing);
+    });
+
+    testWidgets('virtual die shows delete_outline icon', (tester) async {
+      await _pumpDialog(tester, die: _virtualDie());
+      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+      expect(find.byIcon(Icons.link_off), findsNothing);
+    });
+
+    testWidgets('BLE die shows Disconnect tooltip', (tester) async {
+      await _pumpDialog(tester, die: _pixelDie());
+      expect(find.byTooltip('Disconnect'), findsOneWidget);
+      expect(find.byTooltip('Delete'), findsNothing);
+    });
+
+    testWidgets('BLE die shows link_off icon', (tester) async {
+      await _pumpDialog(tester, die: _pixelDie());
+      expect(find.byIcon(Icons.link_off), findsOneWidget);
+      expect(find.byIcon(Icons.delete_outline), findsNothing);
+    });
+  });
+
+  // ── Brightness slider label ────────────────────────────────────────────────
+
+  group('brightness slider', () {
+    testWidgets('shows Brightness label', (tester) async {
+      await _pumpDialog(tester, die: _virtualDie());
+      expect(find.text('Brightness'), findsOneWidget);
     });
   });
 }

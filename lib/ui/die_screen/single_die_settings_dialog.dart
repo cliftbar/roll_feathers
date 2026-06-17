@@ -420,8 +420,12 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
     final dimColor = _activeColor.withValue(_activeColor.value * _activeBrightness).toColor();
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
+          const Text('Brightness'),
+          Row(children: [
           const Icon(Icons.brightness_low, size: 20),
           Expanded(
             child: _gradientSlider(
@@ -442,6 +446,7 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
+        ]),
         ],
       ),
     );
@@ -519,8 +524,8 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.link_off),
-                    tooltip: 'Disconnect',
+                    icon: Icon(widget.die.type == GenericDieType.virtual ? Icons.delete_outline : Icons.link_off),
+                    tooltip: widget.die.type == GenericDieType.virtual ? 'Delete' : 'Disconnect',
                     color: Theme.of(context).colorScheme.error,
                     onPressed: () {
                       widget.onDisconnect(widget.die.dieId);

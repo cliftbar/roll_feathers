@@ -128,6 +128,69 @@ void main() {
     });
   });
 
+  // ─── guest sign-in auto-enable ───────────────────────────────────────────
+
+  group('DddiceSettingsContent — guest sign-in auto-enable', () {
+    testWidgets('auto-enables dddice after successful guest sign-in', (tester) async {
+      final vm = _mockVm(_unauthConfig);
+      when(() => vm.dddiceSignInAsGuest()).thenAnswer((_) async => true);
+
+      await tester.pumpWidget(_wrap(DddiceSettingsContent(vm: vm)));
+      await tester.tap(find.text('Use guest account'));
+      await tester.pump();
+
+      final captured = verify(() => vm.saveDddiceConfig(captureAny())).captured;
+      expect(captured.any((c) => (c as DddiceConfig).enabled), isTrue);
+    });
+
+    testWidgets('does not auto-enable dddice when guest sign-in fails', (tester) async {
+      final vm = _mockVm(_unauthConfig);
+      when(() => vm.dddiceSignInAsGuest()).thenAnswer((_) async => false);
+
+      await tester.pumpWidget(_wrap(DddiceSettingsContent(vm: vm)));
+      await tester.tap(find.text('Use guest account'));
+      await tester.pump();
+
+      verifyNever(() => vm.saveDddiceConfig(any()));
+    });
+
+    testWidgets('guest theme text appears exactly once (no duplication)', (tester) async {
+      const guestConfig = DddiceConfig(enabled: true, token: 'guest-tok', isGuest: true, roomSlug: 'r', roomName: 'R');
+      final vm = _mockVm(guestConfig);
+
+      await tester.pumpWidget(_wrap(DddiceSettingsContent(vm: vm)));
+      await tester.pumpAndSettle();
+
+      expect(find.text('dddice-bees (guest default)'), findsOneWidget);
+    });
+  });
+
+  // ─── non-guest activation auto-enable ───────────────────────────────────
+
+  group('DddiceSettingsContent — activation auto-enable', () {
+    testWidgets('auto-enables dddice when activation completes', (tester) async {
+      late VoidCallback capturedListener;
+      final vm = _mockVm(_unauthConfig);
+      when(() => vm.addListener(any())).thenAnswer((inv) {
+        capturedListener = inv.positionalArguments[0] as VoidCallback;
+      });
+      when(() => vm.dddiceStartActivation()).thenAnswer(
+        (_) async => const DddiceActivationCode(code: 'CODE1', secret: 'sec'),
+      );
+
+      await tester.pumpWidget(_wrap(DddiceSettingsContent(vm: vm)));
+      await tester.tap(find.text('Sign in with dddice'));
+      await tester.pump();
+
+      when(() => vm.getDddiceConfig()).thenReturn(_authenticatedConfig);
+      capturedListener();
+      await tester.pump();
+
+      final captured = verify(() => vm.saveDddiceConfig(captureAny())).captured;
+      expect(captured.any((c) => (c as DddiceConfig).enabled), isTrue);
+    });
+  });
+
   // ─── authenticated state ─────────────────────────────────────────────────
 
   group('DddiceSettingsContent — authenticated', () {

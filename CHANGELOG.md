@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- **dddice integration** — Physical dice rolls can be mirrored to a [dddice](https://dddice.com) virtual tabletop room in real time. Enable in settings, supply an API key (or leave blank for guest mode as `bees`), pick a room, and optionally assign a theme per die. Guest sessions auto-create a temporary room on first roll.
+- **Integration test suite** — Flutter integration tests covering BLE, dddice, and Home Assistant flows added under `integration_test/`. A `DddiceMockServer` and `HaMockServer` stand-in for remote APIs during CI runs. The test script (`scripts/integration_tests.sh`) handles macOS, Android, and iOS targets.
+- **dddice mock server** — `lib/testing/dddice_mock_server.dart` provides a local HTTP server that simulates the dddice API; used by both integration tests and unit tests.
+- **HA mock server** — `lib/testing/ha_mock_server.dart` provides a local HTTP server that simulates the Home Assistant API.
+
+### Bug Fixes
+
+- **`$THRESHOLD` / `$MODIFIER` ignored in evaluation reparse** — The evaluator's `_prepareEvaluation` reparse (which substitutes `$MAX`, `$MIN`, `$ROLLED` just before evaluation) did not substitute `$THRESHOLD` or `$MODIFIER`, so rules using those variables in `with over`, `with dupes`, or similar transforms silently produced wrong selections. Both variables are now included in the reparse substitution. Rules affected: `nDupes`, `allAboveThreshold`, `maxWithModifier`.
+- **Die-name whitespace in `dieParser` caused roll matching to always fail** — `dieParser` used `.flatten()` which captures the entire matched span including surrounding whitespace consumed by adjacent `.trim()` calls. This produced tokens like `"*d10\n\n  "` rather than `"*d10"`, so `_checkRollConditions` never matched the clean roll names from BLE events and the rule's use-block never ran. Fixed by adding `.map((s) => s.trim())` to `dieParser`. Rule affected: `averagePassFailD10` (and any rule using wildcard count matchers like `*d10`).
+- **Layout overflow on narrow screens** — Fixed `RenderFlex` overflow errors on the main dice screen header and the roll controls row on small/narrow viewport widths.
+- **Port-in-use error swallowed on API server start** — `SocketException` on `HttpServer.bind` (e.g. port already taken) was previously uncaught; it is now caught and logged.
+
+### Internal
+
+- **`buildApiHandler` extracted from `ApiDomainServer.create()`** — Integration tests can now exercise HTTP routes without binding a socket. Accepts an optional `port` parameter.
+- **`DddiceRepository` accepts optional `baseUrl` override** — Allows tests to point at `DddiceMockServer` without touching production DI.
+- **`DDDICE_BASE_URL` dart-define** — DI reads `--dart-define=DDDICE_BASE_URL` at compile time and passes it to `DddiceRepository` when non-empty, enabling test builds to hit a local mock server.
+- **`Color.value` deprecation** — Replaced uses of the deprecated `Color.value` property with `Color.toARGB32()`.
+- **`SharedPreferences` / `SharedPreferencesAsync` in tests** — Replaced deprecated `SharedPreferences.setMockInitialValues` with `SharedPreferencesAsyncPlatform.instance` mock setup where required by updated plugin APIs.
+- **README updated** — Added dddice, webhooks, and Discord to Features; added Webhooks & Discord and dddice Integration sections; rewrote Rule Scripting section with current v1.1 DSL syntax (prior content used the removed v1.0 syntax).
+- **docs/TODO.md cleaned up** — Removed resolved items: iOS ATS, parse/evaluate split, PackageInfo logging, FormatException logging, GET webhook payload doc.
+
 ## 0.12.19
 
 ### Bug Fixes

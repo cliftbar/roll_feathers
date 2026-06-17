@@ -14,8 +14,15 @@ class RollResult {
   final Map<String, int> rolls;
   late final DateTime _rollTime;
   final String? ruleName;
+  final String? ruleDisplayName;
 
-  RollResult({required this.rollType, required this.rollResult, required this.rolls, this.ruleName}) {
+  RollResult({
+    required this.rollType,
+    required this.rollResult,
+    required this.rolls,
+    this.ruleName,
+    this.ruleDisplayName,
+  }) {
     _rollTime = DateTime.now();
   }
 
@@ -117,15 +124,23 @@ class RollDomain {
     late Map<String, int> resultRolls;
     late int resultValue;
     String? ruleName;
+    String? ruleDisplayName;
     if (ruleResult != null && ruleResult.ruleReturn) {
       resultRolls = ruleResult.allRolled;
       resultValue = ruleResult.result;
       ruleName = ruleResult.ruleName;
+      ruleDisplayName = ruleResult.ruleDisplayName;
     } else {
       resultRolls = Map.fromEntries(_rolledDie.entries.map((e) => MapEntry(e.key, e.value.getFaceValueOrElse())));
       resultValue = resultRolls.values.sum;
     }
-    final result = RollResult(rollType: rollType, rolls: resultRolls, rollResult: resultValue, ruleName: ruleName);
+    final result = RollResult(
+      rollType: rollType,
+      rolls: resultRolls,
+      rollResult: resultValue,
+      ruleName: ruleName,
+      ruleDisplayName: ruleDisplayName,
+    );
     _rollHistory.insert(0, result);
     _rollStatusStream.add(RollStatus.rollEnded);
     _rollResultStream.add(_rollHistory);

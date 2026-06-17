@@ -95,16 +95,22 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                       leading: const Icon(Icons.add),
                     ),
                     ListTile(
-                      onTap: () {
-                        widget.viewModel.removeAllVirtualDice.execute();
-                      },
+                      onTap: () => _confirmAction(
+                        context,
+                        title: 'Remove Virtual Dice',
+                        message: 'Remove all virtual dice?',
+                        onConfirm: () => widget.viewModel.removeAllVirtualDice.execute(),
+                      ),
                       title: const Text('Remove Virtual Dice'),
                       leading: const Icon(Icons.remove_circle_outline),
                     ),
                     ListTile(
-                      onTap: () {
-                        widget.viewModel.disconnectAllDice.execute();
-                      },
+                      onTap: () => _confirmAction(
+                        context,
+                        title: 'Remove All Dice',
+                        message: 'Disconnect and remove all dice?',
+                        onConfirm: () => widget.viewModel.disconnectAllDice.execute(),
+                      ),
                       title: const Text("Remove All Dice"),
                       leading: const Icon(Icons.highlight_remove_outlined),
                     ),
@@ -242,7 +248,12 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
             if (devices.isEmpty) {
               return const Padding(
                 padding: EdgeInsets.all(20.0),
-                child: Center(child: Text('No dice added')),
+                child: Center(
+                  child: Text(
+                    'No dice added\nTap Add Die to roll, or Pair Die for Bluetooth dice',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               );
             }
             return ListView.builder(
@@ -363,6 +374,26 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
   }
 
   // Helpers
+  Future<void> _confirmAction(
+    BuildContext context, {
+    required String title,
+    required String message,
+    required VoidCallback onConfirm,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Confirm')),
+        ],
+      ),
+    );
+    if (confirmed == true) onConfirm();
+  }
+
   void _setWithVirtualDice(bool value) {
     _rollVirtualDice = value;
     widget.viewModel.setWithVirtualDice.execute(_rollVirtualDice);
@@ -386,7 +417,8 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
     if (roll.ruleName == null) {
       rollType = TextSpan(text: ": ${roll.rollResult}");
     } else {
-      rollType = TextSpan(text: " <${roll.ruleName}>: ${roll.rollResult}");
+      final label = roll.ruleDisplayName ?? roll.ruleName;
+      rollType = TextSpan(text: " $label: ${roll.rollResult}");
     }
     List<TextSpan> dynamicText = <TextSpan>[rollType, TextSpan(text: " (")];
     if (rollsWithColors.isNotEmpty) {

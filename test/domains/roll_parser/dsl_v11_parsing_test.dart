@@ -5,8 +5,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:roll_feathers/domains/roll_parser/parser_rules.dart';
 import 'package:roll_feathers/domains/roll_parser/rule_parser.dart';
+import 'package:roll_feathers/testing/dsl_test_harness.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('DSL v1.1 parsing', () {
     final fixturesDir = Directory('test/fixtures');
     final parser = RuleParser.v11ScriptParser;
@@ -81,6 +84,64 @@ define my-rule "My Rule" for roll *d*
           expect(rule.displayName, isNot(equals(rule.name)));
         }
       }
+    });
+  });
+
+  group('ParsedScriptV11.displayName', () {
+    test('populated from quoted name in define', () {
+      const script = '''
+define myRule "My Display Name" for roll *d*
+  use selection \$ALL_DICE
+    aggregate over selection sum
+    on result [*:*] action blink
+''';
+      final result = RuleParser.v11ScriptParser.parse(script);
+      expect(result.isSuccess, isTrue);
+      expect(result.value.displayName, 'My Display Name');
+    });
+
+    test('null when define has no quoted name', () {
+      const script = '''
+define myRule for roll *d*
+  use selection \$ALL_DICE
+    aggregate over selection sum
+    on result [*:*] action blink
+''';
+      final result = RuleParser.v11ScriptParser.parse(script);
+      expect(result.isSuccess, isTrue);
+      expect(result.value.displayName, isNull);
+    });
+  });
+
+  group('ParseResult.ruleDisplayName threading', () {
+    test('ruleDisplayName populated when rule has quoted display name', () async {
+      const rule = '''
+define myBlink "Basic Blink" for roll *d*
+  use selection \$ALL_DICE
+    aggregate over selection sum
+    on result [*:*] action blink
+''';
+      final runner = await DslTestRunner.create();
+      final res = await runner.run(
+        rule: rule,
+        dice: [DieInput('d6', 4)],
+      );
+      expect(res.parse.ruleDisplayName, 'Basic Blink');
+    });
+
+    test('ruleDisplayName is null when rule has no quoted display name', () async {
+      const rule = '''
+define myBlink for roll *d*
+  use selection \$ALL_DICE
+    aggregate over selection sum
+    on result [*:*] action blink
+''';
+      final runner = await DslTestRunner.create();
+      final res = await runner.run(
+        rule: rule,
+        dice: [DieInput('d6', 4)],
+      );
+      expect(res.parse.ruleDisplayName, isNull);
     });
   });
 }

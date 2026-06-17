@@ -11,7 +11,7 @@ void main() {
     testWidgets('starts with no dice and empty history', (tester) async {
       await startApp(tester);
 
-      expect(find.text('No dice added'), findsOneWidget);
+      expect(find.textContaining('No dice added'), findsOneWidget);
       expect(find.text('Make some rolls!'), findsOneWidget);
     });
 
@@ -20,7 +20,7 @@ void main() {
       await addVirtualDie(tester, 'd20', 20);
 
       expect(find.textContaining('d20'), findsWidgets);
-      expect(find.text('No dice added'), findsNothing);
+      expect(find.textContaining('No dice added'), findsNothing);
     });
 
     testWidgets('rolls a single virtual die and records result in history', (tester) async {

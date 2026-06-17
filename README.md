@@ -17,7 +17,9 @@ or requests.
    1. [Setup](#ha-app-setup)
    2. [Home Assistant Web Setup](#ha-web-setup)
 5. [API Server](#api-server)
-6. [Rule Scripting](#rule-scripting)
+6. [Webhooks & Discord](#webhooks--discord)
+7. [dddice Integration](#dddice-integration)
+8. [Rule Scripting](#rule-scripting)
 
 ## Features
 
@@ -35,6 +37,8 @@ or requests.
   - **Rolling flash animations (Pixels only)** — configure color and animation style (Strobe, Pulse, Breathe)
   - **Preview animations** directly from settings
 - Home Assistant integration for smart light control
+- Webhook and Discord rule actions — fire HTTP requests or Discord embeds on roll result
+- dddice integration — mirror physical dice rolls to a virtual tabletop room
 - API server to get the latest roll (local network only)
   - `GET http://<device-ip>:8080/api/last-roll`
   - Not available on web
@@ -133,199 +137,157 @@ address: `http://localhost:8080`
 
 - `GET /api/last-roll`: return the most recent roll
 
+## Webhooks & Discord
+
+DSL rule actions can fire outbound HTTP requests or Discord embeds when a result range matches.
+
+- Enable **Webhooks** in app settings to allow outbound requests (gated globally)
+- Add `action webhook [GET|POST] <url>` or `action discord <webhook_url>` to any `on result` line in a rule
+- POST sends a structured JSON payload (`RollResultDTO`) with rule name, timestamp, aggregate value, matched range, and dice details
+- GET sends `rule` and `aggregate` as query parameters only
+- Errors are caught and logged; dice behavior is never interrupted
+
+See [Rule Scripting](#rule-scripting) for the DSL syntax and the built-in `Webhook Example` rule as a starting point.
+
+## dddice Integration
+
+Rolls made with connected physical dice can be mirrored to a [dddice](https://dddice.com) virtual tabletop room in real time.
+
+### Setup
+
+1. Enable **dddice** in app settings
+2. Enter an API key (create one at dddice.com) — or leave blank to join as a guest under the name `bees`
+3. Select a **room** from the room picker (rooms are fetched from your account)
+4. Optionally set a **theme** per die in each die's settings
+
+### How It Works
+
+- Each physical dice roll is sent to the configured dddice room using the die's assigned theme
+- Guest sessions automatically create a temporary room on first roll
+- Themes are stored per die identifier and persist across sessions
+
 ## Rule Scripting
 
-Rule scripts allow for custom actions on roll. Scripts can target specific die combinations and alter roll outcomes,
-like adding a modifier value. The script structure is below:
+Rule scripts define custom actions triggered by a dice roll via a built-in DSL. Scripts filter dice into named selections, aggregate over them, and execute actions when the result falls in a specified range. See the [DSL v1.1 Authoring Guide](docs/dsl/roll_feathers_dsl_v1_1_guide.md) for the full reference and the [default rules](lib/domains/roll_parser/parser_rules.dart) for working examples.
+
+### Script Structure
 
 ```
-define <name>
-for roll <dice matcher>
-transform
-  with <transform function> <transform args>
-aggregate max
-with result
-  on [<result min>:<result max>] <result type> <result function> <result args>
+define <name> ["Display Name"] for roll <dice matcher>
+  [make selection @<NAME> [from (@<PARENT> | $ALL_DICE)]
+    [with <transform>]
+    ...]
+  use selection (@<NAME> | $ALL_DICE)
+    aggregate over selection <aggregate>
+    on result <range> action <action>
+    ...
 ```
 
-The [default rules](https://git.cliftbar.site/cliftbar/roll_feathers/src/branch/main/lib/domains/roll_parser/parser_rules.dart)
-can used as a reference.
+Blocks are ordered: all `make selection` blocks that a `use selection` needs must appear before it.
 
 ### Global Variables
-The following variables are available for all scripts.
-- `$MODIFIER`: modifier for the roll, defaults to 0. Not currently setable.
-- `$THRESHOLD`: threshold for the roll, defaults to 0. Not currently setable.
-- `$ALL_DICE`: Represent all dice in the roll.
-- `$RESULT_DICE`: Represent all dice in the results.
-- `$ROLLED_COUNT`: Represents the number of dice rolled.
 
-### name
-
-Name of the script
+- `$MODIFIER`: modifier value (defaults to 0)
+- `$THRESHOLD`: threshold value (defaults to 0)
+- `$ALL_DICE`: all dice in the roll
+- `$ROLLED_COUNT` / `$ROLLED`: number of dice rolled (substituted at evaluation time)
+- `$MAX` / `$MIN`: highest and lowest face values (substituted at evaluation time)
 
 ### Dice Matcher
 
-What combination of dice are needed to evaluate the script. The format is similar to standard dice notation, like 1d6
-or 2d10, and allows for wildcards. Some examples are below:
+Matches which roll triggers the script, using standard dice notation with wildcards:
 
-- `*d*`: match when any number of any die type are rolled
-- `1d10,1d00`: match when one d10 and one d00 is rolled
-- `2d20`: match when 2 d20s are rolled
-- `*d6`: match when any number of d6's are rolled
-- `3d*`: match when 3 of any die type is rolled
+- `*d*`: any number of any die type
+- `1d10,1d00`: one d10 and one d00 (percentile — enter `0` as face count to create a virtual d00)
+- `2d20`: exactly two d20s
+- `*d6`: any number of d6s
+- `3d*`: exactly three dice of any type
 
-### Transform
+### Make Selection Blocks
 
-The transform step applies to all die values in the roll. Values are either changed or filtered out.
-The available transforms are:
+Build a named selection by filtering and transforming the source dice:
 
-- `top n`: returns the highest n values of the roll
-  - Example: `roll 1,2,3,4,5; top 3; returns 3,4,5`
-- `bottom n`: returns the lowest n values of the roll
-  - Example: `roll 1,2,3,4,5; bottom 3; returns 1,2,3`
-- `equals n`: returns only values that equal the argument, so "only leave dice that rolled a six"
-  - Example: `roll 2,3,5,3,6; equals 3; returns 3,3`
-- `match n`: return only values where at least n number of them are the same, for example `match 2` for doubles
-  - If there are two sets of matches, the number with the most matches will be returned.
-  - Example a roll of `roll 3,3,6,6,6; match 2; returns 6,6,6`, the 6's will be returned
-- `over n`: returns all values above the given value
-  - Example: `roll 2,4,6,8; over 5; returns 6,8`
-- `under n`: returns all values under the given value
-  - Example: `roll 2,4,6,8; under 5; returns 2,4`
-- `mul n`: return all values multiplied by n
-  - Example: `roll 3,4,3; mul 3; returns 9,12,9`
-- `div n`: return all values divided by n, rounded
-  - Example: `roll 3,4,56; div 2; returns 2,2,3,3`
+- `with top N` / `with bottom N`: keep the N highest / lowest dice
+- `with match [a:b]`: keep dice whose value falls in the range [a:b]
+- `with dupes [a:b]`: keep dice in value-buckets with multiplicity in [a:b] (e.g. `[2:*]` for any duplicates)
+- `with over N` / `with under N`: keep dice strictly above / below N
+- `with offset X` / `with mul X` / `with div X`: apply math to all values in the selection
 
-Multiple transforms may be defined in a script, and they get applied in sequence. Example
-
-```
-roll: 7,3,5
-...
-transform
-  with offset 5
-  with top 2
-...
-```
-
-Will result in values `12,10`
+Transforms apply in order. Multiple `with` lines can be chained within one `make selection` block.
 
 ### Aggregates
 
-Aggregates are how the final roll result gets determined. Aggregates apply to any roll
-values remaining after the transform step.
+Applied inside a `use selection` block to produce the numeric result:
 
-The available aggregates are:
+- `sum`: total of all values
+- `min` / `max`: lowest / highest value
+- `avg`: average
+- `count`: number of dice in the selection
 
-- `sum`: Add together all the rolls
-- `min`: take the smallest remaining value
-- `max`: take the highest remaining value
-- `avg`: take the average of the values
+### Result Ranges
 
-### Result Targets
+`[` / `]` are inclusive endpoints; `(` / `)` are exclusive; `*` is open (unbounded).
 
-Result targets define what to do with the final computed result. Targets have two parts:
-a value range, and a target function.
+- `[*:*]`: any value
+- `[10:*]`: 10 or higher
+- `[*:10)`: 9 or lower
+- `(2:5)`: 3 or 4
+- `[$MIN:$MIN]`: exactly the global minimum (all dice tied)
 
-#### Range
+### Actions
 
-The range defines what values will trigger what function. Ranges are formatted similar to mathematical range notation;
-closed endpoints are shown with brackets, open with parenthesis, and 2 numbers separated by a `:`. The values may be
-numbers or `*`.
+- `action blink [color]`: blink the selection's dice the given color (default white)
+- `action blink $ALL_DICE [color]`: blink all rolled dice
+- `action sequence [loops] [colors...]`: cycle the selection's dice through a color list
+- `action webhook [GET|POST] <url>`: fire an HTTP request (requires Webhooks enabled in settings)
+- `action discord <webhook_url>`: post a Discord embed
 
-Examples:
+### Example Scripts
 
-- `[*:*]`, `(*,*)`: trigger for any result
-- `[3:*)`: trigger for result of 3 or higher
-- `(2:5)`: trigger for results 3 or 4
-- `(*:10)`: trigger for result of 9 or lower
-
-#### Target functions
-
-Target functions are run with the results of the roll. Every target has these available to it by default:
-
-- Dice that were returned by the transform step
-- All dice that were rolled
-
-The available target functions are:
-
-- `blink <dice set> color`: Blink the set of dice the specified color.
-  If the set of dice to blink is not provided, dice that are left after the transform step are blinked.
-  If a color is not given, it defaults to white
-  - Examples:
-    - `blink`: blink result dice (because of defaulting) white
-    - `blink $ALL_DICE red`: blink all dice red
-  - `blink $RESULT_DICE sheep`: blink the result dice the catan sheep color (light green)
-- `sequence <dice set> <loops> [colors]`: cycle the specified dice through a set of colors, looping a number of times.
-  If the set of dice to blink is not provided, dice that are left after the transform step are blinked.
-  If the loops count isn't set, it defaults to 1.
-  If colors are not given, it defaults to red, green, blue
-  - Examples:
-    - `sequence $ALL_DICE 2 red orange yellow green blue indigo violet`: make all dice go through rainbow colors
-    - `sequence`: do a sequence call with default values
-
-#### Result examples
-
-Here are some examples putting everything in the results together
-
-- Blink green with a result 10 or more, red if it's below a 10
+Percentile roll (1d10 + 1d00), blink a color per bracket, rainbow on 99+:
 
 ```
-with result
-  on [*:10) action blink \$RESULT_DICE green
-  on [10:*] action blink \$RESULT_DICE red
+define percentiles "Percentiles (1d10,1d100)" for roll 1d10,1d00
+  use selection $ALL_DICE
+    aggregate over selection sum
+    on result [0:10)  action blink red
+    on result [10:25) action blink orange
+    on result [25:50) action blink yellow
+    on result [50:75) action blink green
+    on result [75:90) action blink blue
+    on result [90:99) action blink purple
+    on result [99:*)  action sequence 1 red orange green blue violet
 ```
 
-- Blink result dice blue for all results
+Blink the top die after applying a modifier (advantage with modifier):
 
 ```
-with result
-  on [*:*) action blink \$RESULT_DICE blue
+define maxWithModifier "Max (with Modifier)" for roll *d*
+  # blink one die with the highest value after applying the modifier
+  make selection @ALL_MOD from $ALL_DICE
+    with offset $MODIFIER
+    with top 1
+  use selection @ALL_MOD
+    aggregate over selection max
+    on result [*:*] action blink blue
 ```
 
-- Blink all dice colors for the 10th, 25th, 50th, 75th, and 90th percentile, and play a rainbow on a 99
+Highlight high (green) and low (red) dice; blink purple if all dice tie:
 
 ```
-with result
-  on [0:10) action blink \$ALL_DICE red
-  on [10:25) action blink \$ALL_DICE orange
-  on [25:50) action blink \$ALL_DICE yellow
-  on [50:75) action blink \$ALL_DICE green
-  on [75:90) action blink \$ALL_DICE blue
-  on [90:99) action blink \$ALL_DICE purple
-  on [99:*) action sequence \$ALL_DICE 2 red orange yellow green blue indigo violet
-```
-
-- Cycle through colors for catan resources for the starter board (with nothing for the robber)
-
-```
-with result
-  on [2:3) action sequence 2 sheep
-  on [3:4) action sequence 2 wood ore
-  on [4:5) action sequence 2 wheat sheep
-  on [5:6) action sequence 2 wheat brick
-  on [6:7) action sequence 2 wheat brick
-  on [8:9) action sequence 2 wood ore
-  on [9:10) action sequence 2 wheat wood
-  on [10:11) action sequence 2 brick ore
-  on [11:12) action sequence 2 wood sheep
-  on [12:12] action sequence 2 wheat
-```
-
-### Full Example Script
-Make a percentile role with a modifier, a blink a color for the 10th, 25th, 50th, 75th, and 90th percentile results,
-and cycle all the colors on a 99.
-```
-define percentiles
-for roll 1d10,1d00
-transform with offset \$MODIFIER
-aggregate sum
-with result
-  on [0:10) action blink \$ALL_DICE red
-  on [10:25) action blink \$ALL_DICE orange
-  on [25:50) action blink \$ALL_DICE yellow
-  on [50:75) action blink \$ALL_DICE green
-  on [75:90) action blink \$ALL_DICE blue
-  on [90:99) action blink \$ALL_DICE purple
-  on [99:*) action sequence \$ALL_DICE 2 red orange yellow green blue purple
+define highLowAllTiesExclusive "High/Low/Tie All" for roll *d*
+  make selection @ALL_MAX with match [$MAX:$MAX]
+  make selection @ALL_MIN with match [$MIN:$MIN]
+  make selection @DUPE_ANY with dupes [2:*]
+  # All-equal → purple only
+  use selection @DUPE_ANY
+    aggregate over selection count
+    on result [$ROLLED:$ROLLED] action blink purple
+  # Non-all-equal → highs and lows
+  use selection @ALL_MAX
+    aggregate over selection count
+    on result [1:$ROLLED) action blink green
+  use selection @ALL_MIN
+    aggregate over selection count
+    on result [1:$ROLLED) action blink red
 ```

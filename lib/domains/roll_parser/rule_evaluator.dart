@@ -14,6 +14,7 @@ class ParseResult {
   final Map<String, int> allRolled;
   final Map<String, int> rolledEvaluated;
   final String ruleName;
+  final String? ruleDisplayName;
   final bool ruleReturn;
   final int? modifier;
 
@@ -22,6 +23,7 @@ class ParseResult {
     required this.allRolled,
     required this.rolledEvaluated,
     required this.ruleName,
+    this.ruleDisplayName,
     required this.ruleReturn,
     this.modifier,
   });
@@ -375,12 +377,14 @@ class RuleEvaluator {
     List<GenericDie> rolls,
     Map<GenericDie, int> baseMap,
     String ruleName,
-    bool passed,
-  ) => ParseResult(
+    bool passed, {
+    String? ruleDisplayName,
+  }) => ParseResult(
     result: rollResultAggregate,
     allRolled: Map.fromEntries(rolls.map((e) => MapEntry(e.dieId, e.getFaceValueOrElse()))),
     rolledEvaluated: Map.fromEntries(baseMap.entries.map((e) => MapEntry(e.key.dieId, e.value))),
     ruleName: ruleName,
+    ruleDisplayName: ruleDisplayName,
     ruleReturn: passed,
   );
 
@@ -460,7 +464,10 @@ class RuleEvaluator {
       }
     }
     return RuleEvaluation(
-      result: _buildParseResult(rollResultAggregate, rolls, ctx.baseMap, ctx.result.name, ctx.passed),
+      result: _buildParseResult(
+        rollResultAggregate, rolls, ctx.baseMap, ctx.result.name, ctx.passed,
+        ruleDisplayName: ctx.result.displayName,
+      ),
       effects: effects,
     );
   }

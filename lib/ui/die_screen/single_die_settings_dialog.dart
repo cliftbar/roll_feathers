@@ -6,6 +6,9 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/dice_sdks/godice.dart';
 import 'package:roll_feathers/services/app_service.dart';
+import 'package:roll_feathers/dice_sdks/pixels_profile_transfer.dart';
+import 'package:roll_feathers/services/pixels/pixel_profile_store.dart';
+import 'package:roll_feathers/ui/pixels/pixels_profiles_screen.dart';
 
 enum _ColorMode {
   hexWheel('Hex / Wheel'),
@@ -638,8 +641,22 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                           onChanged: (t) => setState(() => _currentFaceType = t),
                         ),
                       ],
-                      // Rolling flash: Pixels only.
+                      // Animation management + Rolling flash: Pixels only.
                       if (widget.die.type == GenericDieType.pixel) ...[
+                        const Divider(),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Animations'),
+                          subtitle: const Text('Manage LED profiles for this die'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => _PixelsProfilesRoute(die: widget.die as PixelDie),
+                              ),
+                            );
+                          },
+                        ),
                         const Divider(),
                         Row(
                           children: [
@@ -836,6 +853,19 @@ class _GradientTrackShape extends SliderTrackShape with BaseSliderTrackShape {
         ..shader = LinearGradient(colors: [start, end]).createShader(trackRect),
     );
   }
+}
+
+/// Thin wrapper that wires [PixelBleAdapter] + [PixelProfileStore] into [PixelsProfilesScreen].
+class _PixelsProfilesRoute extends StatelessWidget {
+  const _PixelsProfilesRoute({required this.die});
+  final PixelDie die;
+
+  @override
+  Widget build(BuildContext context) => PixelsProfilesScreen(
+    die: PixelBleAdapter(die),
+    dieName: die.friendlyName,
+    store: PixelProfileStore(),
+  );
 }
 
 @Preview(name: 'SingleDieSettingsDialog - virtual die')

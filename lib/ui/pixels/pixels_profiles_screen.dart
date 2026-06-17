@@ -1,0 +1,259 @@
+import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
+
+import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels_profile_transfer.dart';
+import 'package:roll_feathers/services/pixels/pixel_profile_store.dart';
+import 'package:roll_feathers/ui/pixels/pixels_profile_editor_screen.dart';
+
+/// Full-screen profile manager for a single Pixels die.
+///
+/// Lists all saved profiles, allows add/edit/delete, and transfers the active
+/// profile to the physical die.
+class PixelsProfilesScreen extends StatefulWidget {
+  const PixelsProfilesScreen({
+    super.key,
+    required this.die,
+    required this.dieName,
+    required this.store,
+  });
+
+  final PixelsDieInterface die;
+  final String dieName;
+  final PixelProfileStore store;
+
+  @override
+  State<PixelsProfilesScreen> createState() => _PixelsProfilesScreenState();
+}
+
+class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
+  List<PixelProfile> _profiles = [];
+  bool _loading = true;
+  String? _transferring; // profile id being transferred
+  String? _statusMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final profiles = await widget.store.loadAll();
+    if (mounted) setState(() { _profiles = profiles; _loading = false; });
+  }
+
+  Future<void> _addProfile() async {
+    final newProfile = PixelProfile(
+      id: const Uuid().v4(),
+      name: 'New Profile',
+      animations: [
+        PixelAnimationSimple(
+          durationMs: 500,
+          color: const PixelColor(255, 0, 0),
+          count: 1,
+          fade: 128,
+        ),
+      ],
+      rules: [
+        PixelRule(
+          condition: PixelConditionRolled(),
+          actions: [PixelActionPlayAnimation(animIndex: 0)],
+        ),
+      ],
+    );
+    final saved = await _openEditor(newProfile);
+    if (saved != null) {
+      await widget.store.upsert(saved);
+      await _load();
+    }
+  }
+
+  Future<void> _editProfile(PixelProfile profile) async {
+    final saved = await _openEditor(profile);
+    if (saved != null) {
+      await widget.store.upsert(saved);
+      await _load();
+    }
+  }
+
+  Future<PixelProfile?> _openEditor(PixelProfile profile) {
+    return Navigator.of(context).push<PixelProfile>(
+      MaterialPageRoute(
+        builder: (_) => PixelsProfileEditorScreen(profile: profile),
+      ),
+    );
+  }
+
+  Future<void> _deleteProfile(PixelProfile profile) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Profile'),
+        content: Text('Delete "${profile.name}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await widget.store.delete(profile.id);
+      await _load();
+    }
+  }
+
+  Future<void> _transferProfile(PixelProfile profile) async {
+    setState(() { _transferring = profile.id; _statusMessage = null; });
+    try {
+      final transfer = PixelsProfileTransfer(widget.die);
+      await transfer.transferProfile(profile);
+      if (mounted) {
+        setState(() {
+          _transferring = null;
+          _statusMessage = '✓ "${profile.name}" flashed to die';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _transferring = null;
+          _statusMessage = 'Transfer failed: $e';
+        });
+      }
+    }
+  }
+
+  Future<void> _previewProfile(PixelProfile profile) async {
+    setState(() { _transferring = profile.id; _statusMessage = null; });
+    try {
+      final transfer = PixelsProfileTransfer(widget.die);
+      await transfer.transferInstantAnimation(profile);
+      await transfer.playInstantAnimation(animIndex: 0, faceIndex: -1, loopCount: 1);
+      if (mounted) setState(() { _transferring = null; _statusMessage = 'Preview sent'; });
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _transferring = null;
+          _statusMessage = 'Preview failed: $e';
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Animations — ${widget.dieName}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Add Profile',
+            onPressed: _addProfile,
+          ),
+        ],
+      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                if (_statusMessage != null)
+                  Material(
+                    color: Theme.of(context).colorScheme.secondaryContainer,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(_statusMessage!)),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 18),
+                            onPressed: () => setState(() => _statusMessage = null),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                Expanded(
+                  child: _profiles.isEmpty
+                      ? const Center(child: Text('No profiles yet.\nTap + to create one.', textAlign: TextAlign.center))
+                      : ListView.builder(
+                          itemCount: _profiles.length,
+                          itemBuilder: (_, i) {
+                            final p = _profiles[i];
+                            final isTransferring = _transferring == p.id;
+                            return ListTile(
+                              title: Text(p.name),
+                              subtitle: Text(
+                                '${p.animations.length} animation${p.animations.length == 1 ? '' : 's'}'
+                                ' · ${p.rules.length} rule${p.rules.length == 1 ? '' : 's'}',
+                              ),
+                              trailing: isTransferring
+                                  ? const SizedBox(
+                                      width: 24,
+                                      height: 24,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : _ProfileActions(
+                                      onEdit: () => _editProfile(p),
+                                      onPreview: () => _previewProfile(p),
+                                      onFlash: () => _transferProfile(p),
+                                      onDelete: () => _deleteProfile(p),
+                                    ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+    );
+  }
+}
+
+class _ProfileActions extends StatelessWidget {
+  const _ProfileActions({
+    required this.onEdit,
+    required this.onPreview,
+    required this.onFlash,
+    required this.onDelete,
+  });
+
+  final VoidCallback onEdit;
+  final VoidCallback onPreview;
+  final VoidCallback onFlash;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.play_circle_outline),
+          tooltip: 'Preview on die',
+          onPressed: onPreview,
+        ),
+        IconButton(
+          icon: const Icon(Icons.upload),
+          tooltip: 'Flash to die',
+          onPressed: onFlash,
+        ),
+        PopupMenuButton<_Action>(
+          onSelected: (a) => switch (a) {
+            _Action.edit => onEdit(),
+            _Action.delete => onDelete(),
+          },
+          itemBuilder: (_) => const [
+            PopupMenuItem(value: _Action.edit, child: Text('Edit')),
+            PopupMenuItem(value: _Action.delete, child: Text('Delete')),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+enum _Action { edit, delete }

@@ -517,7 +517,7 @@ class MessageTransferAnimationSet extends TxMessage {
   }
 }
 
-/// Die response to TransferAnimationSet: result=0 → proceed, else no memory.
+/// Die response to TransferAnimationSet: result != 0 → proceed with download; result == 0 → refused (not enough memory).
 class MessageTransferAnimationSetAck extends RxMessage {
   final int result;
 
@@ -527,7 +527,7 @@ class MessageTransferAnimationSetAck extends RxMessage {
   static MessageTransferAnimationSetAck parse(List<int> data) =>
       MessageTransferAnimationSetAck(buffer: data, result: data.length > 1 ? data[1] : 0);
 
-  bool get canDownload => result == 0;
+  bool get canDownload => result != 0;
 }
 
 /// Die signals profile was written to flash.

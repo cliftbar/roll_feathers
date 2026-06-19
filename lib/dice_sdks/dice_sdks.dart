@@ -497,6 +497,36 @@ class PixelDie extends GenericBleDie {
             state.rollState != null ? DiceRollState.values[state.rollState!] : DiceRollState.unknown;
         _runRollCallbacks(rollState);
         break;
+      case pix.PixelMessageType.transferAnimationSetAck:
+        final msg = pix.MessageTransferAnimationSetAck.parse(data);
+        _log.fine('Received msg ${msgType.name}: result=${msg.result}');
+        _runMessageCallbacks(msg, msgType);
+        break;
+      case pix.PixelMessageType.transferAnimationSetFinished:
+        final msg = pix.MessageTransferAnimationSetFinished.parse(data);
+        _log.fine('Received msg ${msgType.name}');
+        _runMessageCallbacks(msg, msgType);
+        break;
+      case pix.PixelMessageType.bulkSetupAck:
+        final msg = pix.MessageBulkSetupAck.parse(data);
+        _log.fine('Received msg ${msgType.name}');
+        _runMessageCallbacks(msg, msgType);
+        break;
+      case pix.PixelMessageType.bulkDataAck:
+        final msg = pix.MessageBulkDataAck.parse(data);
+        _log.fine('Received msg ${msgType.name}: offset=${msg.offset}');
+        _runMessageCallbacks(msg, msgType);
+        break;
+      case pix.PixelMessageType.transferInstantAnimationSetAck:
+        final msg = pix.MessageTransferInstantAnimationSetAck.parse(data);
+        _log.fine('Received msg ${msgType.name}: ackType=${msg.ackType}');
+        _runMessageCallbacks(msg, msgType);
+        break;
+      case pix.PixelMessageType.transferInstantAnimationSetFinished:
+        final msg = pix.MessageTransferInstantAnimationSetFinished.parse(data);
+        _log.fine('Received msg ${msgType.name}');
+        _runMessageCallbacks(msg, msgType);
+        break;
       default:
         var msg = pix.MessageNone.parse(data);
         _log.fine('Received msg ${msgType.name} data: ${msg.buffer}');

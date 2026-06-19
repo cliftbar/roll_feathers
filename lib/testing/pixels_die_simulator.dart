@@ -164,12 +164,9 @@ class PixelsDieSimulator implements PixelsDieInterface {
         _emit(_buildIAmADie());
 
       case pix.PixelMessageType.transferAnimationSet:
-        final paletteSize = _getU16(data, 1);
-        final animCount = _getU16(data, 11);
-        // Compute total data size for this transfer
-        // (We just accept and proceed)
+        // result != 0 → proceed; result == 0 → refused (not enough memory)
         _pendingBulk = _BulkContext(type: _BulkType.profile);
-        _emit([pix.PixelMessageType.transferAnimationSetAck.index, 0]); // result=0 → download
+        _emit([pix.PixelMessageType.transferAnimationSetAck.index, 1]); // result=1 → proceed
 
       case pix.PixelMessageType.transferInstantAnimationSet:
         final hash = _getU32(data, 15);

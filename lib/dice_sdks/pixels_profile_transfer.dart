@@ -34,7 +34,12 @@ class PixelsProfileTransfer {
     final stats = ds.computeStats();
     final bytes = ds.toByteArray();
 
-    _log.info('Transferring profile "${profile.name}" (${bytes.length} bytes) to ${die.dieId}');
+    _log.info(
+      'Transferring profile "${profile.name}" (${bytes.length} bytes) to ${die.dieId}: '
+      'palette=${stats.paletteSize} anims=${stats.animationCount}×${stats.animationSize}B '
+      'conds=${stats.conditionCount}×${stats.conditionSize}B '
+      'acts=${stats.actionCount}×${stats.actionSize}B rules=${stats.ruleCount}',
+    );
 
     // Step 1: send header, wait for ack
     final headerMsg = pix.MessageTransferAnimationSet(
@@ -60,7 +65,8 @@ class PixelsProfileTransfer {
     );
 
     if (!headerAck.canDownload) {
-      throw const PixelsTransferException('Die reports not enough memory for profile');
+      _log.severe('Transfer rejected (result=0 = not enough memory): raw buffer=${headerAck.buffer}');
+      throw PixelsTransferException('Die rejected transfer: not enough flash memory (ack result=0)');
     }
 
     // Register listener for finished BEFORE upload so we don't miss the event.

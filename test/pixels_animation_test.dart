@@ -69,21 +69,24 @@ void main() {
 
     test('palette size is 3 bytes per color, 4-byte aligned', () {
       final bits = AnimationBits();
-      bits.addColor(const PixelColor(1, 2, 3));
-      bits.addColor(const PixelColor(4, 5, 6));
+      // Use values that remain distinct after gamma-3.0 correction:
+      // gamma(200)=123, gamma(150)=52, so (200,0,0) → (123,0,0) and (0,200,0) → (0,123,0)
+      bits.addColor(const PixelColor(200, 0, 0));
+      bits.addColor(const PixelColor(0, 200, 0));
       // 2 colors * 3 bytes = 6, aligned to 8
       expect(bits.computeByteSize(), 8);
     });
 
     test('serializes palette with 4-byte alignment padding', () {
       final bits = AnimationBits();
-      bits.addColor(const PixelColor(10, 20, 30));
+      // gamma(255)=255 so a pure-red (255,0,0) stores as (255,0,0) after correction
+      bits.addColor(const PixelColor(255, 0, 0));
       final size = bits.computeByteSize();
       final buf = ByteData(size);
       bits.writeTo(buf, 0);
-      expect(buf.getUint8(0), 10);
-      expect(buf.getUint8(1), 20);
-      expect(buf.getUint8(2), 30);
+      expect(buf.getUint8(0), 255);
+      expect(buf.getUint8(1), 0);
+      expect(buf.getUint8(2), 0);
       // Byte 3 is padding — not checked
     });
   });
@@ -321,6 +324,237 @@ void main() {
       expect(anim.color, const PixelColor(100, 150, 200));
       final cond = restored.rules[0].condition as PixelConditionRolled;
       expect(cond.faceMask, 0xFF);
+    });
+  });
+
+  group('PixelGradient', () {
+    test('addToBits adds correct number of keyframes', () {
+      final bits = AnimationBits();
+      final grad = PixelGradient.twoColor(const PixelColor(255, 0, 0), const PixelColor(0, 0, 255));
+      final trackIdx = grad.addToBits(bits);
+      expect(trackIdx, 0);
+      expect(bits.rgbKeyframes.length, 3); // start, mid, end
+      expect(bits.rgbTracks.length, 1);
+    });
+
+    test('solid gradient adds 2 keyframes', () {
+      final bits = AnimationBits();
+      final trackIdx = PixelGradient.solid(const PixelColor(0, 255, 0)).addToBits(bits);
+      expect(trackIdx, 0);
+      expect(bits.rgbKeyframes.length, 2);
+    });
+
+    test('JSON round-trip preserves keyframes', () {
+      final grad = PixelGradient.rainbow;
+      final json = grad.toJson();
+      final restored = PixelGradient.fromJson(json);
+      expect(restored.keyframes.length, grad.keyframes.length);
+      expect(restored.keyframes.first.$1, grad.keyframes.first.$1);
+    });
+  });
+
+  group('PixelAnimationGradient', () {
+    test('byteSize is 12', () {
+      expect(PixelAnimationGradient().byteSize, 12);
+    });
+
+    test('type is gradient (5)', () {
+      expect(PixelAnimationGradient().type, PixelAnimationType.gradient);
+    });
+
+    test('serializes without error', () {
+      final profile = PixelProfile(
+        id: 'g', name: 'Gradient', animations: [PixelAnimationGradient()],
+        rules: [PixelRule(condition: PixelConditionRolled(), actions: [PixelActionPlayAnimation(animIndex: 0)])],
+      );
+      expect(() => PixelDataSet(profile).toByteArray(), returnsNormally);
+    });
+
+    test('JSON round-trip', () {
+      final anim = PixelAnimationGradient(durationMs: 1500, gradient: PixelGradient.water);
+      final restored = PixelAnimationGradient.fromJson(anim.toJson());
+      expect(restored.durationMs, 1500);
+      expect(restored.gradient.keyframes.length, anim.gradient.keyframes.length);
+    });
+
+    test('first byte of serialized data is type 5', () {
+      final anim = PixelAnimationGradient();
+      final bits = AnimationBits();
+      anim.prepareBits(bits);
+      final buf = ByteData(12);
+      anim.writeTo(buf, 0, bits);
+      expect(buf.getUint8(0), 5);
+    });
+  });
+
+  group('PixelAnimationCycle', () {
+    test('byteSize is 14', () {
+      expect(PixelAnimationCycle().byteSize, 14);
+    });
+
+    test('type is cycle (7)', () {
+      expect(PixelAnimationCycle().type, PixelAnimationType.cycle);
+    });
+
+    test('first byte of serialized data is type 7', () {
+      final anim = PixelAnimationCycle();
+      final bits = AnimationBits();
+      anim.prepareBits(bits);
+      final buf = ByteData(14);
+      anim.writeTo(buf, 0, bits);
+      expect(buf.getUint8(0), 7);
+    });
+
+    test('JSON round-trip', () {
+      final anim = PixelAnimationCycle(durationMs: 2500, intensity: 200, cyclesTimes10: 15);
+      final restored = PixelAnimationCycle.fromJson(anim.toJson());
+      expect(restored.durationMs, 2500);
+      expect(restored.intensity, 200);
+      expect(restored.cyclesTimes10, 15);
+    });
+  });
+
+  group('PixelAnimationNoise', () {
+    test('byteSize is 18', () {
+      expect(PixelAnimationNoise().byteSize, 18);
+    });
+
+    test('type is noise (6)', () {
+      expect(PixelAnimationNoise().type, PixelAnimationType.noise);
+    });
+
+    test('first byte of serialized data is type 6', () {
+      final anim = PixelAnimationNoise();
+      final bits = AnimationBits();
+      anim.prepareBits(bits);
+      final buf = ByteData(18);
+      anim.writeTo(buf, 0, bits);
+      expect(buf.getUint8(0), 6);
+    });
+
+    test('adds 2 gradient tracks to bits', () {
+      final anim = PixelAnimationNoise();
+      final bits = AnimationBits();
+      anim.prepareBits(bits);
+      expect(bits.rgbTracks.length, 2);
+    });
+
+    test('JSON round-trip', () {
+      final anim = PixelAnimationNoise(durationMs: 2000, blinkFrequencyTimes1000: 1500);
+      final restored = PixelAnimationNoise.fromJson(anim.toJson());
+      expect(restored.durationMs, 2000);
+      expect(restored.blinkFrequencyTimes1000, 1500);
+    });
+  });
+
+  group('PixelAnimationNormals', () {
+    test('byteSize is 22', () {
+      expect(PixelAnimationNormals().byteSize, 22);
+    });
+
+    test('type is normals (9)', () {
+      expect(PixelAnimationNormals().type, PixelAnimationType.normals);
+    });
+
+    test('first byte of serialized data is type 9', () {
+      final anim = PixelAnimationNormals();
+      final bits = AnimationBits();
+      anim.prepareBits(bits);
+      final buf = ByteData(22);
+      anim.writeTo(buf, 0, bits);
+      expect(buf.getUint8(0), 9);
+    });
+
+    test('adds 3 gradient tracks to bits', () {
+      final anim = PixelAnimationNormals();
+      final bits = AnimationBits();
+      anim.prepareBits(bits);
+      expect(bits.rgbTracks.length, 3);
+    });
+
+    test('JSON round-trip', () {
+      final anim = PixelAnimationNormals(durationMs: 3000, axisScaleTimes1000: 1500);
+      final restored = PixelAnimationNormals.fromJson(anim.toJson());
+      expect(restored.durationMs, 3000);
+      expect(restored.axisScaleTimes1000, 1500);
+    });
+  });
+
+  group('PixelAnimationGradientPattern', () {
+    test('byteSize is 12', () {
+      expect(PixelAnimationGradientPattern().byteSize, 12);
+    });
+
+    test('type is gradientPattern (4)', () {
+      expect(PixelAnimationGradientPattern().type, PixelAnimationType.gradientPattern);
+    });
+
+    test('first byte of serialized data is type 4', () {
+      final anim = PixelAnimationGradientPattern();
+      final bits = AnimationBits();
+      anim.prepareBits(bits);
+      final buf = ByteData(12);
+      anim.writeTo(buf, 0, bits);
+      expect(buf.getUint8(0), 4);
+    });
+
+    test('JSON round-trip', () {
+      final anim = PixelAnimationGradientPattern(durationMs: 1800, overrideWithFace: true);
+      final restored = PixelAnimationGradientPattern.fromJson(anim.toJson());
+      expect(restored.durationMs, 1800);
+      expect(restored.overrideWithFace, true);
+    });
+  });
+
+  group('PixelAnimationSequence', () {
+    test('byteSize is 22', () {
+      expect(PixelAnimationSequence().byteSize, 22);
+    });
+
+    test('type is sequence (10)', () {
+      expect(PixelAnimationSequence().type, PixelAnimationType.sequence);
+    });
+
+    test('first byte of serialized data is type 10', () {
+      final anim = PixelAnimationSequence(entries: [(0, 100), (12, 200)]);
+      final bits = AnimationBits();
+      final buf = ByteData(22);
+      anim.writeTo(buf, 0, bits);
+      expect(buf.getUint8(0), 10);
+    });
+
+    test('entry count clamped to 4', () {
+      final anim = PixelAnimationSequence(entries: [(0,0),(12,0),(24,0),(36,0),(48,0)]);
+      final bits = AnimationBits();
+      final buf = ByteData(22);
+      anim.writeTo(buf, 0, bits);
+      expect(buf.getUint16(20, Endian.little), 4); // animationCount field
+    });
+
+    test('JSON round-trip', () {
+      final anim = PixelAnimationSequence(durationMs: 1000, entries: [(0, 100), (20, 200)]);
+      final restored = PixelAnimationSequence.fromJson(anim.toJson());
+      expect(restored.entries.length, 2);
+      expect(restored.entries[0].$2, 100);
+    });
+  });
+
+  group('DataSet alignment (multi-gradient)', () {
+    test('bits size padding does not cause buffer overflow', () {
+      // Profile whose finalBitsSize is not 4-aligned — previously caused buffer overflow.
+      final profile = PixelProfile(
+        id: 'test', name: 'Multi',
+        animations: [
+          PixelAnimationNoise(), // adds 2 rgb tracks
+          PixelAnimationNoise(), // adds 2 more
+        ],
+        rules: [
+          PixelRule(condition: PixelConditionRolled(), actions: [PixelActionPlayAnimation(animIndex: 0)]),
+          PixelRule(condition: PixelConditionRolled(), actions: [PixelActionPlayAnimation(animIndex: 1)]),
+        ],
+      );
+      expect(() => PixelDataSet(profile).toByteArray(), returnsNormally);
+      expect(() => PixelDataSet(profile).toAnimationsByteArray(), returnsNormally);
     });
   });
 

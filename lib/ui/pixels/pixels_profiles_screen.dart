@@ -7,6 +7,8 @@ import 'package:roll_feathers/dice_sdks/pixels_profile_transfer.dart';
 import 'package:roll_feathers/services/pixels/pixel_profile_store.dart';
 import 'package:roll_feathers/ui/pixels/pixels_profile_editor_screen.dart';
 
+int _profileHash(PixelProfile p) => PixelDataSet(p).computeHash();
+
 /// Full-screen profile manager for a single Pixels die.
 ///
 /// Lists all saved profiles, allows add/edit/delete, and transfers the active
@@ -29,19 +31,28 @@ class PixelsProfilesScreen extends StatefulWidget {
 
 class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
   List<PixelProfile> _profiles = [];
+  Map<String, int> _hashes = {}; // profileId → computed hash
   bool _loading = true;
   String? _transferring; // profile id being transferred
   String? _statusMessage;
+  int? _dieHash; // hash currently on the die
 
   @override
   void initState() {
     super.initState();
+    _dieHash = widget.die.currentDataSetHash;
     _load();
   }
 
   Future<void> _load() async {
     final profiles = await widget.store.loadAll();
-    if (mounted) setState(() { _profiles = profiles; _loading = false; });
+    if (!mounted) return;
+    final hashes = {for (final p in profiles) p.id: _profileHash(p)};
+    setState(() {
+      _profiles = profiles;
+      _hashes = hashes;
+      _loading = false;
+    });
   }
 
   Future<void> _addProfile() async {
@@ -112,6 +123,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
         setState(() {
           _transferring = null;
           _statusMessage = '✓ "${profile.name}" flashed to die';
+          _dieHash = _hashes[profile.id];
         });
       }
     } catch (e) {
@@ -182,11 +194,27 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
                           itemBuilder: (_, i) {
                             final p = _profiles[i];
                             final isTransferring = _transferring == p.id;
+                            final isOnDie = _dieHash != null &&
+                                _hashes[p.id] == _dieHash;
                             return ListTile(
                               title: Text(p.name),
-                              subtitle: Text(
-                                '${p.animations.length} animation${p.animations.length == 1 ? '' : 's'}'
-                                ' · ${p.rules.length} rule${p.rules.length == 1 ? '' : 's'}',
+                              subtitle: Row(
+                                children: [
+                                  Text(
+                                    '${p.animations.length} animation${p.animations.length == 1 ? '' : 's'}'
+                                    ' · ${p.rules.length} rule${p.rules.length == 1 ? '' : 's'}',
+                                  ),
+                                  if (isOnDie) ...[
+                                    const SizedBox(width: 6),
+                                    const Icon(Icons.check_circle,
+                                        size: 14, color: Colors.green),
+                                    const SizedBox(width: 2),
+                                    Text('on die',
+                                        style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.green[700])),
+                                  ],
+                                ],
                               ),
                               trailing: isTransferring
                                   ? const SizedBox(
@@ -263,6 +291,12 @@ class _PresetPickerSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final presets = kBuiltinProfiles;
+    final blank = PixelProfile(
+      id: '',
+      name: 'New Profile',
+      animations: [PixelAnimationSimple(durationMs: 500, color: const PixelColor(255, 0, 0), count: 1, fade: 128)],
+      rules: [PixelRule(condition: PixelConditionRolled(), actions: [PixelActionPlayAnimation(animIndex: 0)])],
+    );
     return SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -270,46 +304,32 @@ class _PresetPickerSheet extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Text(
-              'Choose a starting point',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+            child: Text('Choose a starting point', style: Theme.of(context).textTheme.titleMedium),
           ),
           const Divider(),
-          ...presets.map((p) => ListTile(
-            leading: _presetIcon(p.name),
-            title: Text(p.name),
-            subtitle: Text(p.description, maxLines: 2, overflow: TextOverflow.ellipsis),
-            onTap: () => Navigator.pop(context, p.build()),
-          )),
-          const Divider(),
-          ListTile(
-            leading: const CircleAvatar(child: Icon(Icons.add, size: 18)),
-            title: const Text('Blank profile'),
-            subtitle: const Text('Start from scratch'),
-            onTap: () => Navigator.pop(
-              context,
-              PixelProfile(
-                id: '',
-                name: 'New Profile',
-                animations: [
-                  PixelAnimationSimple(
-                    durationMs: 500,
-                    color: const PixelColor(255, 0, 0),
-                    count: 1,
-                    fade: 128,
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ...presets.map((p) => ListTile(
+                    leading: _presetIcon(p.name),
+                    title: Text(p.name),
+                    subtitle: Text(p.description, maxLines: 2, overflow: TextOverflow.ellipsis),
+                    onTap: () => Navigator.pop(context, p.build()),
+                  )),
+                  const Divider(),
+                  ListTile(
+                    leading: const CircleAvatar(child: Icon(Icons.add, size: 18)),
+                    title: const Text('Blank profile'),
+                    subtitle: const Text('Start from scratch'),
+                    onTap: () => Navigator.pop(context, blank),
                   ),
-                ],
-                rules: [
-                  PixelRule(
-                    condition: PixelConditionRolled(),
-                    actions: [PixelActionPlayAnimation(animIndex: 0)],
-                  ),
+                  const SizedBox(height: 8),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 8),
         ],
       ),
     );
@@ -320,6 +340,19 @@ class _PresetPickerSheet extends StatelessWidget {
       'High / Low'  => (Colors.green, Icons.trending_up),
       'Flashy'      => (Colors.purple, Icons.auto_awesome),
       'Rainbow'     => (Colors.orange, Icons.colorize),
+      'Color Cycle' => (Colors.teal, Icons.loop),
+      'Fire'        => (Colors.deepOrange, Icons.local_fire_department),
+      'Magic'       => (Colors.indigo, Icons.auto_fix_high),
+      'Empty'       => (Colors.grey, Icons.radio_button_unchecked),
+      'Speak'       => (Colors.lightBlue, Icons.record_voice_over),
+      'Waterfall'   => (Colors.cyan, Icons.water),
+      'Fountain'    => (Colors.lightBlue, Icons.waves),
+      'Spinning'    => (Colors.amber, Icons.refresh),
+      'Spiral'      => (Colors.lime, Icons.tornado),
+      'Noise'       => (Colors.blueGrey, Icons.grain),
+      'Worm'        => (Colors.lightGreen, Icons.linear_scale),
+      'Rose'        => (Colors.pink, Icons.local_florist),
+      'Water'       => (Colors.blue, Icons.water_drop),
       _             => (Colors.blue, Icons.star),
     };
     return CircleAvatar(

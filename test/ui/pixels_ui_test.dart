@@ -167,6 +167,24 @@ void main() {
       expect(find.text('1 animation · 1 rule'), findsOneWidget);
     });
 
+    testWidgets('shows "on die" indicator after flash', (tester) async {
+      final profile = _simpleProfile();
+      await store.upsert(profile);
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle();
+
+      // Not yet flashed — no "on die" text
+      expect(find.text('on die'), findsNothing);
+
+      // Tap flash button
+      await tester.tap(find.byIcon(Icons.upload));
+      await tester.pumpAndSettle();
+
+      // After flash the indicator appears
+      expect(find.text('on die'), findsOneWidget);
+      expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    });
+
     testWidgets('shows die name in app bar', (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pumpAndSettle();
@@ -184,7 +202,8 @@ void main() {
 
       expect(find.text('Choose a starting point'), findsOneWidget);
 
-      // Pick "Blank profile"
+      // Pick "Blank profile" (scroll it into view, then tap)
+      await tester.scrollUntilVisible(find.text('Blank profile'), 50.0);
       await tester.tap(find.text('Blank profile'));
       await tester.pumpAndSettle();
 
@@ -206,18 +225,18 @@ void main() {
       await tester.tap(find.byIcon(Icons.add));
       await tester.pumpAndSettle();
 
-      // Choose "High / Low" preset
-      await tester.tap(find.text('High / Low'));
+      // Choose "High Low" preset
+      await tester.tap(find.text('High Low'));
       await tester.pumpAndSettle();
 
       // Editor opens with the preset name pre-filled
-      expect(find.text('High / Low'), findsWidgets); // name field + app bar tile
+      expect(find.text('High Low'), findsWidgets); // name field + app bar tile
       expect(find.text('Edit Profile'), findsOneWidget);
 
       await tester.tap(find.text('Save'));
       await tester.pumpAndSettle();
 
-      expect(find.text('High / Low'), findsOneWidget);
+      expect(find.text('High Low'), findsOneWidget);
     });
 
     testWidgets('delete profile shows confirmation dialog', (tester) async {

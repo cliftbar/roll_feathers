@@ -177,6 +177,10 @@ class PixelsProfileTransfer {
 abstract class PixelsDieInterface {
   String get dieId;
 
+  /// Hash of the animation set currently stored on the die, as reported by the
+  /// last `IAmADie` message. Returns `null` if not yet known.
+  int? get currentDataSetHash;
+
   Future<void> sendMessage(TxMessage msg);
 
   Future<T> sendAndWaitFor<T extends RxMessage>(
@@ -199,6 +203,9 @@ class PixelBleAdapter implements PixelsDieInterface {
 
   @override
   String get dieId => _die.dieId;
+
+  @override
+  int? get currentDataSetHash => _die.info?.dataSetHash;
 
   @override
   Future<void> sendMessage(TxMessage msg) => _die.sendMessage(msg);

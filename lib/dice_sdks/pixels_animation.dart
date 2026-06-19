@@ -1,3 +1,4 @@
+import 'dart:math' show pow;
 import 'dart:typed_data';
 import 'dart:ui' show Color;
 
@@ -6,6 +7,15 @@ import 'dart:ui' show Color;
 // ─────────────────────────────────────────────────────────────
 
 int _align4(int n) => (n + 3) & ~3;
+
+// Gamma-3.0 correction table: index = linear byte (0–255), value = gamma-corrected byte.
+final _kGammaTable = List<int>.generate(
+  256,
+  (i) => (pow(i / 255.0, 3.0) * 255.0).round(),
+);
+
+PixelColor _gammaCorrect(PixelColor c) =>
+    PixelColor(_kGammaTable[c.r], _kGammaTable[c.g], _kGammaTable[c.b]);
 
 /// Bernstein (djb2) hash — matches the TypeScript SDK's `computeHash`.
 int pixelsBernsteinHash(Uint8List bytes) {
@@ -160,11 +170,13 @@ class AnimationBits {
   final List<SimpleKeyframe> keyframes = [];
   final List<Track> tracks = [];
 
-  /// 0-based index added; returns the index.
+  /// Gamma-corrects [c] and adds it to the palette if not already present.
+  /// Returns the 0-based palette index of the gamma-corrected color.
   int addColor(PixelColor c) {
-    final existing = palette.indexOf(c);
+    final gammaC = _gammaCorrect(c);
+    final existing = palette.indexOf(gammaC);
     if (existing >= 0) return existing;
-    palette.add(c);
+    palette.add(gammaC);
     return palette.length - 1;
   }
 
@@ -219,6 +231,12 @@ const int kFaceMaskAll = 0xFFFFFFFF;
 abstract class PixelAnimation {
   PixelAnimationType get type;
   int get byteSize;
+
+  /// Called once before [writeTo] to populate palette/tracks in [bits].
+  /// Default is a no-op; override when the animation needs to add gradient or
+  /// track data that must not be added twice.
+  void prepareBits(AnimationBits bits) {}
+
   void writeTo(ByteData data, int offset, AnimationBits bits);
 
   Map<String, dynamic> toJson();
@@ -228,6 +246,12 @@ abstract class PixelAnimation {
       PixelAnimationType.simple => PixelAnimationSimple.fromJson(json),
       PixelAnimationType.rainbow => PixelAnimationRainbow.fromJson(json),
       PixelAnimationType.keyframed => PixelAnimationKeyframed.fromJson(json),
+      PixelAnimationType.gradient => PixelAnimationGradient.fromJson(json),
+      PixelAnimationType.cycle => PixelAnimationCycle.fromJson(json),
+      PixelAnimationType.noise => PixelAnimationNoise.fromJson(json),
+      PixelAnimationType.normals => PixelAnimationNormals.fromJson(json),
+      PixelAnimationType.gradientPattern => PixelAnimationGradientPattern.fromJson(json),
+      PixelAnimationType.sequence => PixelAnimationSequence.fromJson(json),
       _ => throw UnsupportedError('Unsupported animation type: $t'),
     };
   }
@@ -244,6 +268,8 @@ class PixelAnimationSimple extends PixelAnimation {
   PixelColor color;
   int count;
   int fade;
+  /// When true, uses palette index 127 (firmware reads die face color).
+  bool faceColor;
 
   PixelAnimationSimple({
     this.animFlags = 0,
@@ -252,19 +278,26 @@ class PixelAnimationSimple extends PixelAnimation {
     PixelColor? color,
     this.count = 1,
     this.fade = 0,
+    this.faceColor = false,
   }) : color = color ?? const PixelColor(255, 255, 255);
 
   @override
   int get byteSize => 12;
 
+  int _colorIndex = 0;
+
+  @override
+  void prepareBits(AnimationBits bits) {
+    _colorIndex = faceColor ? 127 : bits.addColor(color);
+  }
+
   @override
   void writeTo(ByteData data, int offset, AnimationBits bits) {
-    final colorIndex = bits.addColor(color);
     data.setUint8(offset, PixelAnimationType.simple.index);
     data.setUint8(offset + 1, animFlags);
     data.setUint16(offset + 2, durationMs, Endian.little);
     data.setUint32(offset + 4, faceMask, Endian.little);
-    data.setUint16(offset + 8, colorIndex, Endian.little);
+    data.setUint16(offset + 8, _colorIndex, Endian.little);
     data.setUint8(offset + 10, count);
     data.setUint8(offset + 11, fade);
   }
@@ -280,6 +313,7 @@ class PixelAnimationSimple extends PixelAnimation {
     'colorB': color.b,
     'count': count,
     'fade': fade,
+    'faceColor': faceColor,
   };
 
   factory PixelAnimationSimple.fromJson(Map<String, dynamic> json) =>
@@ -294,6 +328,7 @@ class PixelAnimationSimple extends PixelAnimation {
         ),
         count: (json['count'] as int?) ?? 1,
         fade: (json['fade'] as int?) ?? 0,
+        faceColor: (json['faceColor'] as bool?) ?? false,
       );
 }
 
@@ -408,6 +443,558 @@ class PixelAnimationKeyframed extends PixelAnimation {
 }
 
 // ─────────────────────────────────────────────────────────────
+// PixelGradient — sequence of (timeMs, color) keyframes stored
+// as an RgbTrack in the AnimationBits pool.
+// ─────────────────────────────────────────────────────────────
+
+class PixelGradient {
+  /// Each entry is (timeMs, color). Times should span 0–durationMs of the
+  /// owning animation (or 0–1000 as a normalized range the firmware stretches).
+  final List<(int, PixelColor)> keyframes;
+
+  const PixelGradient(this.keyframes);
+
+  factory PixelGradient.solid(PixelColor color) =>
+      PixelGradient([(0, color), (1000, color)]);
+
+  factory PixelGradient.twoColor(PixelColor start, PixelColor end) =>
+      PixelGradient([(0, start), (500, end), (1000, start)]);
+
+  static final PixelGradient rainbow = PixelGradient(const [
+    (0, PixelColor(255, 0, 0)),
+    (167, PixelColor(255, 255, 0)),
+    (333, PixelColor(0, 255, 0)),
+    (500, PixelColor(0, 255, 255)),
+    (667, PixelColor(0, 0, 255)),
+    (833, PixelColor(255, 0, 255)),
+    (1000, PixelColor(255, 0, 0)),
+  ]);
+
+  static final PixelGradient fire = PixelGradient(const [
+    (0, PixelColor(255, 20, 0)),
+    (333, PixelColor(255, 80, 0)),
+    (667, PixelColor(200, 40, 0)),
+    (1000, PixelColor(255, 20, 0)),
+  ]);
+
+  static final PixelGradient water = PixelGradient(const [
+    (0, PixelColor(0, 40, 255)),
+    (333, PixelColor(0, 180, 255)),
+    (667, PixelColor(0, 100, 200)),
+    (1000, PixelColor(0, 40, 255)),
+  ]);
+
+  /// Adds this gradient's keyframes and track to [bits]. Returns the rgbTrack
+  /// index (i.e. `gradientTrackOffset` to use in the animation header).
+  int addToBits(AnimationBits bits) {
+    final kfStart = bits.rgbKeyframes.length;
+    for (final (timeMs, color) in keyframes) {
+      final ci = bits.addColor(color);
+      bits.rgbKeyframes.add(RgbKeyframe.make(timeMs: timeMs, colorIndex: ci));
+    }
+    final trackIdx = bits.rgbTracks.length;
+    bits.rgbTracks.add(RgbTrack(
+      keyframesOffset: kfStart,
+      keyFrameCount: keyframes.length,
+      ledMask: 0,
+    ));
+    return trackIdx;
+  }
+
+  Map<String, dynamic> toJson() => {
+    'keyframes': keyframes
+        .map((kf) => {'t': kf.$1, 'r': kf.$2.r, 'g': kf.$2.g, 'b': kf.$2.b})
+        .toList(),
+  };
+
+  factory PixelGradient.fromJson(Map<String, dynamic> json) => PixelGradient(
+    (json['keyframes'] as List)
+        .map((k) => (
+          k['t'] as int,
+          PixelColor(k['r'] as int, k['g'] as int, k['b'] as int),
+        ))
+        .toList(),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Gradient animation (type=5, 12 bytes)
+// ─────────────────────────────────────────────────────────────
+
+/// Flowing gradient across LED faces (type=5, 12 bytes).
+class PixelAnimationGradient extends PixelAnimation {
+  @override
+  PixelAnimationType get type => PixelAnimationType.gradient;
+
+  int animFlags;
+  int durationMs;
+  int faceMask;
+  PixelGradient gradient;
+
+  PixelAnimationGradient({
+    this.animFlags = 0,
+    this.durationMs = 1000,
+    this.faceMask = kFaceMaskAll,
+    PixelGradient? gradient,
+  }) : gradient = gradient ?? PixelGradient.rainbow;
+
+  @override
+  int get byteSize => 12;
+
+  int _trackOffset = 0;
+
+  @override
+  void prepareBits(AnimationBits bits) {
+    _trackOffset = gradient.addToBits(bits);
+  }
+
+  @override
+  void writeTo(ByteData data, int offset, AnimationBits bits) {
+    data.setUint8(offset, PixelAnimationType.gradient.index);
+    data.setUint8(offset + 1, animFlags);
+    data.setUint16(offset + 2, durationMs, Endian.little);
+    data.setUint32(offset + 4, faceMask, Endian.little);
+    data.setUint16(offset + 8, _trackOffset, Endian.little);
+    data.setUint16(offset + 10, 0, Endian.little); // padding
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': type.name,
+    'animFlags': animFlags,
+    'durationMs': durationMs,
+    'faceMask': faceMask,
+    'gradient': gradient.toJson(),
+  };
+
+  factory PixelAnimationGradient.fromJson(Map<String, dynamic> json) =>
+      PixelAnimationGradient(
+        animFlags: (json['animFlags'] as int?) ?? 0,
+        durationMs: (json['durationMs'] as int?) ?? 1000,
+        faceMask: (json['faceMask'] as int?) ?? kFaceMaskAll,
+        gradient: json['gradient'] != null
+            ? PixelGradient.fromJson(json['gradient'] as Map<String, dynamic>)
+            : null,
+      );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Cycle animation (type=7, 14 bytes)
+// ─────────────────────────────────────────────────────────────
+
+/// Color-cycling gradient animation (type=7, 14 bytes).
+class PixelAnimationCycle extends PixelAnimation {
+  @override
+  PixelAnimationType get type => PixelAnimationType.cycle;
+
+  int animFlags;
+  int durationMs;
+  int faceMask;
+  int count;
+  int fade;
+  int intensity;
+  int cyclesTimes10;
+  PixelGradient gradient;
+
+  PixelAnimationCycle({
+    this.animFlags = 0,
+    this.durationMs = 2000,
+    this.faceMask = kFaceMaskAll,
+    this.count = 1,
+    this.fade = 0,
+    this.intensity = 128,
+    this.cyclesTimes10 = 10,
+    PixelGradient? gradient,
+  }) : gradient = gradient ?? PixelGradient.rainbow;
+
+  @override
+  int get byteSize => 14;
+
+  int _trackOffset = 0;
+
+  @override
+  void prepareBits(AnimationBits bits) {
+    _trackOffset = gradient.addToBits(bits);
+  }
+
+  @override
+  void writeTo(ByteData data, int offset, AnimationBits bits) {
+    data.setUint8(offset, PixelAnimationType.cycle.index);
+    data.setUint8(offset + 1, animFlags);
+    data.setUint16(offset + 2, durationMs, Endian.little);
+    data.setUint32(offset + 4, faceMask, Endian.little);
+    data.setUint8(offset + 8, count);
+    data.setUint8(offset + 9, fade);
+    data.setUint8(offset + 10, intensity);
+    data.setUint8(offset + 11, cyclesTimes10);
+    data.setUint16(offset + 12, _trackOffset, Endian.little);
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': type.name,
+    'animFlags': animFlags,
+    'durationMs': durationMs,
+    'faceMask': faceMask,
+    'count': count,
+    'fade': fade,
+    'intensity': intensity,
+    'cyclesTimes10': cyclesTimes10,
+    'gradient': gradient.toJson(),
+  };
+
+  factory PixelAnimationCycle.fromJson(Map<String, dynamic> json) =>
+      PixelAnimationCycle(
+        animFlags: (json['animFlags'] as int?) ?? 0,
+        durationMs: (json['durationMs'] as int?) ?? 2000,
+        faceMask: (json['faceMask'] as int?) ?? kFaceMaskAll,
+        count: (json['count'] as int?) ?? 1,
+        fade: (json['fade'] as int?) ?? 0,
+        intensity: (json['intensity'] as int?) ?? 128,
+        cyclesTimes10: (json['cyclesTimes10'] as int?) ?? 10,
+        gradient: json['gradient'] != null
+            ? PixelGradient.fromJson(json['gradient'] as Map<String, dynamic>)
+            : null,
+      );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Noise animation (type=6, 20 bytes)
+// ─────────────────────────────────────────────────────────────
+
+/// Sparkling noise animation (type=6, 20 bytes).
+class PixelAnimationNoise extends PixelAnimation {
+  @override
+  PixelAnimationType get type => PixelAnimationType.noise;
+
+  int animFlags;
+  int durationMs;
+  PixelGradient gradient;
+  PixelGradient blinkGradient;
+  int blinkFrequencyTimes1000;
+  int blinkFrequencyVarTimes1000;
+  int blinkDuration;
+  int fade;
+  int gradientColorType; // 0 = none
+  int gradientColorVar;
+
+  PixelAnimationNoise({
+    this.animFlags = 0,
+    this.durationMs = 3000,
+    PixelGradient? gradient,
+    PixelGradient? blinkGradient,
+    this.blinkFrequencyTimes1000 = 1000,
+    this.blinkFrequencyVarTimes1000 = 500,
+    this.blinkDuration = 100,
+    this.fade = 128,
+    this.gradientColorType = 0,
+    this.gradientColorVar = 0,
+  })  : gradient = gradient ?? PixelGradient.rainbow,
+        blinkGradient = blinkGradient ?? PixelGradient.solid(const PixelColor(255, 255, 255));
+
+  @override
+  int get byteSize => 18;
+
+  int _gradTrackOffset = 0;
+  int _blinkTrackOffset = 0;
+
+  @override
+  void prepareBits(AnimationBits bits) {
+    _gradTrackOffset = gradient.addToBits(bits);
+    _blinkTrackOffset = blinkGradient.addToBits(bits);
+  }
+
+  @override
+  void writeTo(ByteData data, int offset, AnimationBits bits) {
+    data.setUint8(offset, PixelAnimationType.noise.index);
+    data.setUint8(offset + 1, animFlags);
+    data.setUint16(offset + 2, durationMs, Endian.little);
+    data.setUint16(offset + 4, _gradTrackOffset, Endian.little);
+    data.setUint16(offset + 6, _blinkTrackOffset, Endian.little);
+    data.setUint16(offset + 8, blinkFrequencyTimes1000, Endian.little);
+    data.setUint16(offset + 10, blinkFrequencyVarTimes1000, Endian.little);
+    data.setUint16(offset + 12, blinkDuration, Endian.little);
+    data.setUint8(offset + 14, fade);
+    data.setUint8(offset + 15, gradientColorType);
+    data.setUint16(offset + 16, gradientColorVar, Endian.little);
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': type.name,
+    'animFlags': animFlags,
+    'durationMs': durationMs,
+    'gradient': gradient.toJson(),
+    'blinkGradient': blinkGradient.toJson(),
+    'blinkFrequencyTimes1000': blinkFrequencyTimes1000,
+    'blinkFrequencyVarTimes1000': blinkFrequencyVarTimes1000,
+    'blinkDuration': blinkDuration,
+    'fade': fade,
+    'gradientColorType': gradientColorType,
+    'gradientColorVar': gradientColorVar,
+  };
+
+  factory PixelAnimationNoise.fromJson(Map<String, dynamic> json) =>
+      PixelAnimationNoise(
+        animFlags: (json['animFlags'] as int?) ?? 0,
+        durationMs: (json['durationMs'] as int?) ?? 3000,
+        gradient: json['gradient'] != null
+            ? PixelGradient.fromJson(json['gradient'] as Map<String, dynamic>)
+            : null,
+        blinkGradient: json['blinkGradient'] != null
+            ? PixelGradient.fromJson(json['blinkGradient'] as Map<String, dynamic>)
+            : null,
+        blinkFrequencyTimes1000: (json['blinkFrequencyTimes1000'] as int?) ?? 1000,
+        blinkFrequencyVarTimes1000: (json['blinkFrequencyVarTimes1000'] as int?) ?? 500,
+        blinkDuration: (json['blinkDuration'] as int?) ?? 100,
+        fade: (json['fade'] as int?) ?? 128,
+        gradientColorType: (json['gradientColorType'] as int?) ?? 0,
+        gradientColorVar: (json['gradientColorVar'] as int?) ?? 0,
+      );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Normals animation (type=9, 22 bytes)
+// ─────────────────────────────────────────────────────────────
+
+/// Face-normal-based color animation (type=9, 22 bytes).
+class PixelAnimationNormals extends PixelAnimation {
+  @override
+  PixelAnimationType get type => PixelAnimationType.normals;
+
+  int animFlags;
+  int durationMs;
+  PixelGradient gradient;
+  PixelGradient axisGradient;
+  PixelGradient angleGradient;
+  int axisScaleTimes1000;
+  int axisOffsetTimes1000;
+  int axisScrollSpeedTimes1000;
+  int angleScrollSpeedTimes1000;
+  int fade;
+  int mainGradientColorType; // 0 = none
+  int mainGradientColorVar;
+
+  PixelAnimationNormals({
+    this.animFlags = 0,
+    this.durationMs = 3000,
+    PixelGradient? gradient,
+    PixelGradient? axisGradient,
+    PixelGradient? angleGradient,
+    this.axisScaleTimes1000 = 1000,
+    this.axisOffsetTimes1000 = 0,
+    this.axisScrollSpeedTimes1000 = 0,
+    this.angleScrollSpeedTimes1000 = 0,
+    this.fade = 0,
+    this.mainGradientColorType = 0,
+    this.mainGradientColorVar = 0,
+  })  : gradient = gradient ?? PixelGradient.rainbow,
+        axisGradient = axisGradient ?? PixelGradient.solid(const PixelColor(255, 255, 255)),
+        angleGradient = angleGradient ?? PixelGradient.solid(const PixelColor(255, 255, 255));
+
+  @override
+  int get byteSize => 22;
+
+  int _gradTrackOffset = 0;
+  int _axisTrackOffset = 0;
+  int _angleTrackOffset = 0;
+
+  @override
+  void prepareBits(AnimationBits bits) {
+    _gradTrackOffset = gradient.addToBits(bits);
+    _axisTrackOffset = axisGradient.addToBits(bits);
+    _angleTrackOffset = angleGradient.addToBits(bits);
+  }
+
+  @override
+  void writeTo(ByteData data, int offset, AnimationBits bits) {
+    data.setUint8(offset, PixelAnimationType.normals.index);
+    data.setUint8(offset + 1, animFlags);
+    data.setUint16(offset + 2, durationMs, Endian.little);
+    data.setUint16(offset + 4, _gradTrackOffset, Endian.little);
+    data.setUint16(offset + 6, _axisTrackOffset, Endian.little);
+    data.setUint16(offset + 8, _angleTrackOffset, Endian.little);
+    data.setInt16(offset + 10, axisScaleTimes1000, Endian.little);
+    data.setInt16(offset + 12, axisOffsetTimes1000, Endian.little);
+    data.setInt16(offset + 14, axisScrollSpeedTimes1000, Endian.little);
+    data.setInt16(offset + 16, angleScrollSpeedTimes1000, Endian.little);
+    data.setUint8(offset + 18, fade);
+    data.setUint8(offset + 19, mainGradientColorType);
+    data.setUint16(offset + 20, mainGradientColorVar, Endian.little);
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': type.name,
+    'animFlags': animFlags,
+    'durationMs': durationMs,
+    'gradient': gradient.toJson(),
+    'axisGradient': axisGradient.toJson(),
+    'angleGradient': angleGradient.toJson(),
+    'axisScaleTimes1000': axisScaleTimes1000,
+    'axisOffsetTimes1000': axisOffsetTimes1000,
+    'axisScrollSpeedTimes1000': axisScrollSpeedTimes1000,
+    'angleScrollSpeedTimes1000': angleScrollSpeedTimes1000,
+    'fade': fade,
+    'mainGradientColorType': mainGradientColorType,
+    'mainGradientColorVar': mainGradientColorVar,
+  };
+
+  factory PixelAnimationNormals.fromJson(Map<String, dynamic> json) =>
+      PixelAnimationNormals(
+        animFlags: (json['animFlags'] as int?) ?? 0,
+        durationMs: (json['durationMs'] as int?) ?? 3000,
+        gradient: json['gradient'] != null
+            ? PixelGradient.fromJson(json['gradient'] as Map<String, dynamic>)
+            : null,
+        axisGradient: json['axisGradient'] != null
+            ? PixelGradient.fromJson(json['axisGradient'] as Map<String, dynamic>)
+            : null,
+        angleGradient: json['angleGradient'] != null
+            ? PixelGradient.fromJson(json['angleGradient'] as Map<String, dynamic>)
+            : null,
+        axisScaleTimes1000: (json['axisScaleTimes1000'] as int?) ?? 1000,
+        axisOffsetTimes1000: (json['axisOffsetTimes1000'] as int?) ?? 0,
+        axisScrollSpeedTimes1000: (json['axisScrollSpeedTimes1000'] as int?) ?? 0,
+        angleScrollSpeedTimes1000: (json['angleScrollSpeedTimes1000'] as int?) ?? 0,
+        fade: (json['fade'] as int?) ?? 0,
+        mainGradientColorType: (json['mainGradientColorType'] as int?) ?? 0,
+        mainGradientColorVar: (json['mainGradientColorVar'] as int?) ?? 0,
+      );
+}
+
+// ─────────────────────────────────────────────────────────────
+// GradientPattern animation (type=4, 12 bytes)
+// ─────────────────────────────────────────────────────────────
+
+/// Grayscale pattern with an RGB gradient overlay (type=4, 12 bytes).
+/// [tracksOffset] and [trackCount] reference grayscale Track entries
+/// in AnimationBits.tracks; [gradientTrackOffset] references an RgbTrack.
+class PixelAnimationGradientPattern extends PixelAnimation {
+  @override
+  PixelAnimationType get type => PixelAnimationType.gradientPattern;
+
+  int animFlags;
+  int durationMs;
+  /// Index into AnimationBits.tracks (grayscale tracks). Must be pre-populated.
+  int tracksOffset;
+  int trackCount;
+  PixelGradient gradient;
+  bool overrideWithFace;
+
+  PixelAnimationGradientPattern({
+    this.animFlags = 0,
+    this.durationMs = 2000,
+    this.tracksOffset = 0,
+    this.trackCount = 0,
+    PixelGradient? gradient,
+    this.overrideWithFace = false,
+  }) : gradient = gradient ?? PixelGradient.rainbow;
+
+  @override
+  int get byteSize => 12;
+
+  int _gradTrackOffset = 0;
+
+  @override
+  void prepareBits(AnimationBits bits) {
+    _gradTrackOffset = gradient.addToBits(bits);
+  }
+
+  @override
+  void writeTo(ByteData data, int offset, AnimationBits bits) {
+    data.setUint8(offset, PixelAnimationType.gradientPattern.index);
+    data.setUint8(offset + 1, animFlags);
+    data.setUint16(offset + 2, durationMs, Endian.little);
+    data.setUint16(offset + 4, tracksOffset, Endian.little);
+    data.setUint16(offset + 6, trackCount, Endian.little);
+    data.setUint16(offset + 8, _gradTrackOffset, Endian.little);
+    data.setUint8(offset + 10, overrideWithFace ? 1 : 0);
+    data.setUint8(offset + 11, 0); // padding
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': type.name,
+    'animFlags': animFlags,
+    'durationMs': durationMs,
+    'tracksOffset': tracksOffset,
+    'trackCount': trackCount,
+    'gradient': gradient.toJson(),
+    'overrideWithFace': overrideWithFace,
+  };
+
+  factory PixelAnimationGradientPattern.fromJson(Map<String, dynamic> json) =>
+      PixelAnimationGradientPattern(
+        animFlags: (json['animFlags'] as int?) ?? 0,
+        durationMs: (json['durationMs'] as int?) ?? 2000,
+        tracksOffset: (json['tracksOffset'] as int?) ?? 0,
+        trackCount: (json['trackCount'] as int?) ?? 0,
+        gradient: json['gradient'] != null
+            ? PixelGradient.fromJson(json['gradient'] as Map<String, dynamic>)
+            : null,
+        overrideWithFace: (json['overrideWithFace'] as bool?) ?? false,
+      );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Sequence animation (type=10, 24 bytes)
+// ─────────────────────────────────────────────────────────────
+
+/// Sequences up to 4 sub-animations (type=10, 22 bytes).
+/// Each entry stores an animation index and delay; indices are written verbatim.
+class PixelAnimationSequence extends PixelAnimation {
+  @override
+  PixelAnimationType get type => PixelAnimationType.sequence;
+
+  int animFlags;
+  int durationMs;
+  /// Each entry is (animIndex, delayMs). Up to 4 entries.
+  final List<(int, int)> entries; // max 4
+
+  PixelAnimationSequence({
+    this.animFlags = 0,
+    this.durationMs = 0,
+    List<(int, int)>? entries,
+  }) : entries = entries ?? [];
+
+  @override
+  int get byteSize => 22;
+
+  @override
+  void writeTo(ByteData data, int offset, AnimationBits bits) {
+    data.setUint8(offset, PixelAnimationType.sequence.index);
+    data.setUint8(offset + 1, animFlags);
+    data.setUint16(offset + 2, durationMs, Endian.little);
+    final count = entries.length.clamp(0, 4);
+    for (var i = 0; i < 4; i++) {
+      final animIdx = i < count ? entries[i].$1 : 0;
+      final delay   = i < count ? entries[i].$2 : 0;
+      data.setUint16(offset + 4 + i * 4, animIdx, Endian.little);
+      data.setUint16(offset + 4 + i * 4 + 2, delay, Endian.little);
+    }
+    data.setUint16(offset + 20, count, Endian.little);
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': type.name,
+    'animFlags': animFlags,
+    'durationMs': durationMs,
+    'entries': entries.map((e) => {'animIndex': e.$1, 'delay': e.$2}).toList(),
+  };
+
+  factory PixelAnimationSequence.fromJson(Map<String, dynamic> json) =>
+      PixelAnimationSequence(
+        animFlags: (json['animFlags'] as int?) ?? 0,
+        durationMs: (json['durationMs'] as int?) ?? 0,
+        entries: (json['entries'] as List? ?? [])
+            .map((e) => (e['animIndex'] as int, e['delay'] as int))
+            .toList(),
+      );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Conditions
 // ─────────────────────────────────────────────────────────────
 
@@ -428,6 +1015,8 @@ abstract class PixelCondition {
       PixelConditionType.helloGoodbye => PixelConditionHelloGoodbye.fromJson(json),
       PixelConditionType.handling => PixelConditionHandling(),
       PixelConditionType.crooked => PixelConditionCrooked(),
+      PixelConditionType.connection => PixelConditionConnectionState.fromJson(json),
+      PixelConditionType.battery => PixelConditionBatteryState.fromJson(json),
       _ => throw UnsupportedError('Unsupported condition type: $t'),
     };
   }
@@ -571,6 +1160,74 @@ class PixelConditionCrooked extends PixelCondition {
   Map<String, dynamic> toJson() => {'type': type.name};
 }
 
+/// Triggers on BLE connect or disconnect (type=6, 4 bytes).
+class PixelConditionConnectionState extends PixelCondition {
+  @override
+  PixelConditionType get type => PixelConditionType.connection;
+
+  /// Bit 0 = connected, bit 1 = disconnected. Use 3 for both.
+  int flags;
+
+  PixelConditionConnectionState({this.flags = 3});
+
+  @override
+  int get byteSize => 4;
+
+  @override
+  void writeTo(ByteData data, int offset) {
+    data.setUint8(offset, PixelConditionType.connection.index);
+    data.setUint8(offset + 1, flags);
+    data.setUint16(offset + 2, 0, Endian.little);
+  }
+
+  @override
+  String get displayName => 'Connection';
+
+  @override
+  Map<String, dynamic> toJson() => {'type': type.name, 'flags': flags};
+
+  factory PixelConditionConnectionState.fromJson(Map<String, dynamic> json) =>
+      PixelConditionConnectionState(flags: (json['flags'] as int?) ?? 3);
+}
+
+/// Triggers on battery state changes (type=7, 4 bytes).
+/// Flags: low=1, charging=2, done=4, badCharging=8, error=16.
+class PixelConditionBatteryState extends PixelCondition {
+  @override
+  PixelConditionType get type => PixelConditionType.battery;
+
+  int flags;
+  int repeatPeriodMs;
+
+  PixelConditionBatteryState({this.flags = 0, this.repeatPeriodMs = 0});
+
+  @override
+  int get byteSize => 4;
+
+  @override
+  void writeTo(ByteData data, int offset) {
+    data.setUint8(offset, PixelConditionType.battery.index);
+    data.setUint8(offset + 1, flags);
+    data.setUint16(offset + 2, repeatPeriodMs, Endian.little);
+  }
+
+  @override
+  String get displayName => 'Battery';
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': type.name,
+    'flags': flags,
+    'repeatPeriodMs': repeatPeriodMs,
+  };
+
+  factory PixelConditionBatteryState.fromJson(Map<String, dynamic> json) =>
+      PixelConditionBatteryState(
+        flags: (json['flags'] as int?) ?? 0,
+        repeatPeriodMs: (json['repeatPeriodMs'] as int?) ?? 0,
+      );
+}
+
 // ─────────────────────────────────────────────────────────────
 // Actions
 // ─────────────────────────────────────────────────────────────
@@ -587,6 +1244,7 @@ abstract class PixelAction {
     final t = PixelActionType.values.byName(json['actionType'] as String);
     return switch (t) {
       PixelActionType.playAnimation => PixelActionPlayAnimation.fromJson(json),
+      PixelActionType.speakText => PixelActionSpeakText.fromJson(json),
       _ => throw UnsupportedError('Unsupported action type: $t'),
     };
   }
@@ -633,6 +1291,35 @@ class PixelActionPlayAnimation extends PixelAction {
         faceIndex: (json['faceIndex'] as int?) ?? -1,
         loopCount: (json['loopCount'] as int?) ?? 1,
       );
+}
+
+/// Speak a text string when triggered (serialized as playAudioClip, type=2, 4 bytes).
+/// The actionId (clip ID) is assigned at serialization time to the action's
+/// sequential index in the DataSet, matching the TypeScript SDK's encoding.
+class PixelActionSpeakText extends PixelAction {
+  @override
+  PixelActionType get actionType => PixelActionType.speakText;
+
+  String text;
+  int actionId = 0;
+
+  PixelActionSpeakText({this.text = ''});
+
+  @override
+  int get byteSize => 4;
+
+  @override
+  void writeTo(ByteData data, int offset) {
+    data.setUint8(offset, PixelActionType.playAudioClip.index); // type = 2
+    data.setUint8(offset + 1, 0); // unused
+    data.setUint16(offset + 2, actionId, Endian.little);
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {'actionType': actionType.name, 'text': text};
+
+  factory PixelActionSpeakText.fromJson(Map<String, dynamic> json) =>
+      PixelActionSpeakText(text: (json['text'] as String?) ?? '');
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -717,20 +1404,28 @@ class PixelDataSet {
 
   const PixelDataSet(this.profile);
 
+  /// Bernstein hash of the full serialized profile — matches the die's
+  /// `dataSetHash` field in `IAmADie`.
+  int computeHash() => pixelsBernsteinHash(toByteArray());
+
   Uint8List toByteArray() {
+    // Pre-pass: assign actionIds to SpeakText actions (matches TS SDK: ruleIdx << 8).
+    for (var ruleIdx = 0; ruleIdx < profile.rules.length; ruleIdx++) {
+      var actionBase = ruleIdx << 8;
+      for (final action in profile.rules[ruleIdx].actions) {
+        if (action is PixelActionSpeakText) action.actionId = actionBase;
+        actionBase++;
+      }
+    }
+
     final bits = AnimationBits();
 
-    // First pass: write each animation to a staging area to accumulate
-    // palette/track data into `bits`, then record sizes.
-    // We need the palette to be fully built before we can resolve colorIndex.
-    // Two-pass: 1) collect, 2) write.
-
-    // Staging buffers — we write each animation twice (once to collect
-    // bit pool entries, once into the final buffer).
-    final animationSizes = <int>[];
+    // prepareBits populates palette / rgbKeyframes / rgbTracks exactly once.
     for (final anim in profile.animations) {
-      animationSizes.add(anim.byteSize);
+      anim.prepareBits(bits);
     }
+
+    final animationSizes = profile.animations.map((a) => a.byteSize).toList();
 
     final conditionSizes = <int>[];
     for (final rule in profile.rules) {
@@ -753,24 +1448,14 @@ class PixelDataSet {
     final conditionTotalSize = conditionSizes.fold(0, (a, b) => a + b);
     final actionTotalSize = actionSizes.fold(0, (a, b) => a + b);
 
-    // Compute total size
-    final bitsSize = bits.computeByteSize(); // may be 0 until we write anims
-    // We need a two-pass strategy: compute bits size after writing animations.
-    // Write animations to a temp buffer first to populate bits.
-    final tempAnimBuf = ByteData(animationTotalSize + 1024);
-    var tempOffset = 0;
-    for (final anim in profile.animations) {
-      anim.writeTo(tempAnimBuf, tempOffset, bits);
-      tempOffset += anim.byteSize;
-    }
-
     final finalBitsSize = bits.computeByteSize();
-    final totalSize = finalBitsSize +
-        _align4(animationCount * 2) + animationTotalSize +
-        _align4(conditionCount * 2) + conditionTotalSize +
-        _align4(actionCount * 2) + actionTotalSize +
-        ruleCount * 8 +
-        4; // profile
+    // Match TypeScript SDK: advance by align4(count*2), not align4(offset + count*2).
+    // This ensures offset-table SIZE is padded to 4, not the resulting position.
+    var totalSize = finalBitsSize;
+    totalSize += _align4(animationCount * 2) + animationTotalSize;
+    totalSize += _align4(conditionCount * 2) + conditionTotalSize;
+    totalSize += _align4(actionCount * 2) + actionTotalSize;
+    totalSize += ruleCount * 8 + 4; // rules + profile
 
     final buf = ByteData(totalSize);
     var offset = 0;
@@ -784,7 +1469,7 @@ class PixelDataSet {
       buf.setUint16(offset + i * 2, animOffset, Endian.little);
       animOffset += animationSizes[i];
     }
-    offset = _align4(offset + animationCount * 2);
+    offset += _align4(animationCount * 2);
 
     // Animations (real write — bits already populated)
     for (final anim in profile.animations) {
@@ -798,7 +1483,7 @@ class PixelDataSet {
       buf.setUint16(offset + i * 2, condOffset, Endian.little);
       condOffset += conditionSizes[i];
     }
-    offset = _align4(offset + conditionCount * 2);
+    offset += _align4(conditionCount * 2);
 
     for (final rule in profile.rules) {
       rule.condition.writeTo(buf, offset);
@@ -815,7 +1500,7 @@ class PixelDataSet {
         actionIdx++;
       }
     }
-    offset = _align4(offset + actionCount * 2);
+    offset += _align4(actionCount * 2);
 
     for (final rule in profile.rules) {
       for (final action in rule.actions) {
@@ -848,17 +1533,12 @@ class PixelDataSet {
   /// Serialize only the animations (for instant animation transfer).
   Uint8List toAnimationsByteArray() {
     final bits = AnimationBits();
+    for (final anim in profile.animations) {
+      anim.prepareBits(bits);
+    }
     final animationSizes = profile.animations.map((a) => a.byteSize).toList();
     final animationCount = profile.animations.length;
     final animationTotalSize = animationSizes.fold(0, (a, b) => a + b);
-
-    // First pass to populate bits
-    final tempBuf = ByteData(animationTotalSize + 512);
-    var tempOffset = 0;
-    for (final anim in profile.animations) {
-      anim.writeTo(tempBuf, tempOffset, bits);
-      tempOffset += anim.byteSize;
-    }
 
     final finalBitsSize = bits.computeByteSize();
     final totalSize = finalBitsSize + _align4(animationCount * 2) + animationTotalSize;
@@ -872,7 +1552,7 @@ class PixelDataSet {
       buf.setUint16(offset + i * 2, animOffset, Endian.little);
       animOffset += animationSizes[i];
     }
-    offset = _align4(offset + animationCount * 2);
+    offset += _align4(animationCount * 2);
 
     for (final anim in profile.animations) {
       anim.writeTo(buf, offset, bits);
@@ -884,11 +1564,8 @@ class PixelDataSet {
 
   AnimationBits _buildBits() {
     final bits = AnimationBits();
-    final tempBuf = ByteData(4096);
-    var tempOffset = 0;
     for (final anim in profile.animations) {
-      anim.writeTo(tempBuf, tempOffset, bits);
-      tempOffset += anim.byteSize;
+      anim.prepareBits(bits);
     }
     return bits;
   }

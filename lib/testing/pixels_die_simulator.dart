@@ -17,6 +17,11 @@ class PixelsDieSimulator implements PixelsDieInterface {
   @override
   final String dieId;
 
+  @override
+  int? get currentDataSetHash => _flashProfileHash;
+
+  int? _flashProfileHash;
+
   final pix.PixelDieType dieType;
   final int ledCount;
   String _name;
@@ -222,6 +227,7 @@ class PixelsDieSimulator implements PixelsDieInterface {
     switch (_pendingBulk?.type) {
       case _BulkType.profile:
         _flashProfile = bytes;
+        _flashProfileHash = pixelsBernsteinHash(bytes);
         _log.info('SIM: flash profile stored (${bytes.length} bytes)');
         Future.microtask(() => _emit([pix.PixelMessageType.transferAnimationSetFinished.index]));
       case _BulkType.instant:

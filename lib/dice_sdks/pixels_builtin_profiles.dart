@@ -818,7 +818,7 @@ PixelProfile _buildFountain() => PixelProfile(
     ..._advancedRules(),
     // [7] rolling → waterfallTopHalf
     PixelRule(
-      condition: PixelConditionRolling(repeatPeriodMs: 500),
+      condition: PixelConditionRolling(repeatPeriodMs: 200),
       actions: [PixelActionPlayAnimation(animIndex: 7)],
     ),
     // [8] non-top rolled → fountain
@@ -1254,7 +1254,7 @@ PixelProfile _buildWorm() => PixelProfile(
     ..._advancedRules(),
     // [7] rolling → blueFlash
     PixelRule(
-      condition: PixelConditionRolling(repeatPeriodMs: 500),
+      condition: PixelConditionRolling(repeatPeriodMs: 200),
       actions: [PixelActionPlayAnimation(animIndex: 7)],
     ),
     // [8] low tier → redBlueWorm

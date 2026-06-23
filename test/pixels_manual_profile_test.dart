@@ -520,7 +520,7 @@ void main() {
         rules: [
           ..._advancedRules(),
           PixelRule(
-            condition: PixelConditionRolling(repeatPeriodMs: 500),
+            condition: PixelConditionRolling(repeatPeriodMs: 200),
             actions: [PixelActionPlayAnimation(animIndex: 7)],
           ),
           PixelRule(

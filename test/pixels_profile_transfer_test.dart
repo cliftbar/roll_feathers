@@ -142,6 +142,20 @@ void main() {
       );
     });
 
+    test('whoAreYou after transferProfile returns updated hash', () async {
+      final profile = _testProfile();
+      await transfer.transferProfile(profile);
+
+      final expectedHash = PixelDataSet(profile).computeHash().toUnsigned(32);
+
+      final response = await sim.sendAndWaitFor<pix.MessageIAmADie>(
+        pix.MessageWhoAreYou(),
+        pix.PixelMessageType.iAmADie,
+        timeout: const Duration(seconds: 1),
+      );
+      expect(response.dataSetHash.toUnsigned(32), expectedHash);
+    });
+
     test('rainbow animation profile transfers successfully', () async {
       final profile = PixelProfile(
         id: 'rainbow',
@@ -243,6 +257,67 @@ void main() {
       sim.simulateHandling();
       await Future.delayed(const Duration(milliseconds: 50));
       expect(states.contains(2), isTrue); // handling
+    });
+
+    test('simulateBattery emits batteryLevel packet and is receivable via waitFor', () async {
+      final sim = PixelsDieSimulator();
+      addTearDown(sim.dispose);
+
+      final future = sim.waitFor<pix.MessageBatteryLevel>(
+        pix.PixelMessageType.batteryLevel,
+        timeout: const Duration(seconds: 1),
+      );
+      sim.simulateBattery(42, batteryState: 1); // 1 = low
+      final msg = await future;
+      expect(msg.batteryLevel, 42);
+      expect(msg.batteryState, 1);
+    });
+
+    test('simulateNotifyUser emits notifyUser and is receivable via waitFor', () async {
+      final sim = PixelsDieSimulator();
+      addTearDown(sim.dispose);
+
+      final future = sim.waitFor<pix.MessageNotifyUser>(
+        pix.PixelMessageType.notifyUser,
+        timeout: const Duration(seconds: 1),
+      );
+      sim.simulateNotifyUser(timeoutSec: 5, ok: true, cancel: false, message: 'Update?');
+      final msg = await future;
+      expect(msg.timeoutSec, 5);
+      expect(msg.ok, isTrue);
+      expect(msg.cancel, isFalse);
+      expect(msg.message, 'Update?');
+    });
+
+    test('iAmADie after transferProfile reflects updated hash', () async {
+      final sim = PixelsDieSimulator();
+      addTearDown(sim.dispose);
+      final transfer = PixelsProfileTransfer(sim);
+      final profile = _testProfile();
+
+      await transfer.transferProfile(profile);
+      final expectedHash = PixelDataSet(profile).computeHash().toUnsigned(32);
+
+      final response = await sim.sendAndWaitFor<pix.MessageIAmADie>(
+        pix.MessageWhoAreYou(),
+        pix.PixelMessageType.iAmADie,
+        timeout: const Duration(seconds: 1),
+      );
+      expect(response.dataSetHash.toUnsigned(32), expectedHash);
+    });
+
+    test('simulateBattery is reflected in iAmADie after update', () async {
+      final sim = PixelsDieSimulator();
+      addTearDown(sim.dispose);
+
+      sim.simulateBattery(33);
+
+      final response = await sim.sendAndWaitFor<pix.MessageIAmADie>(
+        pix.MessageWhoAreYou(),
+        pix.PixelMessageType.iAmADie,
+        timeout: const Duration(seconds: 1),
+      );
+      expect(response.batteryLevel, 33);
     });
   });
 }

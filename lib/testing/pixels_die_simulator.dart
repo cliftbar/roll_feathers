@@ -42,6 +42,10 @@ class PixelsDieSimulator implements PixelsDieInterface {
   // LED colors (for visual preview)
   final List<int> ledColors;
 
+  // Battery state — reflected in iAmADie and simulateBattery()
+  int _batteryPercent = 100;
+  int _batteryStateIndex = 0; // BatteryState.ok
+
   final StreamController<List<int>> _notifyController = StreamController.broadcast();
 
   Stream<List<int>> get notifyStream => _notifyController.stream;
@@ -151,6 +155,41 @@ class PixelsDieSimulator implements PixelsDieInterface {
     _emit(_buildRollState(2, currentFace));
   }
 
+  /// Push a battery level notification from the die.
+  ///
+  /// [batteryState]: 0=ok, 1=low, 2=charging, 3=done, 4=badCharging, 5=error
+  void simulateBattery(int percent, {int batteryState = 0}) {
+    _batteryPercent = percent.clamp(0, 100);
+    _batteryStateIndex = batteryState;
+    _emit([
+      pix.PixelMessageType.batteryLevel.index,
+      _batteryPercent,
+      _batteryStateIndex,
+    ]);
+  }
+
+  /// Push a notifyUser message from the die (e.g. confirm firmware update).
+  ///
+  /// The app should respond via [PixelActionPlayAnimation] or by sending
+  /// [MessageNotifyUserAck]. Use [waitFor] on the caller side to intercept
+  /// the ack.
+  void simulateNotifyUser({
+    int timeoutSec = 10,
+    bool ok = true,
+    bool cancel = false,
+    String message = '',
+  }) {
+    final msgBytes = message.codeUnits.take(28).toList();
+    _emit([
+      pix.PixelMessageType.notifyUser.index,
+      timeoutSec,
+      ok ? 1 : 0,
+      cancel ? 1 : 0,
+      ...msgBytes,
+      0, // null terminator
+    ]);
+  }
+
   // ─── Internal ──────────────────────────────────────────────────────────────
 
   void _handleIncoming(List<int> data) {
@@ -253,20 +292,19 @@ class PixelsDieSimulator implements PixelsDieInterface {
   }
 
   List<int> _buildIAmADie() {
-    // Legacy flat format (matches existing roll_feathers parser)
     final buf = List<int>.filled(22, 0);
     buf[0] = pix.PixelMessageType.iAmADie.index;
     buf[1] = ledCount;
     buf[2] = 0; // designAndColor = unknown
     buf[3] = dieType.index;
-    _setU32(buf, 4, 0); // dataSetHash
+    _setU32(buf, 4, _flashProfileHash ?? 0); // reflects post-transfer hash
     _setU32(buf, 8, dieId.hashCode); // pixelId
     _setU16(buf, 12, 1024); // availableFlash
     _setU32(buf, 14, 0); // buildTimestamp
     buf[18] = rollState;
     buf[19] = currentFace;
-    buf[20] = 100; // batteryLevel
-    buf[21] = 0; // batteryState OK
+    buf[20] = _batteryPercent;
+    buf[21] = _batteryStateIndex;
     return buf;
   }
 
@@ -293,6 +331,10 @@ class PixelsDieSimulator implements PixelsDieInterface {
         pix.MessageTransferInstantAnimationSetAck.parse(data),
       pix.PixelMessageType.transferInstantAnimationSetFinished =>
         pix.MessageTransferInstantAnimationSetFinished.parse(data),
+      pix.PixelMessageType.batteryLevel =>
+        pix.MessageBatteryLevel.parse(data),
+      pix.PixelMessageType.notifyUser =>
+        pix.MessageNotifyUser.parse(data),
       _ => pix.MessageNone(buffer: data),
     };
   }

@@ -13,6 +13,16 @@ import 'test_util.dart';
 // Mock classes
 class MockBleDeviceWrapper extends Mock implements BleDeviceWrapper {}
 
+List<int> _buildTestIAmADie() => [
+  pix.PixelMessageType.iAmADie.index,
+  20, 0, pix.PixelDieType.d20.index,
+  0, 0, 0, 0, // dataSetHash
+  1, 0, 0, 0, // pixelId
+  0, 0, // availableFlash
+  0, 0, 0, 0, // buildTimestamp
+  DiceRollState.onFace.index, 0, 100, 0,
+];
+
 void main() {
   setupLogger(Level.FINE);
 
@@ -38,7 +48,12 @@ void main() {
       notifyUuid: any(named: 'notifyUuid'),
       writeUuid: any(named: 'writeUuid')
     )).thenAnswer((_) async {});
-    when(() => mockDevice.writeMessage(any())).thenAnswer((_) async {});
+    when(() => mockDevice.writeMessage(any())).thenAnswer((invocation) async {
+      final data = invocation.positionalArguments[0] as List<int>;
+      if (data.isNotEmpty && data[0] == pix.PixelMessageType.whoAreYou.index) {
+        notifyStreamController.add(_buildTestIAmADie());
+      }
+    });
   });
 
   tearDown(() {
@@ -177,10 +192,11 @@ void main() {
   test('dType getter returns correct value', () async {
     final PixelDie die = await PixelDie.create(device: mockDevice);
 
-    // Initially, without info, it should return unknown
-    expect(die.dType.name, equals('unknown'));
+    // init sends WhoAreYou and awaits IAmADie, so info is already set
+    expect(die.dType.name, equals('d20'));
+    expect(die.dType.faces, equals(20));
 
-    // Create a mock iAmADie message with d20 type
+    // A subsequent IAmADie (e.g. post-flash) updates dType too
     final mockIAmADieData = [
       pix.PixelMessageType.iAmADie.index, // message type
       20, // ledCount
@@ -198,10 +214,8 @@ void main() {
 
     notifyStreamController.add(mockIAmADieData);
 
-    // Wait for the message to be processed
     await Future.delayed(Duration(milliseconds: 10));
 
-    // Now it should return d20
     expect(die.dType.name, equals('d20'));
     expect(die.dType.faces, equals(20));
   });

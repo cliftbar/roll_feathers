@@ -395,33 +395,43 @@ class PixelAnimationRainbow extends PixelAnimation {
 }
 
 /// Keyframed animation (type=3, 8 bytes).
-/// Tracks must be pre-populated in the AnimationBits before writing.
+/// Set [pattern] to one of [kBuiltinPatterns]; prepareBits() writes the
+/// 20 per-LED RGB tracks and records the pool offset automatically.
 class PixelAnimationKeyframed extends PixelAnimation {
   @override
   PixelAnimationType get type => PixelAnimationType.keyframed;
 
   int animFlags;
   int durationMs;
-  int tracksOffset;
-  int trackCount;
+  PixelPattern? pattern;
+
+  int _tracksOffset = 0;
+  int _trackCount = 0;
 
   PixelAnimationKeyframed({
     this.animFlags = 0,
     this.durationMs = 1000,
-    this.tracksOffset = 0,
-    this.trackCount = 0,
+    this.pattern,
   });
 
   @override
   int get byteSize => 8;
 
   @override
+  void prepareBits(AnimationBits bits) {
+    if (pattern != null) {
+      _tracksOffset = pattern!.addRgbToBits(bits);
+      _trackCount = pattern!.gradients.length;
+    }
+  }
+
+  @override
   void writeTo(ByteData data, int offset, AnimationBits bits) {
     data.setUint8(offset, PixelAnimationType.keyframed.index);
     data.setUint8(offset + 1, animFlags);
     data.setUint16(offset + 2, durationMs, Endian.little);
-    data.setUint16(offset + 4, tracksOffset, Endian.little);
-    data.setUint16(offset + 6, trackCount, Endian.little);
+    data.setUint16(offset + 4, _tracksOffset, Endian.little);
+    data.setUint16(offset + 6, _trackCount, Endian.little);
   }
 
   @override
@@ -429,17 +439,17 @@ class PixelAnimationKeyframed extends PixelAnimation {
     'type': type.name,
     'animFlags': animFlags,
     'durationMs': durationMs,
-    'tracksOffset': tracksOffset,
-    'trackCount': trackCount,
+    if (pattern != null) 'patternName': pattern!.name,
   };
 
-  factory PixelAnimationKeyframed.fromJson(Map<String, dynamic> json) =>
-      PixelAnimationKeyframed(
-        animFlags: (json['animFlags'] as int?) ?? 0,
-        durationMs: (json['durationMs'] as int?) ?? 1000,
-        tracksOffset: (json['tracksOffset'] as int?) ?? 0,
-        trackCount: (json['trackCount'] as int?) ?? 0,
-      );
+  factory PixelAnimationKeyframed.fromJson(Map<String, dynamic> json) {
+    final name = json['patternName'] as String?;
+    return PixelAnimationKeyframed(
+      animFlags: (json['animFlags'] as int?) ?? 0,
+      durationMs: (json['durationMs'] as int?) ?? 1000,
+      pattern: name != null ? lookupPattern(name) : null,
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -516,6 +526,74 @@ class PixelGradient {
         .toList(),
   );
 }
+
+// ─────────────────────────────────────────────────────────────
+// PixelPattern — named per-LED keyframe data used by
+// PixelAnimationKeyframed and PixelAnimationGradientPattern.
+// ─────────────────────────────────────────────────────────────
+
+/// One per-LED RGB gradient curve: a list of (timeMs 0–1000, pre-gamma color).
+class PixelLedGradient {
+  final List<(int, PixelColor)> keyframes;
+  const PixelLedGradient(this.keyframes);
+}
+
+/// Named set of 20 per-LED gradient curves (one per d20 face).
+class PixelPattern {
+  final String name;
+  final List<PixelLedGradient> gradients;
+  const PixelPattern({required this.name, required this.gradients});
+
+  /// Adds all LED gradients as RgbTrack entries to [bits]. Returns the
+  /// starting index of the first added track (tracksOffset for Keyframed).
+  int addRgbToBits(AnimationBits bits) {
+    final start = bits.rgbTracks.length;
+    for (int i = 0; i < gradients.length; i++) {
+      final kfStart = bits.rgbKeyframes.length;
+      for (final (timeMs, color) in gradients[i].keyframes) {
+        final ci = bits.addColor(color);
+        bits.rgbKeyframes.add(RgbKeyframe.make(timeMs: timeMs, colorIndex: ci));
+      }
+      bits.rgbTracks.add(RgbTrack(
+        keyframesOffset: kfStart,
+        keyFrameCount: gradients[i].keyframes.length,
+        ledMask: 1 << i,
+      ));
+    }
+    return start;
+  }
+
+  /// Adds all LED gradients as grayscale Track entries. Returns the starting
+  /// index (tracksOffset for GradientPattern). Intensity = avg(R,G,B).
+  int addGrayscaleToBits(AnimationBits bits) {
+    final start = bits.tracks.length;
+    for (int i = 0; i < gradients.length; i++) {
+      final kfStart = bits.keyframes.length;
+      for (final (timeMs, color) in gradients[i].keyframes) {
+        final intensity = ((color.r + color.g + color.b) ~/ 3).clamp(0, 255);
+        bits.keyframes.add(SimpleKeyframe.make(timeMs: timeMs, intensity: intensity));
+      }
+      bits.tracks.add(Track(
+        keyframesOffset: kfStart,
+        keyFrameCount: gradients[i].keyframes.length,
+        ledMask: 1 << i,
+      ));
+    }
+    return start;
+  }
+}
+
+// Global lookup populated by registerBuiltinPatterns() (called from DiWrapper
+// and test setUp). PixelAnimationKeyframed.fromJson uses this to resolve names.
+final _patternRegistry = <String, PixelPattern>{};
+
+void registerBuiltinPatterns(List<PixelPattern> patterns) {
+  for (final p in patterns) {
+    _patternRegistry[p.name] = p;
+  }
+}
+
+PixelPattern? lookupPattern(String name) => _patternRegistry[name];
 
 // ─────────────────────────────────────────────────────────────
 // Gradient animation (type=5, 12 bytes)
@@ -867,26 +945,27 @@ class PixelAnimationNormals extends PixelAnimation {
 // GradientPattern animation (type=4, 12 bytes)
 // ─────────────────────────────────────────────────────────────
 
-/// Grayscale pattern with an RGB gradient overlay (type=4, 12 bytes).
-/// [tracksOffset] and [trackCount] reference grayscale Track entries
-/// in AnimationBits.tracks; [gradientTrackOffset] references an RgbTrack.
+/// Grayscale pattern with an RGB gradient color overlay (type=4, 12 bytes).
+/// Set [pattern] to one of [kBuiltinPatterns]; prepareBits() converts the
+/// per-LED RGB curves to grayscale intensity tracks and records the offset.
 class PixelAnimationGradientPattern extends PixelAnimation {
   @override
   PixelAnimationType get type => PixelAnimationType.gradientPattern;
 
   int animFlags;
   int durationMs;
-  /// Index into AnimationBits.tracks (grayscale tracks). Must be pre-populated.
-  int tracksOffset;
-  int trackCount;
+  PixelPattern? pattern;
   PixelGradient gradient;
   bool overrideWithFace;
+
+  int _tracksOffset = 0;
+  int _trackCount = 0;
+  int _gradTrackOffset = 0;
 
   PixelAnimationGradientPattern({
     this.animFlags = 0,
     this.durationMs = 2000,
-    this.tracksOffset = 0,
-    this.trackCount = 0,
+    this.pattern,
     PixelGradient? gradient,
     this.overrideWithFace = false,
   }) : gradient = gradient ?? PixelGradient.rainbow;
@@ -894,10 +973,12 @@ class PixelAnimationGradientPattern extends PixelAnimation {
   @override
   int get byteSize => 12;
 
-  int _gradTrackOffset = 0;
-
   @override
   void prepareBits(AnimationBits bits) {
+    if (pattern != null) {
+      _tracksOffset = pattern!.addGrayscaleToBits(bits);
+      _trackCount = pattern!.gradients.length;
+    }
     _gradTrackOffset = gradient.addToBits(bits);
   }
 
@@ -906,8 +987,8 @@ class PixelAnimationGradientPattern extends PixelAnimation {
     data.setUint8(offset, PixelAnimationType.gradientPattern.index);
     data.setUint8(offset + 1, animFlags);
     data.setUint16(offset + 2, durationMs, Endian.little);
-    data.setUint16(offset + 4, tracksOffset, Endian.little);
-    data.setUint16(offset + 6, trackCount, Endian.little);
+    data.setUint16(offset + 4, _tracksOffset, Endian.little);
+    data.setUint16(offset + 6, _trackCount, Endian.little);
     data.setUint16(offset + 8, _gradTrackOffset, Endian.little);
     data.setUint8(offset + 10, overrideWithFace ? 1 : 0);
     data.setUint8(offset + 11, 0); // padding
@@ -918,23 +999,23 @@ class PixelAnimationGradientPattern extends PixelAnimation {
     'type': type.name,
     'animFlags': animFlags,
     'durationMs': durationMs,
-    'tracksOffset': tracksOffset,
-    'trackCount': trackCount,
+    if (pattern != null) 'patternName': pattern!.name,
     'gradient': gradient.toJson(),
     'overrideWithFace': overrideWithFace,
   };
 
-  factory PixelAnimationGradientPattern.fromJson(Map<String, dynamic> json) =>
-      PixelAnimationGradientPattern(
-        animFlags: (json['animFlags'] as int?) ?? 0,
-        durationMs: (json['durationMs'] as int?) ?? 2000,
-        tracksOffset: (json['tracksOffset'] as int?) ?? 0,
-        trackCount: (json['trackCount'] as int?) ?? 0,
-        gradient: json['gradient'] != null
-            ? PixelGradient.fromJson(json['gradient'] as Map<String, dynamic>)
-            : null,
-        overrideWithFace: (json['overrideWithFace'] as bool?) ?? false,
-      );
+  factory PixelAnimationGradientPattern.fromJson(Map<String, dynamic> json) {
+    final name = json['patternName'] as String?;
+    return PixelAnimationGradientPattern(
+      animFlags: (json['animFlags'] as int?) ?? 0,
+      durationMs: (json['durationMs'] as int?) ?? 2000,
+      pattern: name != null ? lookupPattern(name) : null,
+      gradient: json['gradient'] != null
+          ? PixelGradient.fromJson(json['gradient'] as Map<String, dynamic>)
+          : null,
+      overrideWithFace: (json['overrideWithFace'] as bool?) ?? false,
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────

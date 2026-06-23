@@ -9,10 +9,6 @@ import 'package:roll_feathers/ui/pixels/pixels_profile_editor_screen.dart';
 
 int _profileHash(PixelProfile p) => PixelDataSet(p).computeHash();
 
-/// Full-screen profile manager for a single Pixels die.
-///
-/// Lists all saved profiles, allows add/edit/delete, and transfers the active
-/// profile to the physical die.
 class PixelsProfilesScreen extends StatefulWidget {
   const PixelsProfilesScreen({
     super.key,
@@ -31,17 +27,32 @@ class PixelsProfilesScreen extends StatefulWidget {
 
 class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
   List<PixelProfile> _profiles = [];
-  Map<String, int> _hashes = {}; // profileId → computed hash
+  Map<String, int> _hashes = {};
+  late final Map<String, int> _builtinHashes;
   bool _loading = true;
-  String? _transferring; // profile id being transferred
+  String? _transferring;
   String? _statusMessage;
-  int? _dieHash; // hash currently on the die
+  int? _dieHash;
+
+  bool _builtinsExpanded = true;
+  bool _myProfilesExpanded = true;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    _builtinHashes = {
+      for (final p in kBuiltinProfiles)
+        p.name: _profileHash(p.build()).toUnsigned(32),
+    };
     _dieHash = widget.die.currentDataSetHash;
     _load();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _load() async {
@@ -54,6 +65,27 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
       _loading = false;
     });
   }
+
+  // ─── Built-in actions ────────────────────────────────────────────────────
+
+  Future<void> _flashBuiltin(BuiltinProfile preset) async {
+    setState(() { _transferring = preset.name; _statusMessage = null; });
+    try {
+      final transfer = PixelsProfileTransfer(widget.die);
+      await transfer.transferProfile(preset.build());
+      if (mounted) {
+        setState(() {
+          _transferring = null;
+          _statusMessage = '✓ "${preset.name}" flashed to die';
+          _dieHash = _builtinHashes[preset.name];
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() { _transferring = null; _statusMessage = 'Transfer failed: $e'; });
+    }
+  }
+
+  // ─── User profile actions ─────────────────────────────────────────────────
 
   Future<void> _addProfile() async {
     final chosen = await showModalBottomSheet<PixelProfile>(
@@ -101,10 +133,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
         content: Text('Delete "${profile.name}"?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Delete')),
         ],
       ),
     );
@@ -114,7 +143,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
     }
   }
 
-  Future<void> _transferProfile(PixelProfile profile) async {
+  Future<void> _flashProfile(PixelProfile profile) async {
     setState(() { _transferring = profile.id; _statusMessage = null; });
     try {
       final transfer = PixelsProfileTransfer(widget.die);
@@ -127,44 +156,187 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
         });
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _transferring = null;
-          _statusMessage = 'Transfer failed: $e';
-        });
-      }
+      if (mounted) setState(() { _transferring = null; _statusMessage = 'Transfer failed: $e'; });
     }
   }
 
-  Future<void> _previewProfile(PixelProfile profile) async {
-    setState(() { _transferring = profile.id; _statusMessage = null; });
+  // ─── Shared preview ───────────────────────────────────────────────────────
+
+  Future<void> _previewAnimation(
+    PixelProfile profile,
+    String transferId,
+    int animIndex,
+  ) async {
+    setState(() { _transferring = transferId; _statusMessage = null; });
     try {
       final transfer = PixelsProfileTransfer(widget.die);
       await transfer.transferInstantAnimation(profile);
-      await transfer.playInstantAnimation(animIndex: 0, faceIndex: -1, loopCount: 1);
+      await transfer.playInstantAnimation(animIndex: animIndex, faceIndex: -1, loopCount: 1);
       if (mounted) setState(() { _transferring = null; _statusMessage = 'Preview sent'; });
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _transferring = null;
-          _statusMessage = 'Preview failed: $e';
-        });
-      }
+      if (mounted) setState(() { _transferring = null; _statusMessage = 'Preview failed: $e'; });
     }
   }
+
+  // ─── Rule/event helpers ───────────────────────────────────────────────────
+
+  List<Widget> _ruleRows(PixelProfile profile, String transferId) {
+    final rows = <Widget>[];
+    for (final rule in profile.rules) {
+      for (final action in rule.actions) {
+        if (action is! PixelActionPlayAnimation) continue;
+        final idx = action.animIndex;
+        if (idx < 0 || idx >= profile.animations.length) continue;
+        final anim = profile.animations[idx];
+        final label = _conditionLabel(rule.condition);
+        final color = _conditionColor(rule.condition);
+        rows.add(ListTile(
+          dense: true,
+          contentPadding: const EdgeInsets.only(left: 32, right: 8),
+          leading: CircleAvatar(
+            radius: 14,
+            backgroundColor: color.withValues(alpha: 0.2),
+            child: Icon(_conditionIcon(rule.condition), size: 14, color: color),
+          ),
+          title: Text(label),
+          subtitle: Row(
+            children: [
+              _animIcon(anim),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '${_animTypeName(anim)} · ${_animSubtitle(anim)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          trailing: IconButton(
+            icon: const Icon(Icons.play_circle_outline, size: 20),
+            tooltip: 'Preview: $label',
+            onPressed: _transferring != null
+                ? null
+                : () => _previewAnimation(profile, transferId, idx),
+          ),
+        ));
+      }
+    }
+    return rows;
+  }
+
+  String _conditionLabel(PixelCondition c) => switch (c) {
+    PixelConditionHelloGoodbye h =>
+        h.flags == 1 ? 'Hello' : h.flags == 2 ? 'Goodbye' : 'Hello / Goodbye',
+    PixelConditionHandling _ => 'Handling',
+    PixelConditionRolling _ => 'Rolling',
+    PixelConditionRolled r => 'Rolled · ${_faceMaskDesc(r.faceMask)}',
+    PixelConditionCrooked _ => 'Crooked',
+    PixelConditionConnectionState s =>
+        s.flags == 1 ? 'Connected' : s.flags == 2 ? 'Disconnected' : 'Connection',
+    PixelConditionBatteryState b => _batteryLabel(b),
+    _ => c.displayName,
+  };
+
+  String _batteryLabel(PixelConditionBatteryState b) => const {
+    1: 'Low battery',
+    2: 'Charging',
+    4: 'Charged',
+    8: 'Bad charging',
+    16: 'Charge error',
+  }[b.flags] ?? 'Battery';
+
+  String _faceMaskDesc(int mask) {
+    if (mask >= 0xFFFFF) return 'any face';
+    final faces = [for (var i = 0; i < 20; i++) if (mask & (1 << i) != 0) i + 1];
+    if (faces.isEmpty) return 'no faces';
+    if (faces.length == 1) return 'face ${faces.first}';
+    final isRange = faces.last - faces.first == faces.length - 1;
+    if (isRange) return 'faces ${faces.first}–${faces.last}';
+    if (faces.length <= 4) return 'faces ${faces.join(', ')}';
+    return '${faces.length} faces';
+  }
+
+  IconData _conditionIcon(PixelCondition c) => switch (c) {
+    PixelConditionHelloGoodbye _ => Icons.waving_hand,
+    PixelConditionHandling _ => Icons.pan_tool,
+    PixelConditionRolling _ => Icons.casino,
+    PixelConditionRolled _ => Icons.stop_circle,
+    PixelConditionCrooked _ => Icons.screen_rotation,
+    PixelConditionConnectionState _ => Icons.bluetooth,
+    PixelConditionBatteryState _ => Icons.battery_charging_full,
+    _ => Icons.help_outline,
+  };
+
+  Color _conditionColor(PixelCondition c) => switch (c) {
+    PixelConditionHelloGoodbye _ => Colors.green,
+    PixelConditionHandling _ => Colors.orange,
+    PixelConditionRolling _ => Colors.blue,
+    PixelConditionRolled _ => Colors.purple,
+    PixelConditionCrooked _ => Colors.red,
+    PixelConditionConnectionState _ => Colors.teal,
+    PixelConditionBatteryState _ => Colors.amber,
+    _ => Colors.grey,
+  };
+
+  Widget _animIcon(PixelAnimation anim) {
+    final (color, icon) = switch (anim) {
+      PixelAnimationSimple _          => (Colors.orange, Icons.flash_on),
+      PixelAnimationRainbow _         => (Colors.purple, Icons.gradient),
+      PixelAnimationGradient _        => (Colors.blue, Icons.water),
+      PixelAnimationCycle _           => (Colors.teal, Icons.loop),
+      PixelAnimationNoise _           => (Colors.blueGrey, Icons.grain),
+      PixelAnimationNormals _         => (Colors.lightBlue, Icons.transform),
+      PixelAnimationSequence _        => (Colors.amber, Icons.queue_play_next),
+      PixelAnimationKeyframed _       => (Colors.deepPurple, Icons.timeline),
+      PixelAnimationGradientPattern _ => (Colors.cyan, Icons.gradient),
+      _                               => (Colors.grey, Icons.star),
+    };
+    return CircleAvatar(
+      radius: 14,
+      backgroundColor: color.withValues(alpha: 0.2),
+      child: Icon(icon, size: 14, color: color),
+    );
+  }
+
+  String _animTypeName(PixelAnimation anim) => switch (anim) {
+    PixelAnimationSimple _          => 'Solid Flash',
+    PixelAnimationRainbow _         => 'Rainbow',
+    PixelAnimationGradient _        => 'Flow',
+    PixelAnimationCycle _           => 'Color Cycle',
+    PixelAnimationNoise _           => 'Noise',
+    PixelAnimationNormals _         => 'Normals',
+    PixelAnimationSequence _        => 'Sequence',
+    PixelAnimationKeyframed _       => 'Keyframed',
+    PixelAnimationGradientPattern _ => 'Gradient Pattern',
+    _                               => 'Custom',
+  };
+
+  String _animSubtitle(PixelAnimation anim) => switch (anim) {
+    PixelAnimationSimple s          => '${s.durationMs}ms · rgb(${s.color.r},${s.color.g},${s.color.b}) · ×${s.count}',
+    PixelAnimationRainbow r         => '${r.durationMs}ms · intensity ${r.intensity}',
+    PixelAnimationGradient g        => '${g.durationMs}ms · flow',
+    PixelAnimationCycle c           => '${c.durationMs}ms · intensity ${c.intensity}',
+    PixelAnimationNoise n           => '${n.durationMs}ms · noise',
+    PixelAnimationNormals n         => '${n.durationMs}ms · directional',
+    PixelAnimationSequence s        => '${s.entries.length} part${s.entries.length == 1 ? '' : 's'}',
+    PixelAnimationKeyframed k       => '${k.durationMs}ms · ${k.pattern?.name ?? 'no pattern'}',
+    PixelAnimationGradientPattern g => '${g.durationMs}ms · ${g.pattern?.name ?? 'no pattern'}',
+    _                               => '',
+  };
+
+  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Animations — ${widget.dieName}'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'Add Profile',
-            onPressed: _addProfile,
-          ),
-        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _addProfile,
+        tooltip: 'New profile',
+        child: const Icon(Icons.add),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -187,50 +359,160 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
                     ),
                   ),
                 Expanded(
-                  child: _profiles.isEmpty
-                      ? const Center(child: Text('No profiles yet.\nTap + to create one.', textAlign: TextAlign.center))
-                      : ListView.builder(
-                          itemCount: _profiles.length,
-                          itemBuilder: (_, i) {
-                            final p = _profiles[i];
-                            final isTransferring = _transferring == p.id;
-                            final isOnDie = _dieHash != null &&
-                                _hashes[p.id] == _dieHash;
-                            return ListTile(
-                              title: Text(p.name),
-                              subtitle: Row(
-                                children: [
-                                  Text(
-                                    '${p.animations.length} animation${p.animations.length == 1 ? '' : 's'}'
-                                    ' · ${p.rules.length} rule${p.rules.length == 1 ? '' : 's'}',
-                                  ),
-                                  if (isOnDie) ...[
-                                    const SizedBox(width: 6),
-                                    const Icon(Icons.check_circle,
-                                        size: 14, color: Colors.green),
-                                    const SizedBox(width: 2),
-                                    Text('on die',
-                                        style: TextStyle(
-                                            fontSize: 11,
-                                            color: Colors.green[700])),
-                                  ],
-                                ],
-                              ),
-                              trailing: isTransferring
-                                  ? const SizedBox(
-                                      width: 24,
-                                      height: 24,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    )
-                                  : _ProfileActions(
-                                      onEdit: () => _editProfile(p),
-                                      onPreview: () => _previewProfile(p),
-                                      onFlash: () => _transferProfile(p),
-                                      onDelete: () => _deleteProfile(p),
-                                    ),
-                            );
-                          },
+                  child: CustomScrollView(
+                    controller: _scrollController,
+                    slivers: [
+                      // ── Built-in profiles ──────────────────────────────
+                      SliverToBoxAdapter(
+                        child: _CollapsibleSectionHeader(
+                          title: 'Built-in Profiles',
+                          expanded: _builtinsExpanded,
+                          onTap: () => setState(() => _builtinsExpanded = !_builtinsExpanded),
                         ),
+                      ),
+                      if (_builtinsExpanded)
+                        SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (_, i) {
+                              final preset = kBuiltinProfiles[i];
+                              final isTransferring = _transferring == preset.name;
+                              final isOnDie = _dieHash != null &&
+                                  _builtinHashes[preset.name] == _dieHash!.toUnsigned(32);
+                              final profile = preset.build();
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                child: Card(
+                                  margin: EdgeInsets.zero,
+                                  child: ExpansionTile(
+                                    controlAffinity: ListTileControlAffinity.leading,
+                                    title: Row(
+                                      children: [
+                                        Text(preset.name),
+                                        if (isOnDie) ...[
+                                          const SizedBox(width: 6),
+                                          const Icon(Icons.check_circle, size: 14, color: Colors.green),
+                                          const SizedBox(width: 2),
+                                          Text('on die',
+                                              style: TextStyle(fontSize: 11, color: Colors.green[700])),
+                                        ],
+                                      ],
+                                    ),
+                                    subtitle: Text(
+                                      preset.description,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    trailing: isTransferring
+                                        ? const SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: CircularProgressIndicator(strokeWidth: 2),
+                                          )
+                                        : IconButton(
+                                            icon: const Icon(Icons.upload),
+                                            tooltip: 'Flash to die',
+                                            onPressed: () => _flashBuiltin(preset),
+                                          ),
+                                    children: _ruleRows(profile, preset.name),
+                                  ),
+                                ),
+                              );
+                            },
+                            childCount: kBuiltinProfiles.length,
+                          ),
+                        ),
+
+                      // ── Custom profiles ────────────────────────────────
+                      SliverToBoxAdapter(
+                        child: _CollapsibleSectionHeader(
+                          title: 'My Profiles',
+                          expanded: _myProfilesExpanded,
+                          onTap: () => setState(() => _myProfilesExpanded = !_myProfilesExpanded),
+                        ),
+                      ),
+                      if (_myProfilesExpanded)
+                        if (_profiles.isEmpty)
+                          const SliverToBoxAdapter(
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(vertical: 32),
+                              child: Center(
+                                child: Text(
+                                  'No profiles yet.\nTap + to create one.',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                          )
+                        else
+                          SliverList(
+                            delegate: SliverChildBuilderDelegate(
+                              (_, i) {
+                                final p = _profiles[i];
+                                final isTransferring = _transferring == p.id;
+                                final isOnDie = _dieHash != null &&
+                                    _hashes[p.id]?.toUnsigned(32) == _dieHash!.toUnsigned(32);
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  child: Card(
+                                    margin: EdgeInsets.zero,
+                                    child: ExpansionTile(
+                                      controlAffinity: ListTileControlAffinity.leading,
+                                      title: Text(p.name),
+                                      subtitle: Row(
+                                        children: [
+                                          Text(
+                                            '${p.animations.length} animation${p.animations.length == 1 ? '' : 's'}'
+                                            ' · ${p.rules.length} rule${p.rules.length == 1 ? '' : 's'}',
+                                          ),
+                                          if (isOnDie) ...[
+                                            const SizedBox(width: 6),
+                                            const Icon(Icons.check_circle,
+                                                size: 14, color: Colors.green),
+                                            const SizedBox(width: 2),
+                                            Text('on die',
+                                                style: TextStyle(
+                                                    fontSize: 11, color: Colors.green[700])),
+                                          ],
+                                        ],
+                                      ),
+                                      trailing: isTransferring
+                                          ? const SizedBox(
+                                              width: 24,
+                                              height: 24,
+                                              child: CircularProgressIndicator(strokeWidth: 2),
+                                            )
+                                          : Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  icon: const Icon(Icons.upload),
+                                                  tooltip: 'Flash to die',
+                                                  onPressed: () => _flashProfile(p),
+                                                ),
+                                                PopupMenuButton<_Action>(
+                                                  onSelected: (a) => switch (a) {
+                                                    _Action.edit => _editProfile(p),
+                                                    _Action.delete => _deleteProfile(p),
+                                                  },
+                                                  itemBuilder: (_) => const [
+                                                    PopupMenuItem(value: _Action.edit, child: Text('Edit')),
+                                                    PopupMenuItem(value: _Action.delete, child: Text('Delete')),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                      children: _ruleRows(p, p.id),
+                                    ),
+                                  ),
+                                );
+                              },
+                              childCount: _profiles.length,
+                            ),
+                          ),
+
+                      const SliverToBoxAdapter(child: SizedBox(height: 80)),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -238,52 +520,41 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
   }
 }
 
-class _ProfileActions extends StatelessWidget {
-  const _ProfileActions({
-    required this.onEdit,
-    required this.onPreview,
-    required this.onFlash,
-    required this.onDelete,
+// ─── Collapsible section header ───────────────────────────────────────────────
+
+class _CollapsibleSectionHeader extends StatelessWidget {
+  const _CollapsibleSectionHeader({
+    required this.title,
+    required this.expanded,
+    required this.onTap,
   });
 
-  final VoidCallback onEdit;
-  final VoidCallback onPreview;
-  final VoidCallback onFlash;
-  final VoidCallback onDelete;
+  final String title;
+  final bool expanded;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.play_circle_outline),
-          tooltip: 'Preview on die',
-          onPressed: onPreview,
-        ),
-        IconButton(
-          icon: const Icon(Icons.upload),
-          tooltip: 'Flash to die',
-          onPressed: onFlash,
-        ),
-        PopupMenuButton<_Action>(
-          onSelected: (a) => switch (a) {
-            _Action.edit => onEdit(),
-            _Action.delete => onDelete(),
-          },
-          itemBuilder: (_) => const [
-            PopupMenuItem(value: _Action.edit, child: Text('Edit')),
-            PopupMenuItem(value: _Action.delete, child: Text('Delete')),
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 8, 4),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(title, style: Theme.of(context).textTheme.labelLarge),
+            ),
+            Icon(expanded ? Icons.expand_less : Icons.expand_more),
           ],
         ),
-      ],
+      ),
     );
   }
 }
 
 enum _Action { edit, delete }
 
-// ─── Preset picker ────────────────────────────────────────────────────────────
+// ─── Preset picker (for creating a custom profile from a starting point) ──────
 
 class _PresetPickerSheet extends StatelessWidget {
   const _PresetPickerSheet();
@@ -337,7 +608,7 @@ class _PresetPickerSheet extends StatelessWidget {
 
   Widget _presetIcon(String name) {
     final (color, icon) = switch (name) {
-      'High / Low'  => (Colors.green, Icons.trending_up),
+      'High Low'    => (Colors.green, Icons.trending_up),
       'Flashy'      => (Colors.purple, Icons.auto_awesome),
       'Rainbow'     => (Colors.orange, Icons.colorize),
       'Color Cycle' => (Colors.teal, Icons.loop),
@@ -356,7 +627,7 @@ class _PresetPickerSheet extends StatelessWidget {
       _             => (Colors.blue, Icons.star),
     };
     return CircleAvatar(
-      backgroundColor: color.withOpacity(0.2),
+      backgroundColor: color.withValues(alpha: 0.2),
       child: Icon(icon, color: color, size: 20),
     );
   }

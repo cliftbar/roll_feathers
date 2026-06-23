@@ -1,8 +1,8 @@
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels_patterns.dart';
 
 /// Edits a single [PixelProfile]: name, list of animations, list of rules.
 ///
@@ -77,7 +77,10 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
   Future<PixelAnimation?> _showAnimationEditor(PixelAnimation? existing) {
     return showDialog<PixelAnimation>(
       context: context,
-      builder: (_) => _AnimationEditorDialog(animation: existing),
+      builder: (_) => _AnimationEditorDialog(
+        animation: existing,
+        animCount: _animations.length,
+      ),
     );
   }
 
@@ -218,18 +221,29 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
   String _animLabel(int i, PixelAnimation anim) => 'Animation ${i + 1}: ${_animTypeName(anim)}';
 
   String _animTypeName(PixelAnimation anim) => switch (anim) {
-    PixelAnimationSimple _ => 'Solid Flash',
-    PixelAnimationRainbow _ => 'Rainbow',
-    PixelAnimationKeyframed _ => 'Keyframed',
-    _ => 'Unknown',
+    PixelAnimationSimple _          => 'Solid Flash',
+    PixelAnimationRainbow _         => 'Rainbow',
+    PixelAnimationGradient _        => 'Flow',
+    PixelAnimationCycle _           => 'Color Cycle',
+    PixelAnimationNoise _           => 'Noise',
+    PixelAnimationNormals _         => 'Normals',
+    PixelAnimationSequence _        => 'Sequence',
+    PixelAnimationKeyframed _       => 'Keyframed',
+    PixelAnimationGradientPattern _ => 'Gradient Pattern',
+    _                        => 'Custom',
   };
 
   String _animSubtitle(PixelAnimation anim) => switch (anim) {
-    PixelAnimationSimple s =>
-      '${s.durationMs}ms · color(${s.color.r},${s.color.g},${s.color.b}) · ×${s.count}',
-    PixelAnimationRainbow r => '${r.durationMs}ms · intensity ${r.intensity}',
-    PixelAnimationKeyframed _ => 'Keyframed',
-    _ => '',
+    PixelAnimationSimple s   => '${s.durationMs}ms · rgb(${s.color.r},${s.color.g},${s.color.b}) · ×${s.count}',
+    PixelAnimationRainbow r  => '${r.durationMs}ms · intensity ${r.intensity}',
+    PixelAnimationGradient g => '${g.durationMs}ms · flow',
+    PixelAnimationCycle c    => '${c.durationMs}ms · intensity ${c.intensity}',
+    PixelAnimationNoise n    => '${n.durationMs}ms · noise',
+    PixelAnimationNormals n  => '${n.durationMs}ms · directional',
+    PixelAnimationSequence s        => '${s.entries.length} part${s.entries.length == 1 ? '' : 's'}',
+    PixelAnimationKeyframed k       => '${k.durationMs}ms · ${k.pattern?.name ?? 'no pattern'}',
+    PixelAnimationGradientPattern g => '${g.durationMs}ms · ${g.pattern?.name ?? 'no pattern'}',
+    _                               => '',
   };
 
   String _ruleSubtitle(PixelRule rule) {
@@ -251,22 +265,71 @@ class _AnimationIcon extends StatelessWidget {
       final c = (anim as PixelAnimationSimple).color;
       return CircleAvatar(backgroundColor: Color.fromARGB(255, c.r, c.g, c.b));
     }
-    if (anim is PixelAnimationRainbow) {
-      return const CircleAvatar(
-        child: Icon(Icons.auto_awesome, size: 16),
-      );
+    final (icon, color) = switch (anim) {
+      PixelAnimationRainbow _         => (Icons.auto_awesome, Colors.purple),
+      PixelAnimationGradient _        => (Icons.water, Colors.blue),
+      PixelAnimationCycle _           => (Icons.loop, Colors.teal),
+      PixelAnimationNoise _           => (Icons.grain, Colors.blueGrey),
+      PixelAnimationNormals _         => (Icons.layers, Colors.indigo),
+      PixelAnimationSequence _        => (Icons.playlist_play, Colors.orange),
+      PixelAnimationKeyframed _       => (Icons.timeline, Colors.deepPurple),
+      PixelAnimationGradientPattern _ => (Icons.gradient, Colors.cyan),
+      _                               => (Icons.timeline, Colors.grey),
+    };
+    return CircleAvatar(
+      backgroundColor: color.withValues(alpha: 0.2),
+      child: Icon(icon, color: color, size: 16),
+    );
+  }
+}
+
+// ─── Gradient state ───────────────────────────────────────────────────────────
+
+enum _GradPreset { rainbow, fire, water, solid, twoColor }
+
+class _GradState {
+  _GradPreset preset;
+  int r1, g1, b1;
+  int r2, g2, b2;
+
+  _GradState({
+    this.preset = _GradPreset.rainbow,
+    this.r1 = 255, this.g1 = 0, this.b1 = 0,
+    this.r2 = 0,   this.g2 = 0, this.b2 = 255,
+  });
+
+  PixelGradient build() => switch (preset) {
+    _GradPreset.rainbow  => PixelGradient.rainbow,
+    _GradPreset.fire     => PixelGradient.fire,
+    _GradPreset.water    => PixelGradient.water,
+    _GradPreset.solid    => PixelGradient.solid(PixelColor(r1, g1, b1)),
+    _GradPreset.twoColor => PixelGradient.twoColor(PixelColor(r1, g1, b1), PixelColor(r2, g2, b2)),
+  };
+
+  static _GradState fromGradient(PixelGradient g) {
+    final kfs = g.keyframes;
+    if (kfs.length == 2) {
+      final c = kfs[0].$2;
+      return _GradState(preset: _GradPreset.solid, r1: c.r, g1: c.g, b1: c.b);
     }
-    return const CircleAvatar(child: Icon(Icons.timeline, size: 16));
+    if (kfs.length == 3) {
+      final c1 = kfs[0].$2, c2 = kfs[1].$2;
+      return _GradState(preset: _GradPreset.twoColor, r1: c1.r, g1: c1.g, b1: c1.b, r2: c2.r, g2: c2.g, b2: c2.b);
+    }
+    if (kfs.length == 4 && kfs[0].$2.r == 255 && kfs[0].$2.g == 20 && kfs[0].$2.b == 0) return _GradState(preset: _GradPreset.fire);
+    if (kfs.length == 4 && kfs[0].$2.r == 0   && kfs[0].$2.g == 40 && kfs[0].$2.b == 255) return _GradState(preset: _GradPreset.water);
+    return _GradState(preset: _GradPreset.rainbow);
   }
 }
 
 // ─── Animation editor dialog ──────────────────────────────────────────────────
 
-enum _AnimType { solid, rainbow }
+enum _AnimType { solid, rainbow, gradient, cycle, noise, normals, sequence, keyframed, gradientPattern }
 
 class _AnimationEditorDialog extends StatefulWidget {
-  const _AnimationEditorDialog({this.animation});
+  const _AnimationEditorDialog({this.animation, required this.animCount});
   final PixelAnimation? animation;
+  final int animCount;
 
   @override
   State<_AnimationEditorDialog> createState() => _AnimationEditorDialogState();
@@ -274,14 +337,56 @@ class _AnimationEditorDialog extends StatefulWidget {
 
 class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
   late _AnimType _type;
-  // Solid fields
+
+  // ── Solid Flash
   int _r = 255, _g = 0, _b = 0;
   int _durationMs = 500;
   int _count = 1;
   int _fade = 128;
-  // Rainbow fields
+
+  // ── Rainbow
   int _rainbowDuration = 2000;
   int _intensity = 200;
+
+  // ── Gradient / Flow
+  int _gradFlowDuration = 1000;
+  _GradState _gradFlowGrad = _GradState();
+
+  // ── Color Cycle
+  int _cycleDuration = 2000;
+  int _cycleCount = 1;
+  int _cycleFade = 0;
+  int _cycleIntensity = 128;
+  int _cyclesTimes10 = 10;
+  _GradState _cycleGrad = _GradState();
+
+  // ── Noise
+  int _noiseDuration = 3000;
+  int _noiseFade = 128;
+  _GradState _noiseGrad = _GradState();
+  _GradState _noiseBlinkGrad = _GradState(preset: _GradPreset.solid, r1: 255, g1: 255, b1: 255);
+  int _blinkFreqTimes1000 = 1000;
+  int _blinkDuration = 100;
+
+  // ── Normals
+  int _normDuration = 3000;
+  int _normFade = 0;
+  _GradState _normGrad = _GradState();
+  int _axisScrollTimes1000 = 1000;
+  int _angleScrollTimes1000 = 0;
+  int _axisScaleTimes1000 = 1000;
+
+  // ── Sequence
+  List<(int, int)> _seqEntries = [];
+
+  // ── Keyframed
+  PixelPattern? _keyframedPattern;
+  int _keyframedDuration = 1000;
+
+  // ── Gradient Pattern
+  PixelPattern? _gpPattern;
+  int _gpDuration = 2000;
+  _GradState _gpGrad = _GradState();
 
   @override
   void initState() {
@@ -291,12 +396,50 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
       _type = _AnimType.rainbow;
       _rainbowDuration = a.durationMs;
       _intensity = a.intensity;
+    } else if (a is PixelAnimationGradient) {
+      _type = _AnimType.gradient;
+      _gradFlowDuration = a.durationMs;
+      _gradFlowGrad = _GradState.fromGradient(a.gradient);
+    } else if (a is PixelAnimationCycle) {
+      _type = _AnimType.cycle;
+      _cycleDuration = a.durationMs;
+      _cycleCount = a.count;
+      _cycleFade = a.fade;
+      _cycleIntensity = a.intensity;
+      _cyclesTimes10 = a.cyclesTimes10;
+      _cycleGrad = _GradState.fromGradient(a.gradient);
+    } else if (a is PixelAnimationNoise) {
+      _type = _AnimType.noise;
+      _noiseDuration = a.durationMs;
+      _noiseFade = a.fade;
+      _noiseGrad = _GradState.fromGradient(a.gradient);
+      _noiseBlinkGrad = _GradState.fromGradient(a.blinkGradient);
+      _blinkFreqTimes1000 = a.blinkFrequencyTimes1000;
+      _blinkDuration = a.blinkDuration;
+    } else if (a is PixelAnimationNormals) {
+      _type = _AnimType.normals;
+      _normDuration = a.durationMs;
+      _normFade = a.fade;
+      _normGrad = _GradState.fromGradient(a.gradient);
+      _axisScrollTimes1000 = a.axisScrollSpeedTimes1000;
+      _angleScrollTimes1000 = a.angleScrollSpeedTimes1000;
+      _axisScaleTimes1000 = a.axisScaleTimes1000;
+    } else if (a is PixelAnimationSequence) {
+      _type = _AnimType.sequence;
+      _seqEntries = List.of(a.entries);
+    } else if (a is PixelAnimationKeyframed) {
+      _type = _AnimType.keyframed;
+      _keyframedDuration = a.durationMs;
+      _keyframedPattern = a.pattern;
+    } else if (a is PixelAnimationGradientPattern) {
+      _type = _AnimType.gradientPattern;
+      _gpDuration = a.durationMs;
+      _gpPattern = a.pattern;
+      _gpGrad = _GradState.fromGradient(a.gradient);
     } else {
       _type = _AnimType.solid;
       if (a is PixelAnimationSimple) {
-        _r = a.color.r;
-        _g = a.color.g;
-        _b = a.color.b;
+        _r = a.color.r; _g = a.color.g; _b = a.color.b;
         _durationMs = a.durationMs;
         _count = a.count;
         _fade = a.fade;
@@ -305,19 +448,134 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
   }
 
   PixelAnimation _build() {
-    if (_type == _AnimType.rainbow) {
-      return PixelAnimationRainbow(durationMs: _rainbowDuration, intensity: _intensity);
-    }
-    return PixelAnimationSimple(
-      durationMs: _durationMs,
-      color: PixelColor(_r, _g, _b),
-      count: _count,
-      fade: _fade,
-    );
+    return switch (_type) {
+      _AnimType.solid => PixelAnimationSimple(
+          durationMs: _durationMs,
+          color: PixelColor(_r, _g, _b),
+          count: _count,
+          fade: _fade,
+        ),
+      _AnimType.rainbow => PixelAnimationRainbow(
+          durationMs: _rainbowDuration,
+          intensity: _intensity,
+        ),
+      _AnimType.gradient => PixelAnimationGradient(
+          durationMs: _gradFlowDuration,
+          gradient: _gradFlowGrad.build(),
+        ),
+      _AnimType.cycle => PixelAnimationCycle(
+          durationMs: _cycleDuration,
+          count: _cycleCount,
+          fade: _cycleFade,
+          intensity: _cycleIntensity,
+          cyclesTimes10: _cyclesTimes10,
+          gradient: _cycleGrad.build(),
+        ),
+      _AnimType.noise => PixelAnimationNoise(
+          durationMs: _noiseDuration,
+          fade: _noiseFade,
+          gradient: _noiseGrad.build(),
+          blinkGradient: _noiseBlinkGrad.build(),
+          blinkFrequencyTimes1000: _blinkFreqTimes1000,
+          blinkFrequencyVarTimes1000: (_blinkFreqTimes1000 * 0.5).round(),
+          blinkDuration: _blinkDuration,
+        ),
+      _AnimType.normals => PixelAnimationNormals(
+          durationMs: _normDuration,
+          fade: _normFade,
+          gradient: _normGrad.build(),
+          axisScaleTimes1000: _axisScaleTimes1000,
+          axisScrollSpeedTimes1000: _axisScrollTimes1000,
+          angleScrollSpeedTimes1000: _angleScrollTimes1000,
+        ),
+      _AnimType.sequence => PixelAnimationSequence(
+          entries: List.of(_seqEntries),
+        ),
+      _AnimType.keyframed => PixelAnimationKeyframed(
+          durationMs: _keyframedDuration,
+          pattern: _keyframedPattern,
+        ),
+      _AnimType.gradientPattern => PixelAnimationGradientPattern(
+          durationMs: _gpDuration,
+          pattern: _gpPattern,
+          gradient: _gpGrad.build(),
+        ),
+    };
   }
+
+  // ── Gradient section helper ────────────────────────────────────────────────
+
+  List<Widget> _gradSection(String label, _GradState s) {
+    return [
+      DropdownButtonFormField<_GradPreset>(
+        value: s.preset,
+        decoration: InputDecoration(labelText: label),
+        items: const [
+          DropdownMenuItem(value: _GradPreset.rainbow,  child: Text('Rainbow')),
+          DropdownMenuItem(value: _GradPreset.fire,     child: Text('Fire')),
+          DropdownMenuItem(value: _GradPreset.water,    child: Text('Water')),
+          DropdownMenuItem(value: _GradPreset.solid,    child: Text('Solid Color')),
+          DropdownMenuItem(value: _GradPreset.twoColor, child: Text('Two Color')),
+        ],
+        onChanged: (v) { if (v != null) setState(() => s.preset = v); },
+      ),
+      if (s.preset == _GradPreset.solid || s.preset == _GradPreset.twoColor) ...[
+        const SizedBox(height: 8),
+        if (s.preset == _GradPreset.twoColor)
+          const Text('Start color', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        Row(
+          children: [
+            Expanded(child: _intField('R', s.r1, 0, 255, (v) => s.r1 = v)),
+            const SizedBox(width: 6),
+            Expanded(child: _intField('G', s.g1, 0, 255, (v) => s.g1 = v)),
+            const SizedBox(width: 6),
+            Expanded(child: _intField('B', s.b1, 0, 255, (v) => s.b1 = v)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Container(
+          height: 24,
+          decoration: BoxDecoration(
+            color: Color.fromARGB(255, s.r1, s.g1, s.b1),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: Colors.grey.shade400),
+          ),
+        ),
+      ],
+      if (s.preset == _GradPreset.twoColor) ...[
+        const SizedBox(height: 8),
+        const Text('End color', style: TextStyle(fontSize: 12, color: Colors.grey)),
+        Row(
+          children: [
+            Expanded(child: _intField('R', s.r2, 0, 255, (v) => s.r2 = v)),
+            const SizedBox(width: 6),
+            Expanded(child: _intField('G', s.g2, 0, 255, (v) => s.g2 = v)),
+            const SizedBox(width: 6),
+            Expanded(child: _intField('B', s.b2, 0, 255, (v) => s.b2 = v)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Container(
+          height: 24,
+          decoration: BoxDecoration(
+            color: Color.fromARGB(255, s.r2, s.g2, s.b2),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: Colors.grey.shade400),
+          ),
+        ),
+      ],
+    ];
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    final availableTypes = _AnimType.values.where((t) {
+      if (t == _AnimType.sequence && widget.animCount == 0) return false;
+      return true;
+    }).toList();
+
     return AlertDialog(
       title: const Text('Edit Animation'),
       content: SingleChildScrollView(
@@ -325,15 +583,29 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SegmentedButton<_AnimType>(
-              segments: const [
-                ButtonSegment(value: _AnimType.solid, label: Text('Solid Flash')),
-                ButtonSegment(value: _AnimType.rainbow, label: Text('Rainbow')),
-              ],
-              selected: {_type},
-              onSelectionChanged: (s) => setState(() => _type = s.first),
+            // ── Type selector ──────────────────────────────────────────────
+            DropdownButtonFormField<_AnimType>(
+              value: _type,
+              decoration: const InputDecoration(labelText: 'Type'),
+              items: availableTypes.map((t) => DropdownMenuItem(
+                value: t,
+                child: Text(switch (t) {
+                  _AnimType.solid           => 'Solid Flash',
+                  _AnimType.rainbow         => 'Rainbow',
+                  _AnimType.gradient        => 'Flow',
+                  _AnimType.cycle           => 'Color Cycle',
+                  _AnimType.noise           => 'Noise',
+                  _AnimType.normals         => 'Normals',
+                  _AnimType.sequence        => 'Sequence',
+                  _AnimType.keyframed       => 'Keyframed',
+                  _AnimType.gradientPattern => 'Gradient Pattern',
+                }),
+              )).toList(),
+              onChanged: (v) { if (v != null) setState(() => _type = v); },
             ),
             const SizedBox(height: 16),
+
+            // ── Solid Flash ────────────────────────────────────────────────
             if (_type == _AnimType.solid) ...[
               _intField('Duration (ms)', _durationMs, 100, 10000, (v) => _durationMs = v),
               const SizedBox(height: 8),
@@ -355,16 +627,14 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
                   Expanded(
                     child: Slider(
                       value: _fade.toDouble(),
-                      min: 0,
-                      max: 255,
+                      min: 0, max: 255,
                       onChanged: (v) => setState(() => _fade = v.round()),
                     ),
                   ),
                   Text('$_fade'),
                 ],
               ),
-              const SizedBox(height: 8),
-              // Color preview
+              const SizedBox(height: 4),
               Container(
                 height: 40,
                 decoration: BoxDecoration(
@@ -374,6 +644,8 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
                 ),
               ),
             ],
+
+            // ── Rainbow ────────────────────────────────────────────────────
             if (_type == _AnimType.rainbow) ...[
               _intField('Duration (ms)', _rainbowDuration, 100, 10000, (v) => _rainbowDuration = v),
               const SizedBox(height: 8),
@@ -383,14 +655,261 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
                   Expanded(
                     child: Slider(
                       value: _intensity.toDouble(),
-                      min: 0,
-                      max: 255,
+                      min: 0, max: 255,
                       onChanged: (v) => setState(() => _intensity = v.round()),
                     ),
                   ),
                   Text('$_intensity'),
                 ],
               ),
+            ],
+
+            // ── Flow (Gradient) ────────────────────────────────────────────
+            if (_type == _AnimType.gradient) ...[
+              _intField('Duration (ms)', _gradFlowDuration, 100, 10000, (v) => _gradFlowDuration = v),
+              const SizedBox(height: 8),
+              ..._gradSection('Gradient', _gradFlowGrad),
+            ],
+
+            // ── Color Cycle ────────────────────────────────────────────────
+            if (_type == _AnimType.cycle) ...[
+              _intField('Duration (ms)', _cycleDuration, 100, 10000, (v) => _cycleDuration = v),
+              const SizedBox(height: 8),
+              _intField('Count (loops)', _cycleCount, 1, 10, (v) => _cycleCount = v),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Text('Intensity'),
+                  Expanded(
+                    child: Slider(
+                      value: _cycleIntensity.toDouble(),
+                      min: 0, max: 255,
+                      onChanged: (v) => setState(() => _cycleIntensity = v.round()),
+                    ),
+                  ),
+                  Text('$_cycleIntensity'),
+                ],
+              ),
+              Row(
+                children: [
+                  const Text('Speed'),
+                  Expanded(
+                    child: Slider(
+                      value: _cyclesTimes10.toDouble(),
+                      min: 1, max: 50,
+                      onChanged: (v) => setState(() => _cyclesTimes10 = v.round()),
+                    ),
+                  ),
+                  Text('${(_cyclesTimes10 / 10).toStringAsFixed(1)}×'),
+                ],
+              ),
+              Row(
+                children: [
+                  const Text('Fade'),
+                  Expanded(
+                    child: Slider(
+                      value: _cycleFade.toDouble(),
+                      min: 0, max: 255,
+                      onChanged: (v) => setState(() => _cycleFade = v.round()),
+                    ),
+                  ),
+                  Text('$_cycleFade'),
+                ],
+              ),
+              const SizedBox(height: 4),
+              ..._gradSection('Gradient', _cycleGrad),
+            ],
+
+            // ── Noise ──────────────────────────────────────────────────────
+            if (_type == _AnimType.noise) ...[
+              _intField('Duration (ms)', _noiseDuration, 100, 10000, (v) => _noiseDuration = v),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Text('Fade'),
+                  Expanded(
+                    child: Slider(
+                      value: _noiseFade.toDouble(),
+                      min: 0, max: 255,
+                      onChanged: (v) => setState(() => _noiseFade = v.round()),
+                    ),
+                  ),
+                  Text('$_noiseFade'),
+                ],
+              ),
+              const SizedBox(height: 4),
+              ..._gradSection('Background Gradient', _noiseGrad),
+              const SizedBox(height: 8),
+              ..._gradSection('Spark Color', _noiseBlinkGrad),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Text('Spark Rate'),
+                  Expanded(
+                    child: Slider(
+                      value: _blinkFreqTimes1000.toDouble(),
+                      min: 200, max: 5000,
+                      onChanged: (v) => setState(() => _blinkFreqTimes1000 = v.round()),
+                    ),
+                  ),
+                  Text('${(_blinkFreqTimes1000 / 1000).toStringAsFixed(1)} Hz'),
+                ],
+              ),
+              _intField('Spark Duration (ms)', _blinkDuration, 20, 500, (v) => _blinkDuration = v),
+            ],
+
+            // ── Normals ────────────────────────────────────────────────────
+            if (_type == _AnimType.normals) ...[
+              _intField('Duration (ms)', _normDuration, 100, 10000, (v) => _normDuration = v),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Text('Fade'),
+                  Expanded(
+                    child: Slider(
+                      value: _normFade.toDouble(),
+                      min: 0, max: 255,
+                      onChanged: (v) => setState(() => _normFade = v.round()),
+                    ),
+                  ),
+                  Text('$_normFade'),
+                ],
+              ),
+              const SizedBox(height: 4),
+              ..._gradSection('Gradient', _normGrad),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Expanded(child: Text('Axis Scale', style: TextStyle(fontSize: 13))),
+                  Text((_axisScaleTimes1000 / 1000).toStringAsFixed(2)),
+                ],
+              ),
+              Slider(
+                value: _axisScaleTimes1000.toDouble(),
+                min: 100, max: 3000,
+                onChanged: (v) => setState(() => _axisScaleTimes1000 = v.round()),
+              ),
+              Row(
+                children: [
+                  const Expanded(child: Text('Axis Scroll (waterfall)', style: TextStyle(fontSize: 13))),
+                  Text((_axisScrollTimes1000 / 1000).toStringAsFixed(2)),
+                ],
+              ),
+              Slider(
+                value: _axisScrollTimes1000.toDouble(),
+                min: -3000, max: 3000,
+                onChanged: (v) => setState(() => _axisScrollTimes1000 = v.round()),
+              ),
+              Row(
+                children: [
+                  const Expanded(child: Text('Angle Scroll (spiral)', style: TextStyle(fontSize: 13))),
+                  Text((_angleScrollTimes1000 / 1000).toStringAsFixed(2)),
+                ],
+              ),
+              Slider(
+                value: _angleScrollTimes1000.toDouble(),
+                min: -3000, max: 3000,
+                onChanged: (v) => setState(() => _angleScrollTimes1000 = v.round()),
+              ),
+            ],
+
+            // ── Keyframed ──────────────────────────────────────────────────
+            if (_type == _AnimType.keyframed) ...[
+              _intField('Duration (ms)', _keyframedDuration, 100, 10000, (v) => _keyframedDuration = v),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<PixelPattern?>(
+                value: _keyframedPattern,
+                decoration: const InputDecoration(labelText: 'Pattern'),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('— none —')),
+                  ...kBuiltinPatterns.map((p) => DropdownMenuItem(value: p, child: Text(p.name))),
+                ],
+                onChanged: (v) => setState(() => _keyframedPattern = v),
+              ),
+            ],
+
+            // ── Gradient Pattern ───────────────────────────────────────────
+            if (_type == _AnimType.gradientPattern) ...[
+              _intField('Duration (ms)', _gpDuration, 100, 10000, (v) => _gpDuration = v),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<PixelPattern?>(
+                value: _gpPattern,
+                decoration: const InputDecoration(labelText: 'Pattern'),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('— none —')),
+                  ...kBuiltinPatterns.map((p) => DropdownMenuItem(value: p, child: Text(p.name))),
+                ],
+                onChanged: (v) => setState(() => _gpPattern = v),
+              ),
+              const SizedBox(height: 8),
+              ..._gradSection('Color Gradient', _gpGrad),
+            ],
+
+            // ── Sequence ───────────────────────────────────────────────────
+            if (_type == _AnimType.sequence) ...[
+              const Text(
+                'Plays up to 4 animations in sequence.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              ..._seqEntries.asMap().entries.map((e) {
+                final idx = e.key;
+                final (animIdx, delayMs) = e.value;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Text('${idx + 1}.', style: const TextStyle(fontSize: 13)),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          value: animIdx.clamp(0, widget.animCount - 1),
+                          decoration: const InputDecoration(
+                            labelText: 'Animation',
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                          ),
+                          items: List.generate(widget.animCount, (i) => DropdownMenuItem(
+                            value: i,
+                            child: Text('Anim ${i + 1}'),
+                          )),
+                          onChanged: (v) {
+                            if (v != null) setState(() => _seqEntries[idx] = (v, delayMs));
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 80,
+                        child: TextField(
+                          controller: TextEditingController(text: '$delayMs'),
+                          decoration: const InputDecoration(
+                            labelText: 'Delay ms',
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                          ),
+                          keyboardType: TextInputType.number,
+                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          onChanged: (s) {
+                            final v = int.tryParse(s) ?? 0;
+                            setState(() => _seqEntries[idx] = (animIdx, v.clamp(0, 5000)));
+                          },
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline, size: 18),
+                        onPressed: () => setState(() => _seqEntries.removeAt(idx)),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              if (_seqEntries.length < 4)
+                TextButton.icon(
+                  onPressed: () => setState(() => _seqEntries.add((0, 0))),
+                  icon: const Icon(Icons.add, size: 16),
+                  label: const Text('Add step'),
+                ),
             ],
           ],
         ),
@@ -469,10 +988,10 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
 
   PixelRule _build() {
     final PixelCondition cond = switch (_condType) {
-      _CondType.rolled => PixelConditionRolled(faceMask: _faceMask),
-      _CondType.rolling => PixelConditionRolling(repeatPeriodMs: _rollingPeriodMs),
+      _CondType.rolled       => PixelConditionRolled(faceMask: _faceMask),
+      _CondType.rolling      => PixelConditionRolling(repeatPeriodMs: _rollingPeriodMs),
       _CondType.helloGoodbye => PixelConditionHelloGoodbye(flags: _helloFlags),
-      _CondType.handling => PixelConditionHandling(),
+      _CondType.handling     => PixelConditionHandling(),
     };
     return PixelRule(
       condition: cond,
@@ -494,10 +1013,10 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
             DropdownButtonFormField<_CondType>(
               value: _condType,
               items: const [
-                DropdownMenuItem(value: _CondType.rolled, child: Text('Rolled (face landed)')),
-                DropdownMenuItem(value: _CondType.rolling, child: Text('Rolling (in motion)')),
+                DropdownMenuItem(value: _CondType.rolled,       child: Text('Rolled (face landed)')),
+                DropdownMenuItem(value: _CondType.rolling,      child: Text('Rolling (in motion)')),
                 DropdownMenuItem(value: _CondType.helloGoodbye, child: Text('Hello / Goodbye')),
-                DropdownMenuItem(value: _CondType.handling, child: Text('Handling (picked up)')),
+                DropdownMenuItem(value: _CondType.handling,     child: Text('Handling (picked up)')),
               ],
               onChanged: (v) { if (v != null) setState(() => _condType = v); },
             ),
@@ -525,8 +1044,7 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
               Text('Repeat period: $_rollingPeriodMs ms'),
               Slider(
                 value: _rollingPeriodMs.toDouble(),
-                min: 100,
-                max: 2000,
+                min: 100, max: 2000,
                 divisions: 19,
                 onChanged: (v) => setState(() => _rollingPeriodMs = v.round()),
               ),
@@ -565,8 +1083,7 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
               Text('Loop count: $_loopCount'),
               Slider(
                 value: _loopCount.toDouble(),
-                min: 1,
-                max: 10,
+                min: 1, max: 10,
                 divisions: 9,
                 onChanged: (v) => setState(() => _loopCount = v.round()),
               ),

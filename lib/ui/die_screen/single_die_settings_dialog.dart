@@ -5,6 +5,7 @@ import 'package:flutter/widget_previews.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/dice_sdks/godice.dart';
+import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
 import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/dice_sdks/pixels_profile_transfer.dart';
 import 'package:roll_feathers/services/pixels/pixel_profile_store.dart';
@@ -544,9 +545,11 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (widget.die.type == GenericDieType.virtual) ...[
+                      if (widget.die.type == GenericDieType.virtual ||
+                          widget.die.type == GenericDieType.pixel) ...[
                         TextField(
                           controller: _nameController,
+                          maxLength: pix.MessageSetName.maxNameBytes,
                           decoration: const InputDecoration(
                             labelText: 'Die Name',
                             hintText: 'Enter a name for the die',
@@ -713,7 +716,8 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                       widget.onSave(
                         widget.die,
                         DieSettings(
-                          friendlyName: widget.die.type == GenericDieType.virtual
+                          friendlyName: widget.die.type == GenericDieType.virtual ||
+                                  widget.die.type == GenericDieType.pixel
                               ? _nameController.text
                               : null,
                           blinkColor: _currentColor.toColor().withValues(alpha: _brightness),

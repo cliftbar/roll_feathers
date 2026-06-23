@@ -16,6 +16,7 @@ import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
 import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
 import 'package:roll_feathers/dice_sdks/pixels_builtin_profiles.dart';
+import 'package:roll_feathers/dice_sdks/pixels_patterns.dart';
 import 'package:roll_feathers/dice_sdks/pixels_profile_transfer.dart';
 import 'package:roll_feathers/repositories/ble/ble_universal_repository.dart';
 
@@ -106,6 +107,7 @@ void main() {
   PixelDie? die;
 
   setUp(() async {
+    registerBuiltinPatterns(kBuiltinPatterns);
     UniversalBle.timeout = const Duration(seconds: 25);
     if (!await _waitForBle()) {
       // BLE state will cause individual tests to skip
@@ -251,5 +253,158 @@ void main() {
     // Play anim index 0 on face 19 (top) once
     await transfer.playInstantAnimation(animIndex: 0, faceIndex: 19, loopCount: 1);
     debugPrint('[live-die] instant animation sent — verify visually that die lit up');
+  });
+
+  // ---------------------------------------------------------------------------
+  // 4 — Pattern-based animations: Keyframed and GradientPattern hash parity
+  // ---------------------------------------------------------------------------
+
+  test('Keyframed animation with builtin pattern — dataSetHash matches', () async {
+    if (!await _waitForBle()) {
+      debugPrint('[live-die] SKIP: BLE not available');
+      return;
+    }
+    final device = await _scanForPixelsDie();
+    if (device == null) {
+      debugPrint('[live-die] SKIP: no Pixels die found');
+      return;
+    }
+
+    die = await _connectDie(device);
+    final adapter = PixelBleAdapter(die!);
+    await _whoAreYou(die!, adapter);
+
+    final pattern = kBuiltinPatterns.first;
+    final profile = PixelProfile(
+      id: '',
+      name: 'Keyframed Test',
+      brightness: 255,
+      animations: [
+        PixelAnimationKeyframed(durationMs: 2000, pattern: pattern),
+      ],
+      rules: [
+        PixelRule(
+          condition: PixelConditionRolled(),
+          actions: [PixelActionPlayAnimation(animIndex: 0)],
+        ),
+      ],
+    );
+    final expectedHash = PixelDataSet(profile).computeHash().toUnsigned(32);
+    debugPrint(
+      '[live-die] transferring Keyframed (pattern="${pattern.name}") '
+      'hash=0x${expectedHash.toRadixString(16).padLeft(8, '0')}',
+    );
+
+    final transfer = PixelsProfileTransfer(adapter);
+    await transfer.transferProfile(profile).timeout(_kTransferTimeout);
+
+    await Future.delayed(const Duration(milliseconds: 200));
+    final postInfo = await _whoAreYou(die!, adapter);
+    final actualHash = postInfo.dataSetHash.toUnsigned(32);
+    debugPrint(
+      '[live-die] post-flash hash=0x${actualHash.toRadixString(16).padLeft(8, '0')} '
+      '(${actualHash == expectedHash ? 'MATCH' : 'MISMATCH'})',
+    );
+    expect(actualHash, expectedHash);
+  });
+
+  test('GradientPattern animation with builtin pattern — dataSetHash matches', () async {
+    if (!await _waitForBle()) {
+      debugPrint('[live-die] SKIP: BLE not available');
+      return;
+    }
+    final device = await _scanForPixelsDie();
+    if (device == null) {
+      debugPrint('[live-die] SKIP: no Pixels die found');
+      return;
+    }
+
+    die = await _connectDie(device);
+    final adapter = PixelBleAdapter(die!);
+    await _whoAreYou(die!, adapter);
+
+    final pattern = kBuiltinPatterns.first;
+    final profile = PixelProfile(
+      id: '',
+      name: 'GradientPattern Test',
+      brightness: 255,
+      animations: [
+        PixelAnimationGradientPattern(
+          durationMs: 2000,
+          pattern: pattern,
+          gradient: PixelGradient.rainbow,
+        ),
+      ],
+      rules: [
+        PixelRule(
+          condition: PixelConditionRolled(),
+          actions: [PixelActionPlayAnimation(animIndex: 0)],
+        ),
+      ],
+    );
+    final expectedHash = PixelDataSet(profile).computeHash().toUnsigned(32);
+    debugPrint(
+      '[live-die] transferring GradientPattern (pattern="${pattern.name}") '
+      'hash=0x${expectedHash.toRadixString(16).padLeft(8, '0')}',
+    );
+
+    final transfer = PixelsProfileTransfer(adapter);
+    await transfer.transferProfile(profile).timeout(_kTransferTimeout);
+
+    await Future.delayed(const Duration(milliseconds: 200));
+    final postInfo = await _whoAreYou(die!, adapter);
+    final actualHash = postInfo.dataSetHash.toUnsigned(32);
+    debugPrint(
+      '[live-die] post-flash hash=0x${actualHash.toRadixString(16).padLeft(8, '0')} '
+      '(${actualHash == expectedHash ? 'MATCH' : 'MISMATCH'})',
+    );
+    expect(actualHash, expectedHash);
+  });
+
+  // ---------------------------------------------------------------------------
+  // 5 — True BLE rename: SetName is accepted (SetNameAck) and persisted
+  // ---------------------------------------------------------------------------
+
+  test('SetName renames die (SetNameAck) and restores original name', () async {
+    if (!await _waitForBle()) {
+      debugPrint('[live-die] SKIP: BLE not available');
+      return;
+    }
+    final device = await _scanForPixelsDie();
+    if (device == null) {
+      debugPrint('[live-die] SKIP: no Pixels die found');
+      return;
+    }
+
+    die = await _connectDie(device);
+    final adapter = PixelBleAdapter(die!);
+    await _whoAreYou(die!, adapter);
+
+    // Capture the current advertised name so we can restore it — SetName writes
+    // to the die's persistent flash settings, so this test must not leave the
+    // user's die renamed.
+    final originalName = (device.name?.isNotEmpty ?? false) ? device.name! : die!.friendlyName;
+    debugPrint('[live-die] original name: "$originalName"');
+
+    // Rename to a test value and wait for the firmware's SetNameAck.
+    const testName = 'RollFeathersIT';
+    final ack = adapter.waitFor<pix.MessageNone>(
+      pix.PixelMessageType.setNameAck,
+      timeout: _kResponseTimeout,
+    );
+    await die!.sendMessage(pix.MessageSetName(testName));
+    await expectLater(ack, completes);
+    debugPrint('[live-die] rename to "$testName" acked');
+
+    // Restore the original name (also verifies a second rename round-trips).
+    expect(originalName, isNotEmpty,
+        reason: 'need the original name to restore the die');
+    final restoreAck = adapter.waitFor<pix.MessageNone>(
+      pix.PixelMessageType.setNameAck,
+      timeout: _kResponseTimeout,
+    );
+    await die!.sendMessage(pix.MessageSetName(originalName));
+    await restoreAck;
+    debugPrint('[live-die] restored original name "$originalName"');
   });
 }

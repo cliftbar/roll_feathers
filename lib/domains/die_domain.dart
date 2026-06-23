@@ -175,6 +175,16 @@ class DieDomain {
     }
   }
 
+  /// Renames [die] at the firmware level (Pixels only). The new name is stored on
+  /// the die itself, survives reboots, and is visible to other apps. The firmware
+  /// truncates names longer than [MessageSetName.maxNameBytes] (31) bytes.
+  /// No-op for non-Pixels dice.
+  Future<void> setDieName(GenericDie die, String name) async {
+    if (die is PixelDie) {
+      await die.sendMessage(MessageSetName(name));
+    }
+  }
+
   static ({int onMs, int offMs, int fade}) _presetTiming(RollingFlashPreset preset) =>
       switch (preset) {
         RollingFlashPreset.strobe  => (onMs: 50,  offMs: 50,  fade: 0),

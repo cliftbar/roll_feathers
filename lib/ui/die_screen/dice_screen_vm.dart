@@ -120,6 +120,11 @@ class DiceScreenViewModel extends ChangeNotifier {
     die.rollingFlashPreset = settings.rollingFlashPreset;
     if (settings.friendlyName != null) {
       die.friendlyName = settings.friendlyName!;
+      // Pixels: push the name to the die's firmware so it persists on the die
+      // itself and is visible to other apps (true BLE rename).
+      if (die.type == GenericDieType.pixel && settings.friendlyName!.isNotEmpty) {
+        await _diWrapper.dieDomain.setDieName(die, settings.friendlyName!);
+      }
     }
     if (die.type != GenericDieType.pixel && settings.faceTypeName != null) {
       final dt = GenericDTypeFactory.getKnown(settings.faceTypeName!);

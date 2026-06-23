@@ -16,6 +16,16 @@ import '../test_util.dart';
 
 class MockBleDeviceWrapper extends Mock implements BleDeviceWrapper {}
 
+List<int> _buildTestIAmADie() => [
+  pix.PixelMessageType.iAmADie.index,
+  20, 0, pix.PixelDieType.d20.index,
+  0, 0, 0, 0, // dataSetHash
+  1, 0, 0, 0, // pixelId
+  0, 0, // availableFlash
+  0, 0, 0, 0, // buildTimestamp
+  DiceRollState.onFace.index, 0, 100, 0,
+];
+
 // Minimal DieDomain subclass for direct method testing.
 class _TestDieDomain extends DieDomain {
   _TestDieDomain() : super(TestBleRepository(), HaRepositoryEmpty());
@@ -43,7 +53,12 @@ Future<PixelDie> _makePixelDie(MockBleDeviceWrapper device) async {
         notifyUuid: any(named: 'notifyUuid'),
         writeUuid: any(named: 'writeUuid'),
       )).thenAnswer((_) async {});
-  when(() => device.writeMessage(any())).thenAnswer((_) async {});
+  when(() => device.writeMessage(any())).thenAnswer((invocation) async {
+    final data = invocation.positionalArguments[0] as List<int>;
+    if (data.isNotEmpty && data[0] == pix.PixelMessageType.whoAreYou.index) {
+      ctrl.add(_buildTestIAmADie());
+    }
+  });
   return PixelDie.create(device: device);
 }
 
@@ -78,6 +93,41 @@ void main() {
       final vDie = VirtualDie(dType: GenericDTypeFactory.getKnownChecked('d6'));
       await domain.stopAnimations(vDie);
       verifyNever(() => mockDevice.writeMessage(any()));
+    });
+  });
+
+  // ── setDieName (true BLE rename) ─────────────────────────────────────────────
+
+  group('setDieName', () {
+    test('sends MessageSetName with the encoded name to Pixels die', () async {
+      await domain.setDieName(pixelDie, 'Sparkle');
+
+      final captured = verify(() => mockDevice.writeMessage(captureAny())).captured;
+      expect(captured, hasLength(1));
+      final buf = captured.first as List<int>;
+      expect(buf[0], equals(pix.PixelMessageType.setName.index));
+      // Name bytes follow the type byte; buffer is padded to maxNameBytes + 1.
+      expect(buf.sublist(1, 1 + 'Sparkle'.length), equals('Sparkle'.codeUnits));
+      expect(buf.length, equals(1 + pix.MessageSetName.maxNameBytes + 1));
+    });
+
+    test('no-op for VirtualDie', () async {
+      final vDie = VirtualDie(dType: GenericDTypeFactory.getKnownChecked('d6'));
+      await domain.setDieName(vDie, 'Sparkle');
+      verifyNever(() => mockDevice.writeMessage(any()));
+    });
+  });
+
+  // ── friendlyName override (rename reflects locally) ──────────────────────────
+
+  group('friendlyName override', () {
+    test('defaults to the BLE-advertised name', () {
+      expect(pixelDie.friendlyName, equals('Test Pixel'));
+    });
+
+    test('setter overrides the advertised name', () {
+      pixelDie.friendlyName = 'Sparkle';
+      expect(pixelDie.friendlyName, equals('Sparkle'));
     });
   });
 

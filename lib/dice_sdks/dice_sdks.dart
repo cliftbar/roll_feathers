@@ -162,8 +162,13 @@ abstract class GenericBleDie extends GenericDie {
   BleDeviceWrapper device;
   VoidCallback? onStateChanged;
   StreamSubscription<List<int>>? _notifySubscription;
+
+  /// App-side name override. Takes precedence over the BLE-advertised name so a
+  /// rename reflects immediately (before the die re-advertises) and a persisted
+  /// name restores on reconnect.
+  String? _friendlyNameOverride;
   @override
-  set friendlyName(String name) {}
+  set friendlyName(String name) => _friendlyNameOverride = name;
 
   void dispose() {
     _notifySubscription?.cancel();
@@ -238,7 +243,7 @@ abstract class GenericBleDie extends GenericDie {
   String get dieId => device.deviceId;
 
   @override
-  String get friendlyName => device.friendlyName;
+  String get friendlyName => _friendlyNameOverride ?? device.friendlyName;
 }
 
 class GoDiceBle extends GenericBleDie {

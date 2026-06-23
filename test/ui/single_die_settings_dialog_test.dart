@@ -149,9 +149,9 @@ void main() {
       expect(find.text('My D6'), findsOneWidget);
     });
 
-    testWidgets('non-virtual dice (Pixels) do not show name field', (tester) async {
+    testWidgets('Pixels dice show name field (true BLE rename)', (tester) async {
       await _pumpDialog(tester, die: _pixelDie(name: 'My Pixel'));
-      expect(find.widgetWithText(TextField, 'Die Name'), findsNothing);
+      expect(find.widgetWithText(TextField, 'Die Name'), findsOneWidget);
     });
 
     testWidgets('non-virtual dice (GoDice) do not show name field', (tester) async {
@@ -177,11 +177,23 @@ void main() {
       expect(savedName, 'Updated Name');
     });
 
-    testWidgets('Save does not include friendlyName for non-virtual dice', (tester) async {
+    testWidgets('Save includes friendlyName for Pixels dice', (tester) async {
       DieSettings? savedSettings;
       await _pumpDialog(
         tester,
         die: _pixelDie(name: 'My Pixel'),
+        onSave: (_, s) => savedSettings = s,
+      );
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+      expect(savedSettings?.friendlyName, 'My Pixel');
+    });
+
+    testWidgets('Save does not include friendlyName for GoDice dice', (tester) async {
+      DieSettings? savedSettings;
+      await _pumpDialog(
+        tester,
+        die: _godiceDie(name: 'My GoDice'),
         onSave: (_, s) => savedSettings = s,
       );
       await tester.tap(find.text('Save'));

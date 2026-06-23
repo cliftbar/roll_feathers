@@ -40,7 +40,8 @@ void main() {
     expect(dieDomain.rollingBlinked, contains('die-A'));
   });
 
-  test('rolled state fires stopAnimations for that die', () async {
+  test('rolled state stops animations when rolling flash is enabled', () async {
+    die.rollingFlashEnabled = true;
     die.fireRollState(DiceRollState.rolling);
     await Future.delayed(Duration.zero);
     die.fireRollState(DiceRollState.rolled);
@@ -49,13 +50,37 @@ void main() {
     expect(dieDomain.animationsStopped, contains('die-A'));
   });
 
-  test('crooked state fires stopAnimations for that die', () async {
+  test('crooked state stops animations when rolling flash is enabled', () async {
+    die.rollingFlashEnabled = true;
     die.fireRollState(DiceRollState.rolling);
     await Future.delayed(Duration.zero);
     die.fireRollState(DiceRollState.crooked);
     await Future.delayed(Duration.zero);
 
     expect(dieDomain.animationsStopped, contains('die-A'));
+  });
+
+  // Regression guard: when rolling flash is OFF, the app must NOT send
+  // StopAllAnimations on landing — doing so clobbered the die's own on-die
+  // profile "rolled" animation.
+  test('rolled state does NOT stop animations when rolling flash is disabled', () async {
+    die.rollingFlashEnabled = false;
+    die.fireRollState(DiceRollState.rolling);
+    await Future.delayed(Duration.zero);
+    die.fireRollState(DiceRollState.rolled);
+    await Future.delayed(Duration.zero);
+
+    expect(dieDomain.animationsStopped, isNot(contains('die-A')));
+  });
+
+  test('crooked state does NOT stop animations when rolling flash is disabled', () async {
+    die.rollingFlashEnabled = false;
+    die.fireRollState(DiceRollState.rolling);
+    await Future.delayed(Duration.zero);
+    die.fireRollState(DiceRollState.crooked);
+    await Future.delayed(Duration.zero);
+
+    expect(dieDomain.animationsStopped, isNot(contains('die-A')));
   });
 
   test('crooked state does not process a roll result', () async {

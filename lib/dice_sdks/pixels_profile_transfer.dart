@@ -33,10 +33,12 @@ class PixelsProfileTransfer {
     final ds = PixelDataSet(profile);
     final stats = ds.computeStats();
     final bytes = ds.toByteArray();
+    final ourHash = ds.computeHash().toUnsigned(32);
 
-    _log.info(
-      'Transferring profile "${profile.name}" (${bytes.length} bytes) to ${die.dieId}: '
-      'palette=${stats.paletteSize} anims=${stats.animationCount}×${stats.animationSize}B '
+    _log.info('Transferring profile "${profile.name}" (${bytes.length} bytes, '
+        'hash=0x${ourHash.toRadixString(16).toUpperCase().padLeft(8, '0')}) to ${die.dieId}');
+    _log.fine(
+      'DataSet stats: palette=${stats.paletteSize} anims=${stats.animationCount}×${stats.animationSize}B '
       'conds=${stats.conditionCount}×${stats.conditionSize}B '
       'acts=${stats.actionCount}×${stats.actionSize}B rules=${stats.ruleCount}',
     );
@@ -78,7 +80,58 @@ class PixelsProfileTransfer {
     await _uploadBulkData(bytes);
     await finishedFuture;
 
-    _log.info('Profile transfer complete');
+    _log.info('Profile transfer complete for "${profile.name}" '
+        '(${bytes.length} bytes, hash=0x${ourHash.toRadixString(16).toUpperCase().padLeft(8, '0')})');
+
+    // Verbose verification, only when debug logging is enabled: dump the exact
+    // bytes sent and poll the die for its freshly-stored hash to confirm the
+    // transfer landed intact (useful for byte-level comparison against the
+    // official app / pixels-js fixtures).
+    if (_log.isLoggable(Level.FINE)) {
+      await _verifyTransfer(bytes, ourHash);
+    }
+  }
+
+  /// Debug-only: logs a hex dump of the sent bytes and compares our hash against
+  /// the die's actually-stored hash (read via a fresh IAmADie). The die does not
+  /// proactively send IAmADie after a transfer, so we poll with WhoAreYou.
+  Future<void> _verifyTransfer(Uint8List bytes, int ourHash) async {
+    _log.fine('DataSet bytes (${bytes.length}) sent to ${die.dieId}:\n${_hexDump(bytes)}');
+
+    var dieHashAfter = die.currentDataSetHash?.toUnsigned(32) ?? 0;
+    try {
+      final iAmADieFuture = die.waitFor<pix.MessageIAmADie>(
+        pix.PixelMessageType.iAmADie,
+        timeout: const Duration(milliseconds: _kAckTimeoutMs),
+      );
+      await die.sendMessage(pix.MessageWhoAreYou());
+      final fresh = await iAmADieFuture;
+      dieHashAfter = fresh.dataSetHash.toUnsigned(32);
+    } catch (e) {
+      _log.warning('Could not read fresh IAmADie hash after transfer: $e');
+    }
+
+    _log.fine(
+      'Transfer verification: '
+      'ourHash=0x${ourHash.toRadixString(16).toUpperCase().padLeft(8, '0')} '
+      'dieHash=0x${dieHashAfter.toRadixString(16).toUpperCase().padLeft(8, '0')} '
+      '${ourHash == dieHashAfter ? "MATCH ✓" : "MISMATCH ✗ — bytes on die differ from what we sent"}',
+    );
+  }
+
+  /// Space-separated hex dump, 16 bytes per line with a byte offset prefix.
+  static String _hexDump(Uint8List data) {
+    final sb = StringBuffer();
+    for (var i = 0; i < data.length; i += 16) {
+      final end = (i + 16 < data.length) ? i + 16 : data.length;
+      sb.write('${i.toRadixString(16).padLeft(4, '0')}: ');
+      for (var j = i; j < end; j++) {
+        sb.write(data[j].toRadixString(16).padLeft(2, '0'));
+        sb.write(' ');
+      }
+      sb.write('\n');
+    }
+    return sb.toString().trimRight();
   }
 
   /// Upload animations to die RAM for preview (lost on sleep/reboot).

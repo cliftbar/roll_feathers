@@ -202,7 +202,12 @@ class RollDomain {
 
       die.addRollCallback(DiceRollState.rolled, "$hashCode.rolled", (DiceRollState rollState) async {
         dieBlinking = false;
-        await _diceDomain.stopAnimations(die);
+        // Only stop animations to clear the app's rolling-flash blink. When
+        // rolling flash is off, the die may be playing its own on-die profile
+        // "rolled" animation — StopAllAnimations would clobber it.
+        if (die.rollingFlashEnabled) {
+          await _diceDomain.stopAnimations(die);
+        }
         bool allDiceRolled = areDieRolling(data.values.where((d) => d.type != GenericDieType.virtual).toList());
         _rolledDie[die.dieId] = die;
         _rollEndVirtualDie();
@@ -216,7 +221,9 @@ class RollDomain {
 
       die.addRollCallback(DiceRollState.crooked, "$hashCode.crooked", (DiceRollState rollState) async {
         dieBlinking = false;
-        await _diceDomain.stopAnimations(die);
+        if (die.rollingFlashEnabled) {
+          await _diceDomain.stopAnimations(die);
+        }
       });
     }
   }

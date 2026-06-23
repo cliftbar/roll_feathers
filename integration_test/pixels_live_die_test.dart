@@ -160,17 +160,9 @@ void main() {
   // 2 — Hash parity: flash a built-in profile and verify dataSetHash
   // ---------------------------------------------------------------------------
 
-  for (final profileName in [
-    'Default Profile',
-    'Waterfall',
-    'Fountain',
-    'Spiral',
-    'Noise',
-    'Rose',
-    'Fire',
-    'Magic',
-    'Water',
-  ]) {
+  // Every built-in profile, to exercise transfer integrity across all animation
+  // and action types (Cycle, Sequence, Noise, Normals, Rainbow, SpeakText, ...).
+  for (final profileName in kBuiltinProfiles.map((p) => p.name)) {
     test('flash "$profileName" → dataSetHash matches Dart computation', () async {
       if (!await _waitForBle()) {
         debugPrint('[live-die] SKIP: BLE not available');

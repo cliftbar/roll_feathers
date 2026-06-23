@@ -491,7 +491,7 @@ class PixelDie extends GenericBleDie {
       case pix.PixelMessageType.rollState:
         var msg = pix.MessageRollState.parse(data);
         _updateStateRoll(msg);
-        _log.fine('Received msg ${msgType.name}: ${DiceRollState.values[msg.rollState]} ${json.encode(msg)}');
+        _log.fine('RollState telemetry: ${DiceRollState.values[msg.rollState]} face=${msg.currentFaceValue}');
         _runMessageCallbacks(msg, msgType);
         DiceRollState rollState =
             state.rollState != null ? DiceRollState.values[state.rollState!] : DiceRollState.unknown;
@@ -552,7 +552,8 @@ class PixelDie extends GenericBleDie {
   }
 
   void _updateStateIAmADie(pix.MessageIAmADie msg) {
-    info ??= pix.PixelDiceInfo(
+    _log.fine('IAmADie dataSetHash=0x${msg.dataSetHash.toUnsigned(32).toRadixString(16).toUpperCase().padLeft(8, '0')} firmware=${msg.buildTimestamp}');
+    info = pix.PixelDiceInfo(
       ledCount: msg.ledCount,
       designAndColor: msg.designAndColor,
       pixelDieTypeFaces: msg.pixelDieTypeFaces,
@@ -592,8 +593,22 @@ class PixelDie extends GenericBleDie {
       _readNotify,
       onError: (e) => _log.severe('notify stream error: $e'),
     );
+
+    final completer = Completer<void>();
+    addMessageCallback(pix.PixelMessageType.iAmADie.index, '_init', (_) {
+      if (!completer.isCompleted) completer.complete();
+    });
+
     await Future.delayed(Duration(milliseconds: 100)); // sleep needed on web??
     await _sendMessageBuffer(pix.MessageWhoAreYou().toBuffer());
+
+    try {
+      await completer.future.timeout(const Duration(seconds: 5));
+    } on TimeoutException {
+      _log.warning('IAmADie not received within 5s during init');
+    } finally {
+      messageRxCallbacks[pix.PixelMessageType.iAmADie.index]?.remove('_init');
+    }
   }
 
   @override

@@ -14,10 +14,24 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Render immediately so the window shows content instead of a black frame
+  // while async init (HA service, BLE, HTTP server, SharedPreferences) completes.
+  runApp(const _SplashApp());
+
   DiWrapper di = await DiWrapper.initDi();
-
-  // create the app factory to ensure instantiation
   RollFeatherApp app = await RollFeatherApp.create(di);
-
   runApp(app);
+}
+
+class _SplashApp extends StatelessWidget {
+  const _SplashApp();
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      home: Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      ),
+    );
+  }
 }

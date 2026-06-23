@@ -129,8 +129,18 @@ class BleUniversalRepository implements BleRepository {
 
   late StreamSubscription<AvailabilityState> _adapterStateSubscription;
 
+  List<String>? _pendingScanServices;
+  List<String>? _pendingScanNamePrefix;
+
   @override
   Future<void> init() async {
+    // Set operation timeout before any connections.
+    if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+      UniversalBle.timeout = const Duration(seconds: 25);
+    } else if (!kIsWeb) {
+      UniversalBle.timeout = const Duration(seconds: 10);
+    }
+
     if (kIsWeb) {
       // On web, BLE is user-gesture gated. Don't block; listen for state changes.
       _adapterStateSubscription = UniversalBle.availabilityStream.listen((state) {
@@ -140,53 +150,43 @@ class BleUniversalRepository implements BleRepository {
       supported = true;
       enabled = true;
       permissioned = true;
+      _bleEnabledSubscription.add(true);
     } else {
-      await _waitForAdapter();
+      // Non-blocking: return immediately so the app can render.
+      // Permissions check and queued scan are triggered when the adapter fires.
+      _adapterStateSubscription = UniversalBle.availabilityStream.listen((state) async {
+        final wasReady = enabled && supported;
+        _updateAvailability(state);
+        if (state == AvailabilityState.poweredOn && !wasReady) {
+          if (!await UniversalBle.hasPermissions()) {
+            await UniversalBle.requestPermissions();
+          }
+          permissioned = await UniversalBle.hasPermissions();
+          _log.info('ble_repo BLE ready (supported=$supported, enabled=$enabled, permissioned=$permissioned)');
+          _bleEnabledSubscription.add(enabled && supported && permissioned);
+          _triggerPendingScan();
+        } else {
+          _bleEnabledSubscription.add(enabled && supported && permissioned);
+        }
+      });
+      _bleEnabledSubscription.add(false);
+      _log.info('ble_repo init returned (BLE adapter initializing asynchronously)');
     }
+  }
 
-    // Longer timeout on desktop for stability
-    if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
-      UniversalBle.timeout = const Duration(seconds: 25);
-    } else {
-      UniversalBle.timeout = const Duration(seconds: 10);
+  void _triggerPendingScan() {
+    final services = _pendingScanServices;
+    final namePrefix = _pendingScanNamePrefix;
+    _pendingScanServices = null;
+    _pendingScanNamePrefix = null;
+    if (services != null || namePrefix != null) {
+      unawaited(scan(services: services, namePrefix: namePrefix));
     }
-
-    supported = await isSupported();
-    if (!supported) {
-      _log.severe("Bluetooth is not supported");
-    }
-
-    // Permissions — use universal_ble 1.x built-in API
-    if (kIsWeb) {
-      permissioned = true;
-    } else if (supported) {
-      if (!await UniversalBle.hasPermissions()) {
-        await UniversalBle.requestPermissions();
-      }
-      permissioned = await UniversalBle.hasPermissions();
-    }
-
-    _bleEnabledSubscription.add(enabled && supported && permissioned);
-    _log.info("ble_repo initialized (supported=$supported, enabled=$enabled, permissioned=$permissioned)");
   }
 
   @override
   Future<bool> isSupported() async {
     return supported;
-  }
-
-  Future<void> _waitForAdapter({Duration timeout = const Duration(seconds: 3)}) async {
-    _adapterStateSubscription = UniversalBle.availabilityStream.listen((state) {
-      _updateAvailability(state);
-      _bleEnabledSubscription.add(enabled && supported && permissioned);
-    });
-    try {
-      await UniversalBle.availabilityStream
-          .firstWhere((state) => state == AvailabilityState.poweredOn)
-          .timeout(timeout);
-    } on TimeoutException {
-      _log.warning('BLE adapter did not power on within timeout; continuing without BLE');
-    }
   }
 
   void _updateAvailability(AvailabilityState state) {
@@ -208,7 +208,9 @@ class BleUniversalRepository implements BleRepository {
   @override
   Future<void> scan({List<String>? services, List<String>? namePrefix, Duration? timeout = const Duration(seconds: 5)}) async {
     if (!kIsWeb && (!supported || !enabled)) {
-      _log.fine("scan() skipped: BLE not ready");
+      _log.fine("scan() queued: BLE adapter not ready");
+      _pendingScanServices = services;
+      _pendingScanNamePrefix = namePrefix;
       return;
     }
     if (await UniversalBle.isScanning()) {

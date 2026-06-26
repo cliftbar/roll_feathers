@@ -15,11 +15,11 @@ const int _kWormMidFaces = 0x3F80; // indices 7–13 → faces 8–14
 const int _kWormHighNonTop = 0x7C000; // indices 14–18 → faces 15–19
 
 // Battery-state condition flags (official SDK: bit 0 is reserved)
-const int _kBattLow = 2;
-const int _kBattCharging = 4;
-const int _kBattDone = 8;
-const int _kBattBadCharging = 16;
-const int _kBattError = 32;
+const int _kBattLow = PixelBatteryFlags.low;
+const int _kBattCharging = PixelBatteryFlags.charging;
+const int _kBattDone = PixelBatteryFlags.done;
+const int _kBattBadCharging = PixelBatteryFlags.badCharging;
+const int _kBattError = PixelBatteryFlags.error;
 
 /// A built-in profile template. The [id] field is intentionally blank — callers
 /// assign a real UUID when creating a copy for the user's library.
@@ -203,12 +203,12 @@ List<PixelAnimation> _advancedAnims() => [
 List<PixelRule> _advancedRules() => [
   // [0] hello/goodbye → hello rainbow (anim 0)
   PixelRule(
-    condition: PixelConditionHelloGoodbye(flags: 1), // hello only
+    condition: PixelConditionHelloGoodbye(flags: PixelHelloFlags.hello),
     actions: [PixelActionPlayAnimation(animIndex: 0)],
   ),
   // [1] connected | disconnected → connection flash (anim 1)
   PixelRule(
-    condition: PixelConditionConnectionState(flags: 3),
+    condition: PixelConditionConnectionState(flags: PixelConnectionFlags.both),
     actions: [PixelActionPlayAnimation(animIndex: 1)],
   ),
   // [2] low battery, recheck 30 s → lowBattery flash (anim 2)

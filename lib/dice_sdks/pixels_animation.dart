@@ -1130,6 +1130,29 @@ class PixelAnimationSequence extends PixelAnimation {
 
 enum PixelConditionType { none, helloGoodbye, handling, rolling, faceCompare, crooked, connection, battery, idle, rolled }
 
+/// Bit flags for [PixelConditionBatteryState].
+abstract final class PixelBatteryFlags {
+  static const int low = 1 << 1; // 2
+  static const int charging = 1 << 2; // 4
+  static const int done = 1 << 3; // 8 (fully charged)
+  static const int badCharging = 1 << 4; // 16
+  static const int error = 1 << 5; // 32
+}
+
+/// Bit flags for [PixelConditionHelloGoodbye].
+abstract final class PixelHelloFlags {
+  static const int hello = 1 << 0; // 1 (wake up)
+  static const int goodbye = 1 << 1; // 2 (sleep)
+  static const int both = hello | goodbye; // 3
+}
+
+/// Bit flags for [PixelConditionConnectionState].
+abstract final class PixelConnectionFlags {
+  static const int connected = 1 << 0; // 1
+  static const int disconnected = 1 << 1; // 2
+  static const int both = connected | disconnected; // 3
+}
+
 abstract class PixelCondition {
   PixelConditionType get type;
   int get byteSize;

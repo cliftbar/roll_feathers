@@ -978,10 +978,10 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
   late _CondType _condType;
   int _faceMask = 0xFFFFF; // all 20 faces
   int _rollingPeriodMs = 300;
-  int _helloFlags = 3; // both hello and goodbye
-  int _battFlags = 2; // low
+  int _helloFlags = PixelHelloFlags.both;
+  int _battFlags = PixelBatteryFlags.low;
   int _battPeriodMs = 5000;
-  int _connFlags = 3; // connected | disconnected
+  int _connFlags = PixelConnectionFlags.both;
   int _idlePeriodMs = 0;
 
   int _animIndex = 0;
@@ -1106,16 +1106,20 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
               const SizedBox(height: 8),
               CheckboxListTile(
                 title: const Text('On Hello (wake up)'),
-                value: (_helloFlags & 1) != 0,
+                value: (_helloFlags & PixelHelloFlags.hello) != 0,
                 onChanged: (v) => setState(() {
-                  _helloFlags = (v == true) ? (_helloFlags | 1) : (_helloFlags & ~1);
+                  _helloFlags = (v == true)
+                      ? (_helloFlags | PixelHelloFlags.hello)
+                      : (_helloFlags & ~PixelHelloFlags.hello);
                 }),
               ),
               CheckboxListTile(
                 title: const Text('On Goodbye (sleep)'),
-                value: (_helloFlags & 2) != 0,
+                value: (_helloFlags & PixelHelloFlags.goodbye) != 0,
                 onChanged: (v) => setState(() {
-                  _helloFlags = (v == true) ? (_helloFlags | 2) : (_helloFlags & ~2);
+                  _helloFlags = (v == true)
+                      ? (_helloFlags | PixelHelloFlags.goodbye)
+                      : (_helloFlags & ~PixelHelloFlags.goodbye);
                 }),
               ),
             ],
@@ -1139,8 +1143,11 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
             if (_condType == _CondType.battery) ...[
               const SizedBox(height: 8),
               for (final (flag, label) in const [
-                (2, 'Low'), (4, 'Charging'), (8, 'Fully charged'),
-                (16, 'Bad charging'), (32, 'Error'),
+                (PixelBatteryFlags.low, 'Low'),
+                (PixelBatteryFlags.charging, 'Charging'),
+                (PixelBatteryFlags.done, 'Fully charged'),
+                (PixelBatteryFlags.badCharging, 'Bad charging'),
+                (PixelBatteryFlags.error, 'Error'),
               ])
                 CheckboxListTile(
                   dense: true,
@@ -1163,17 +1170,21 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
               CheckboxListTile(
                 dense: true,
                 title: const Text('On connect'),
-                value: (_connFlags & 1) != 0,
+                value: (_connFlags & PixelConnectionFlags.connected) != 0,
                 onChanged: (v) => setState(() {
-                  _connFlags = (v == true) ? (_connFlags | 1) : (_connFlags & ~1);
+                  _connFlags = (v == true)
+                      ? (_connFlags | PixelConnectionFlags.connected)
+                      : (_connFlags & ~PixelConnectionFlags.connected);
                 }),
               ),
               CheckboxListTile(
                 dense: true,
                 title: const Text('On disconnect'),
-                value: (_connFlags & 2) != 0,
+                value: (_connFlags & PixelConnectionFlags.disconnected) != 0,
                 onChanged: (v) => setState(() {
-                  _connFlags = (v == true) ? (_connFlags | 2) : (_connFlags & ~2);
+                  _connFlags = (v == true)
+                      ? (_connFlags | PixelConnectionFlags.disconnected)
+                      : (_connFlags & ~PixelConnectionFlags.disconnected);
                 }),
               ),
             ],

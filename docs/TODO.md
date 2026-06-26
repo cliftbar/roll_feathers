@@ -33,9 +33,15 @@ Deferred work and known limitations from the Pixels profile/animation effort
   no crash). Wire up: a receive handler + an `actionId → effect` registry, then connect
   `PixelActionSpeakText` and sound clips. The soundclip design assumes this bridge.
   Low–moderate effort (message + serialization already exist).
-- **Gradient editor** — custom multi-stop gradient authoring. The editor only offers 5
+- **Gradient editor** — custom multi-stop gradient *authoring*. The editor only offers 5
   fixed presets (rainbow/fire/water/solid/two-color). Gradients drive Cycle/Gradient/
   Noise/Normals/GradientPattern, so this is the highest-leverage authoring addition.
+  (No longer *lossy*: a bespoke source gradient now round-trips as `_GradPreset.custom`
+  — preserved verbatim, shown as "Custom (from source)" — instead of snapping to Rainbow.
+  Editing it still requires picking a preset; full multi-stop authoring is the open work.)
+  Note: the dialog also preserves non-exposed fields (`animFlags`, and `faceMask` where
+  present) across an edit via `_preserveHiddenFields`, so editing one parameter no longer
+  resets the rest (e.g. the Magic cycle's `animFlags: 2`).
 - **Software animation preview / virtual-die rendering** — port the pixels-js `VirtualDie`
   animation evaluation to Dart so the editor previews any animation without a physical
   die, and virtual dice render the same animations as physical ones.
@@ -57,7 +63,12 @@ Deferred work and known limitations from the Pixels profile/animation effort
 - **Action `faceIndex`** not exposed — can't choose "play on the rolled face vs. a fixed
   face"; only animIndex + loopCount.
 - **Profile brightness** not editable in the editor UI.
-- **In-editor preview** — previewing is only on the profiles-list screen, not while editing.
+- **(Resolved) In-editor preview** — the editor now has per-animation preview
+  buttons and a live "Preview" action inside the animation dialog (gated on a
+  connected die). The preview transport is centralized in
+  `PixelsProfileTransfer.previewProfileAnimation` (uploads the whole set + plays
+  one index, so Sequence sibling references resolve); both the editor and the
+  profiles-list screen call it, adding only their own progress/feedback UI.
 
 ### Known firmware limitations (not fixable app-side)
 

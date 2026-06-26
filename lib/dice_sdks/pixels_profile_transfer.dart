@@ -182,6 +182,22 @@ class PixelsProfileTransfer {
     _log.info('Instant animation transfer complete');
   }
 
+  /// Previews one animation from [profile] once, independent of the profile's
+  /// rules: uploads the whole animation set to the die's instant-animation slot
+  /// and plays the animation at [animIndex] a single time across all faces.
+  ///
+  /// The entire set is uploaded (not just the one animation) because animations
+  /// can reference siblings by index — notably [PixelAnimationSequence], whose
+  /// entries point at other animations in the same set. Playing in isolation
+  /// would leave those references dangling.
+  ///
+  /// This is the one place that owns the preview convention (single-shot,
+  /// `faceIndex: -1`); UI callers add only their own progress/feedback around it.
+  Future<void> previewProfileAnimation(PixelProfile profile, int animIndex) async {
+    await transferInstantAnimation(profile);
+    await playInstantAnimation(animIndex: animIndex, faceIndex: -1, loopCount: 1);
+  }
+
   /// Play an already-uploaded instant animation at the given index.
   Future<void> playInstantAnimation({int animIndex = 0, int faceIndex = 0, int loopCount = 1}) async {
     await die.sendMessage(pix.MessagePlayInstantAnimation(

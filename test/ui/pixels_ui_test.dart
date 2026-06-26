@@ -132,6 +132,119 @@ void main() {
       expect(find.text('No animations yet.'), findsOneWidget);
     });
 
+    testWidgets('Import opens built-in animation picker and adds the chosen one', (tester) async {
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile())));
+
+      // Starts with the single seed animation only.
+      expect(find.text('Animation 1: Solid Flash'), findsOneWidget);
+      expect(find.textContaining('Animation 2:'), findsNothing);
+
+      // Open the import sheet.
+      await tester.tap(find.text('Import'));
+      await tester.pumpAndSettle();
+      expect(find.text('Import an animation'), findsOneWidget);
+      expect(find.text('Default Profile'), findsOneWidget);
+
+      // Expand the Rainbow built-in (3 Rainbow animations) and import one.
+      await tester.tap(find.text('Rainbow'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Rainbow').last);
+      await tester.pumpAndSettle();
+
+      // Sheet closes; a second animation now exists in the editor.
+      expect(find.text('Import an animation'), findsNothing);
+      expect(find.text('Animation 2: Rainbow'), findsOneWidget);
+      // Original seed animation is untouched.
+      expect(find.text('Animation 1: Solid Flash'), findsOneWidget);
+    });
+
+    testWidgets('editing a Color Cycle preserves its custom gradient and animFlags', (tester) async {
+      final purple = PixelGradient(const [
+        (0, PixelColor(0, 0, 255)),
+        (400, PixelColor(229, 168, 245)),
+        (500, PixelColor(94, 48, 151)),
+        (700, PixelColor(159, 99, 169)),
+        (1000, PixelColor(0, 0, 255)),
+      ]);
+      final cycle = PixelAnimationCycle(
+        animFlags: 2,
+        durationMs: 3000,
+        count: 5,
+        fade: 127,
+        intensity: 255,
+        cyclesTimes10: 50,
+        gradient: purple,
+      );
+      final profile = PixelProfile(
+        id: 'c',
+        name: 'cyc',
+        animations: [cycle],
+        rules: [PixelRule(condition: PixelConditionRolled(), actions: [PixelActionPlayAnimation(animIndex: 0)])],
+      );
+
+      PixelProfile? saved;
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(
+          builder: (ctx) => ElevatedButton(
+            onPressed: () async {
+              saved = await Navigator.of(ctx).push<PixelProfile>(
+                MaterialPageRoute(builder: (_) => PixelsProfileEditorScreen(profile: profile)),
+              );
+            },
+            child: const Text('Open'),
+          ),
+        ),
+      ));
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+
+      // Open the animation editor: the bespoke gradient must show as Custom,
+      // not snap to Rainbow (the reported bug).
+      await tester.tap(find.byIcon(Icons.edit).first);
+      await tester.pumpAndSettle();
+      expect(find.text('Custom (from source)'), findsOneWidget);
+      expect(find.text('Rainbow'), findsNothing);
+
+      // OK without changes, then Save, and inspect the popped profile.
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      final result = saved!.animations.single as PixelAnimationCycle;
+      expect(result.animFlags, 2, reason: 'animFlags must survive the round-trip');
+      expect(result.gradient.keyframes, purple.keyframes, reason: 'custom gradient must survive');
+    });
+
+    testWidgets('no preview button when no die is connected', (tester) async {
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile())));
+      expect(find.byIcon(Icons.play_circle_outline), findsNothing);
+    });
+
+    testWidgets('preview button appears with a die and sends a preview', (tester) async {
+      final sim = PixelsDieSimulator(name: 'TestDie');
+      addTearDown(sim.dispose);
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), die: sim)));
+
+      // One preview button for the single animation card.
+      expect(find.byIcon(Icons.play_circle_outline), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.play_circle_outline));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Preview sent'), findsOneWidget);
+    });
+
+    testWidgets('animation dialog shows a Preview action when a die is connected', (tester) async {
+      final sim = PixelsDieSimulator(name: 'TestDie');
+      addTearDown(sim.dispose);
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), die: sim)));
+
+      await tester.tap(find.text('Add').first);
+      await tester.pumpAndSettle();
+
+      expect(find.widgetWithText(TextButton, 'Preview'), findsOneWidget);
+    });
+
     testWidgets('Keyframed type shows Pattern picker', (tester) async {
       registerBuiltinPatterns(kBuiltinPatterns);
       final profile = PixelProfile(
@@ -470,6 +583,34 @@ void main() {
 
       await tester.scrollUntilVisible(find.textContaining('No profiles yet.'), 50.0);
       expect(find.textContaining('No profiles yet.'), findsOneWidget);
+    });
+
+    testWidgets('duplicate opens editor on a "(copy)" clone and saves it alongside the original', (tester) async {
+      await store.upsert(_simpleProfile(name: 'Test'));
+      await tester.pumpWidget(_buildScreen());
+      await tester.pumpAndSettle();
+
+      await tester.scrollUntilVisible(find.text('Test'), 50.0);
+      final testCard = find.ancestor(of: find.text('Test'), matching: find.byType(Card)).first;
+      final moreVert = find.descendant(of: testCard, matching: find.byIcon(Icons.more_vert));
+      await tester.ensureVisible(moreVert);
+      await tester.pumpAndSettle();
+      await tester.tap(moreVert);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Duplicate'));
+      await tester.pumpAndSettle();
+
+      // Editor opens on the clone, pre-named "Test (copy)".
+      expect(find.text('Test (copy)'), findsOneWidget);
+      await tester.tap(find.text('Save'));
+      await tester.pumpAndSettle();
+
+      // Both the original and the copy now persist.
+      final names = (await store.loadAll()).map((p) => p.name).toList();
+      expect(names, containsAll(['Test', 'Test (copy)']));
+      // ...with distinct ids.
+      final ids = (await store.loadAll()).map((p) => p.id).toSet();
+      expect(ids, hasLength(2));
     });
 
     testWidgets('tapping built-in profile expands to show animation rows', (tester) async {

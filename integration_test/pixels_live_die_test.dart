@@ -234,10 +234,14 @@ void main() {
   }
 
   // ---------------------------------------------------------------------------
-  // 3 — Instant animation: preview without flashing
+  // 3 — Instant-animation preview (the editor / profiles-list preview path)
   // ---------------------------------------------------------------------------
 
-  test('instant animation transfer and play (visual check)', () async {
+  // Exercises PixelsProfileTransfer.previewProfileAnimation — the single method
+  // both the editor and the profiles screen call for preview. Validates the
+  // centralized convention (upload set → play one index, single-shot) on real
+  // hardware, rather than the raw two-call sequence the UI no longer uses.
+  test('previewProfileAnimation plays a single animation (visual check)', () async {
     if (!await _waitForBle()) {
       debugPrint('[live-die] SKIP: BLE not available');
       return;
@@ -252,19 +256,55 @@ void main() {
     die = await _connectDie(device);
     final adapter = PixelBleAdapter(die!);
 
-    // Use a simple single-color rainbow as the instant preview
     final profile = kBuiltinProfiles.firstWhere((p) => p.name == 'Rainbow').build();
     final transfer = PixelsProfileTransfer(adapter);
 
-    // Should not throw
+    // Should upload the set and play index 0 without throwing.
     await expectLater(
-      transfer.transferInstantAnimation(profile).timeout(_kTransferTimeout),
+      transfer.previewProfileAnimation(profile, 0).timeout(_kTransferTimeout),
       completes,
     );
+    debugPrint('[live-die] preview sent — verify visually that die lit up');
+  });
 
-    // Play anim index 0 on face 19 (top) once
-    await transfer.playInstantAnimation(animIndex: 0, faceIndex: 19, loopCount: 1);
-    debugPrint('[live-die] instant animation sent — verify visually that die lit up');
+  // A Sequence references sibling animations by index, so previewing one only
+  // works if previewProfileAnimation uploads the *whole* set (not just the
+  // chosen animation). This is the regression the centralized method guards:
+  // preview the Sequence at index 2, which plays animations 0 (blue) then 1
+  // (green). On hardware the die should blink blue then green.
+  test('previewProfileAnimation resolves a Sequence\'s sibling references (visual check)', () async {
+    if (!await _waitForBle()) {
+      debugPrint('[live-die] SKIP: BLE not available');
+      return;
+    }
+
+    final device = await _scanForPixelsDie();
+    if (device == null) {
+      debugPrint('[live-die] SKIP: no Pixels die found');
+      return;
+    }
+
+    die = await _connectDie(device);
+    final adapter = PixelBleAdapter(die!);
+
+    final profile = PixelProfile(
+      id: '',
+      name: 'Sequence Preview',
+      brightness: 255,
+      animations: [
+        PixelAnimationSimple(durationMs: 400, color: const PixelColor(0, 0, 255), count: 1), // 0 blue
+        PixelAnimationSimple(durationMs: 400, color: const PixelColor(0, 255, 0), count: 1), // 1 green
+        PixelAnimationSequence(durationMs: 1200, entries: const [(0, 0), (1, 400)]),         // 2 → 0 then 1
+      ],
+      rules: const [],
+    );
+    final transfer = PixelsProfileTransfer(adapter);
+
+    await expectLater(
+      transfer.previewProfileAnimation(profile, 2).timeout(_kTransferTimeout),
+      completes,
+    );
+    debugPrint('[live-die] sequence preview sent — verify die blinks blue then green');
   });
 
   // ---------------------------------------------------------------------------

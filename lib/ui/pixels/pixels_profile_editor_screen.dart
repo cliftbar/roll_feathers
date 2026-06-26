@@ -2,16 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/dice_sdks/pixels_patterns.dart';
+import 'package:roll_feathers/dice_sdks/pixels_profile_transfer.dart';
 
 /// Edits a single [PixelProfile]: name, list of animations, list of rules.
 ///
 /// Returns the updated [PixelProfile] via [Navigator.pop] when saved,
 /// or null when cancelled.
 class PixelsProfileEditorScreen extends StatefulWidget {
-  const PixelsProfileEditorScreen({super.key, required this.profile});
+  const PixelsProfileEditorScreen({super.key, required this.profile, this.die});
 
   final PixelProfile profile;
+
+  /// The connected die used for live previews. When null (e.g. no die
+  /// connected, or in tests), preview controls are hidden.
+  final PixelsDieInterface? die;
 
   @override
   State<PixelsProfileEditorScreen> createState() => _PixelsProfileEditorScreenState();
@@ -53,8 +59,72 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
     if (result != null) setState(() => _animations.add(result));
   }
 
+  /// Imports an animation from a built-in profile as a starting point.
+  ///
+  /// Animations are deep-cloned (via JSON round-trip) so edits never touch the
+  /// source built-in. If the chosen animation references siblings — a
+  /// [PixelAnimationSequence] points at other animations by index — those are
+  /// pulled in too (transitively) and the Sequence's indices are remapped to
+  /// the clones' new positions, so the import doesn't dangle.
+  Future<void> _importAnimation() async {
+    final chosen = await showModalBottomSheet<_ImportSelection>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _ImportAnimationSheet(),
+    );
+    if (chosen == null || !mounted) return;
+    final imported = resolveAnimationImport(chosen.source, chosen.index, _animations.length);
+    setState(() => _animations.addAll(imported));
+    if (imported.length > 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Imported with ${imported.length - 1} referenced animation${imported.length - 1 == 1 ? '' : 's'}')),
+      );
+    }
+  }
+
+  /// Whether a preview transfer is currently in flight (disables preview
+  /// buttons to prevent overlapping transfers to the die).
+  bool _previewing = false;
+
+  /// Uploads [animations] to the die's instant slot and plays [playIndex] once.
+  /// The whole set is sent (not just one animation) so sibling references —
+  /// e.g. a [PixelAnimationSequence]'s entries — resolve. Owns the editor's
+  /// preview feedback; the transfer convention lives in [PixelsProfileTransfer].
+  Future<void> _previewSet(List<PixelAnimation> animations, int playIndex) async {
+    final die = widget.die;
+    if (die == null || _previewing) return;
+    setState(() => _previewing = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final profile = PixelProfile(id: '', name: 'preview', animations: animations, rules: const []);
+      await PixelsProfileTransfer(die).previewProfileAnimation(profile, playIndex);
+      messenger.showSnackBar(const SnackBar(content: Text('Preview sent'), duration: Duration(seconds: 1)));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Preview failed: $e')));
+    } finally {
+      if (mounted) setState(() => _previewing = false);
+    }
+  }
+
+  /// Previews the (possibly uncommitted) [anim] in the context of the current
+  /// animation list: substitutes it at [replaceIndex] when editing, or appends
+  /// it when adding, then plays that slot. Keeps sibling indices intact so
+  /// Sequence references stay valid.
+  Future<void> _previewInContext(PixelAnimation anim, {int? replaceIndex}) {
+    final anims = List<PixelAnimation>.of(_animations);
+    final int playIndex;
+    if (replaceIndex != null) {
+      anims[replaceIndex] = anim;
+      playIndex = replaceIndex;
+    } else {
+      anims.add(anim);
+      playIndex = anims.length - 1;
+    }
+    return _previewSet(anims, playIndex);
+  }
+
   Future<void> _editAnimation(int index) async {
-    final result = await _showAnimationEditor(_animations[index]);
+    final result = await _showAnimationEditor(_animations[index], editIndex: index);
     if (result != null) setState(() => _animations[index] = result);
   }
 
@@ -74,12 +144,13 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
     });
   }
 
-  Future<PixelAnimation?> _showAnimationEditor(PixelAnimation? existing) {
+  Future<PixelAnimation?> _showAnimationEditor(PixelAnimation? existing, {int? editIndex}) {
     return showDialog<PixelAnimation>(
       context: context,
       builder: (_) => _AnimationEditorDialog(
         animation: existing,
         animCount: _animations.length,
+        onPreview: widget.die == null ? null : (anim) => _previewInContext(anim, replaceIndex: editIndex),
       ),
     );
   }
@@ -138,6 +209,11 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
             children: [
               const Expanded(child: Text('Animations', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
               TextButton.icon(
+                onPressed: _importAnimation,
+                icon: const Icon(Icons.download, size: 18),
+                label: const Text('Import'),
+              ),
+              TextButton.icon(
                 onPressed: _addAnimation,
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Add'),
@@ -159,6 +235,12 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
+                    if (widget.die != null)
+                      IconButton(
+                        icon: const Icon(Icons.play_circle_outline, size: 20),
+                        tooltip: 'Preview on die',
+                        onPressed: _previewing ? null : () => _previewSet(_animations, i),
+                      ),
                     IconButton(
                       icon: const Icon(Icons.edit, size: 20),
                       onPressed: () => _editAnimation(i),
@@ -220,32 +302,6 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
 
   String _animLabel(int i, PixelAnimation anim) => 'Animation ${i + 1}: ${_animTypeName(anim)}';
 
-  String _animTypeName(PixelAnimation anim) => switch (anim) {
-    PixelAnimationSimple _          => 'Solid Flash',
-    PixelAnimationRainbow _         => 'Rainbow',
-    PixelAnimationGradient _        => 'Flow',
-    PixelAnimationCycle _           => 'Color Cycle',
-    PixelAnimationNoise _           => 'Noise',
-    PixelAnimationNormals _         => 'Normals',
-    PixelAnimationSequence _        => 'Sequence',
-    PixelAnimationKeyframed _       => 'Keyframed',
-    PixelAnimationGradientPattern _ => 'Gradient Pattern',
-    _                        => 'Custom',
-  };
-
-  String _animSubtitle(PixelAnimation anim) => switch (anim) {
-    PixelAnimationSimple s   => '${s.durationMs}ms · rgb(${s.color.r},${s.color.g},${s.color.b}) · ×${s.count}',
-    PixelAnimationRainbow r  => '${r.durationMs}ms · intensity ${r.intensity}',
-    PixelAnimationGradient g => '${g.durationMs}ms · flow',
-    PixelAnimationCycle c    => '${c.durationMs}ms · intensity ${c.intensity}',
-    PixelAnimationNoise n    => '${n.durationMs}ms · noise',
-    PixelAnimationNormals n  => '${n.durationMs}ms · directional',
-    PixelAnimationSequence s        => '${s.entries.length} part${s.entries.length == 1 ? '' : 's'}',
-    PixelAnimationKeyframed k       => '${k.durationMs}ms · ${k.pattern?.name ?? 'no pattern'}',
-    PixelAnimationGradientPattern g => '${g.durationMs}ms · ${g.pattern?.name ?? 'no pattern'}',
-    _                               => '',
-  };
-
   String _ruleSubtitle(PixelRule rule) {
     final actions = rule.actions.map((a) {
       if (a is PixelActionPlayAnimation) return 'Play animation ${a.animIndex + 1}';
@@ -254,6 +310,95 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
     return 'Then: $actions';
   }
 }
+
+String _animTypeName(PixelAnimation anim) => switch (anim) {
+  PixelAnimationSimple _          => 'Solid Flash',
+  PixelAnimationRainbow _         => 'Rainbow',
+  PixelAnimationGradient _        => 'Flow',
+  PixelAnimationCycle _           => 'Color Cycle',
+  PixelAnimationNoise _           => 'Noise',
+  PixelAnimationNormals _         => 'Normals',
+  PixelAnimationSequence _        => 'Sequence',
+  PixelAnimationKeyframed _       => 'Keyframed',
+  PixelAnimationGradientPattern _ => 'Gradient Pattern',
+  _                               => 'Custom',
+};
+
+String _animSubtitle(PixelAnimation anim) => switch (anim) {
+  PixelAnimationSimple s   => '${s.durationMs}ms · rgb(${s.color.r},${s.color.g},${s.color.b}) · ×${s.count}',
+  PixelAnimationRainbow r  => '${r.durationMs}ms · intensity ${r.intensity}',
+  PixelAnimationGradient g => '${g.durationMs}ms · flow',
+  PixelAnimationCycle c    => '${c.durationMs}ms · intensity ${c.intensity}',
+  PixelAnimationNoise n    => '${n.durationMs}ms · noise',
+  PixelAnimationNormals n  => '${n.durationMs}ms · directional',
+  PixelAnimationSequence s        => '${s.entries.length} part${s.entries.length == 1 ? '' : 's'}',
+  PixelAnimationKeyframed k       => '${k.durationMs}ms · ${k.pattern?.name ?? 'no pattern'}',
+  PixelAnimationGradientPattern g => '${g.durationMs}ms · ${g.pattern?.name ?? 'no pattern'}',
+  _                               => '',
+};
+
+/// Bottom sheet listing every built-in profile's animations; tapping one pops
+/// it back to the caller to be imported as a base for a custom animation.
+class _ImportAnimationSheet extends StatelessWidget {
+  const _ImportAnimationSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+            child: Text('Import an animation', style: Theme.of(context).textTheme.titleMedium),
+          ),
+          const Divider(height: 1),
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (final preset in kBuiltinProfiles)
+                  _ImportProfileTile(preset: preset),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImportProfileTile extends StatelessWidget {
+  const _ImportProfileTile({required this.preset});
+  final BuiltinProfile preset;
+
+  @override
+  Widget build(BuildContext context) {
+    final anims = preset.build().animations;
+    return ExpansionTile(
+      title: Text(preset.name),
+      subtitle: Text('${anims.length} animation${anims.length == 1 ? '' : 's'}'),
+      childrenPadding: const EdgeInsets.only(left: 16),
+      children: [
+        for (var i = 0; i < anims.length; i++)
+          ListTile(
+            dense: true,
+            leading: _AnimationIcon(anims[i]),
+            title: Text(_animTypeName(anims[i])),
+            subtitle: Text(_animSubtitle(anims[i])),
+            // Pop the whole source set + index so the importer can pull in any
+            // animations this one references (e.g. a Sequence's sub-animations).
+            onTap: () => Navigator.pop<_ImportSelection>(context, (source: anims, index: i)),
+          ),
+      ],
+    );
+  }
+}
+
+/// A chosen animation to import: its index within the source profile's full
+/// animation [source] list, so sibling references can be resolved.
+typedef _ImportSelection = ({List<PixelAnimation> source, int index});
 
 class _AnimationIcon extends StatelessWidget {
   const _AnimationIcon(this.anim);
@@ -285,17 +430,23 @@ class _AnimationIcon extends StatelessWidget {
 
 // ─── Gradient state ───────────────────────────────────────────────────────────
 
-enum _GradPreset { rainbow, fire, water, solid, twoColor }
+enum _GradPreset { rainbow, fire, water, solid, twoColor, custom }
 
 class _GradState {
   _GradPreset preset;
   int r1, g1, b1;
   int r2, g2, b2;
 
+  /// For [_GradPreset.custom]: the source gradient, kept verbatim so a bespoke
+  /// gradient the editor can't author (e.g. the purple Magic cycle gradient)
+  /// survives an edit instead of being snapped to a preset.
+  final PixelGradient? original;
+
   _GradState({
     this.preset = _GradPreset.rainbow,
     this.r1 = 255, this.g1 = 0, this.b1 = 0,
     this.r2 = 0,   this.g2 = 0, this.b2 = 255,
+    this.original,
   });
 
   PixelGradient build() => switch (preset) {
@@ -304,9 +455,22 @@ class _GradState {
     _GradPreset.water    => PixelGradient.water,
     _GradPreset.solid    => PixelGradient.solid(PixelColor(r1, g1, b1)),
     _GradPreset.twoColor => PixelGradient.twoColor(PixelColor(r1, g1, b1), PixelColor(r2, g2, b2)),
+    _GradPreset.custom   => original ?? PixelGradient.rainbow,
   };
 
+  static bool _matches(PixelGradient a, PixelGradient b) {
+    if (a.keyframes.length != b.keyframes.length) return false;
+    for (var i = 0; i < a.keyframes.length; i++) {
+      if (a.keyframes[i] != b.keyframes[i]) return false;
+    }
+    return true;
+  }
+
   static _GradState fromGradient(PixelGradient g) {
+    // Exact matches against the authorable presets first.
+    if (_matches(g, PixelGradient.rainbow)) return _GradState(preset: _GradPreset.rainbow);
+    if (_matches(g, PixelGradient.fire))    return _GradState(preset: _GradPreset.fire);
+    if (_matches(g, PixelGradient.water))   return _GradState(preset: _GradPreset.water);
     final kfs = g.keyframes;
     if (kfs.length == 2) {
       final c = kfs[0].$2;
@@ -316,9 +480,8 @@ class _GradState {
       final c1 = kfs[0].$2, c2 = kfs[1].$2;
       return _GradState(preset: _GradPreset.twoColor, r1: c1.r, g1: c1.g, b1: c1.b, r2: c2.r, g2: c2.g, b2: c2.b);
     }
-    if (kfs.length == 4 && kfs[0].$2.r == 255 && kfs[0].$2.g == 20 && kfs[0].$2.b == 0) return _GradState(preset: _GradPreset.fire);
-    if (kfs.length == 4 && kfs[0].$2.r == 0   && kfs[0].$2.g == 40 && kfs[0].$2.b == 255) return _GradState(preset: _GradPreset.water);
-    return _GradState(preset: _GradPreset.rainbow);
+    // Unrecognized — preserve it verbatim rather than snapping to a preset.
+    return _GradState(preset: _GradPreset.custom, original: g);
   }
 }
 
@@ -327,9 +490,12 @@ class _GradState {
 enum _AnimType { solid, rainbow, blinkId, gradient, cycle, noise, normals, sequence, keyframed, gradientPattern }
 
 class _AnimationEditorDialog extends StatefulWidget {
-  const _AnimationEditorDialog({this.animation, required this.animCount});
+  const _AnimationEditorDialog({this.animation, required this.animCount, this.onPreview});
   final PixelAnimation? animation;
   final int animCount;
+
+  /// Plays the in-progress animation on the die. Null when no die is connected.
+  final Future<void> Function(PixelAnimation)? onPreview;
 
   @override
   State<_AnimationEditorDialog> createState() => _AnimationEditorDialogState();
@@ -456,6 +622,48 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
   }
 
   PixelAnimation _build() {
+    final anim = _buildTyped();
+    _preserveHiddenFields(anim);
+    return anim;
+  }
+
+  /// Copies fields the dialog doesn't expose (animFlags, faceMask) from the
+  /// original animation when the type is unchanged, so editing one exposed
+  /// parameter doesn't silently reset the rest (e.g. the Magic cycle's
+  /// `animFlags: 2`). When the user switches Type, hidden fields reset to the
+  /// new type's defaults, which is correct.
+  void _preserveHiddenFields(PixelAnimation anim) {
+    final orig = widget.animation;
+    if (orig == null || orig.runtimeType != anim.runtimeType) return;
+    switch (anim) {
+      case PixelAnimationSimple a when orig is PixelAnimationSimple:
+        a.animFlags = orig.animFlags;
+        a.faceMask = orig.faceMask;
+      case PixelAnimationRainbow a when orig is PixelAnimationRainbow:
+        a.animFlags = orig.animFlags;
+        a.faceMask = orig.faceMask;
+      case PixelAnimationGradient a when orig is PixelAnimationGradient:
+        a.animFlags = orig.animFlags;
+        a.faceMask = orig.faceMask;
+      case PixelAnimationCycle a when orig is PixelAnimationCycle:
+        a.animFlags = orig.animFlags;
+        a.faceMask = orig.faceMask;
+      case PixelAnimationBlinkId a when orig is PixelAnimationBlinkId:
+        a.animFlags = orig.animFlags;
+      case PixelAnimationNoise a when orig is PixelAnimationNoise:
+        a.animFlags = orig.animFlags;
+      case PixelAnimationNormals a when orig is PixelAnimationNormals:
+        a.animFlags = orig.animFlags;
+      case PixelAnimationGradientPattern a when orig is PixelAnimationGradientPattern:
+        a.animFlags = orig.animFlags;
+      case PixelAnimationSequence a when orig is PixelAnimationSequence:
+        a.animFlags = orig.animFlags;
+      case PixelAnimationKeyframed a when orig is PixelAnimationKeyframed:
+        a.animFlags = orig.animFlags;
+    }
+  }
+
+  PixelAnimation _buildTyped() {
     return switch (_type) {
       _AnimType.solid => PixelAnimationSimple(
           durationMs: _durationMs,
@@ -522,15 +730,27 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
       DropdownButtonFormField<_GradPreset>(
         value: s.preset,
         decoration: InputDecoration(labelText: label),
-        items: const [
-          DropdownMenuItem(value: _GradPreset.rainbow,  child: Text('Rainbow')),
-          DropdownMenuItem(value: _GradPreset.fire,     child: Text('Fire')),
-          DropdownMenuItem(value: _GradPreset.water,    child: Text('Water')),
-          DropdownMenuItem(value: _GradPreset.solid,    child: Text('Solid Color')),
-          DropdownMenuItem(value: _GradPreset.twoColor, child: Text('Two Color')),
+        items: [
+          const DropdownMenuItem(value: _GradPreset.rainbow,  child: Text('Rainbow')),
+          const DropdownMenuItem(value: _GradPreset.fire,     child: Text('Fire')),
+          const DropdownMenuItem(value: _GradPreset.water,    child: Text('Water')),
+          const DropdownMenuItem(value: _GradPreset.solid,    child: Text('Solid Color')),
+          const DropdownMenuItem(value: _GradPreset.twoColor, child: Text('Two Color')),
+          // Only selectable when the source gradient isn't an authorable preset;
+          // picking another option replaces it (a custom gradient editor is TODO).
+          if (s.preset == _GradPreset.custom)
+            const DropdownMenuItem(value: _GradPreset.custom, child: Text('Custom (from source)')),
         ],
         onChanged: (v) { if (v != null) setState(() => s.preset = v); },
       ),
+      if (s.preset == _GradPreset.custom)
+        const Padding(
+          padding: EdgeInsets.only(top: 4),
+          child: Text(
+            'Keeping the original gradient. Choosing a preset above replaces it.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ),
       if (s.preset == _GradPreset.solid || s.preset == _GradPreset.twoColor) ...[
         const SizedBox(height: 8),
         if (s.preset == _GradPreset.twoColor)
@@ -940,11 +1160,28 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
         ),
       ),
       actions: [
+        if (widget.onPreview != null)
+          TextButton.icon(
+            onPressed: _previewBusy
+                ? null
+                : () async {
+                    setState(() => _previewBusy = true);
+                    try {
+                      await widget.onPreview!(_build());
+                    } finally {
+                      if (mounted) setState(() => _previewBusy = false);
+                    }
+                  },
+            icon: const Icon(Icons.play_circle_outline, size: 18),
+            label: const Text('Preview'),
+          ),
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
         TextButton(onPressed: () => Navigator.pop(context, _build()), child: const Text('OK')),
       ],
     );
   }
+
+  bool _previewBusy = false;
 
   Widget _intField(String label, int initial, int min, int max, void Function(int) onChanged) {
     final ctrl = TextEditingController(text: '$initial');

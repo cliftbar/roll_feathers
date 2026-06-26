@@ -117,10 +117,26 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
     }
   }
 
+  /// Clones [profile] (deep copy, fresh id, "(copy)" name) and opens it in the
+  /// editor so it can be tweaked before saving — works for both user profiles
+  /// and built-ins.
+  Future<void> _duplicateProfile(PixelProfile profile) async {
+    final clone = PixelProfile.fromJson({
+      ...profile.toJson(),
+      'id': const Uuid().v4(),
+      'name': '${profile.name} (copy)',
+    });
+    final saved = await _openEditor(clone);
+    if (saved != null) {
+      await widget.store.upsert(saved);
+      await _load();
+    }
+  }
+
   Future<PixelProfile?> _openEditor(PixelProfile profile) {
     return Navigator.of(context).push<PixelProfile>(
       MaterialPageRoute(
-        builder: (_) => PixelsProfileEditorScreen(profile: profile),
+        builder: (_) => PixelsProfileEditorScreen(profile: profile, die: widget.die),
       ),
     );
   }
@@ -169,9 +185,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
   ) async {
     setState(() { _transferring = transferId; _statusMessage = null; });
     try {
-      final transfer = PixelsProfileTransfer(widget.die);
-      await transfer.transferInstantAnimation(profile);
-      await transfer.playInstantAnimation(animIndex: animIndex, faceIndex: -1, loopCount: 1);
+      await PixelsProfileTransfer(widget.die).previewProfileAnimation(profile, animIndex);
       if (mounted) setState(() { _transferring = null; _statusMessage = 'Preview sent'; });
     } catch (e) {
       if (mounted) setState(() { _transferring = null; _statusMessage = 'Preview failed: $e'; });
@@ -492,10 +506,12 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
                                                 PopupMenuButton<_Action>(
                                                   onSelected: (a) => switch (a) {
                                                     _Action.edit => _editProfile(p),
+                                                    _Action.duplicate => _duplicateProfile(p),
                                                     _Action.delete => _deleteProfile(p),
                                                   },
                                                   itemBuilder: (_) => const [
                                                     PopupMenuItem(value: _Action.edit, child: Text('Edit')),
+                                                    PopupMenuItem(value: _Action.duplicate, child: Text('Duplicate')),
                                                     PopupMenuItem(value: _Action.delete, child: Text('Delete')),
                                                   ],
                                                 ),
@@ -552,7 +568,7 @@ class _CollapsibleSectionHeader extends StatelessWidget {
   }
 }
 
-enum _Action { edit, delete }
+enum _Action { edit, duplicate, delete }
 
 // ─── Preset picker (for creating a custom profile from a starting point) ──────
 

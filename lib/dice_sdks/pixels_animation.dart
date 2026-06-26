@@ -223,7 +223,7 @@ class AnimationBits {
 // Animation types
 // ─────────────────────────────────────────────────────────────
 
-enum PixelAnimationType { none, simple, rainbow, keyframed, gradientPattern, gradient, noise, cycle, name, normals, sequence }
+enum PixelAnimationType { none, simple, rainbow, keyframed, gradientPattern, gradient, noise, cycle, blinkId, normals, sequence }
 
 /// faceMaskAll = all faces.
 const int kFaceMaskAll = 0xFFFFFFFF;
@@ -252,6 +252,7 @@ abstract class PixelAnimation {
       PixelAnimationType.normals => PixelAnimationNormals.fromJson(json),
       PixelAnimationType.gradientPattern => PixelAnimationGradientPattern.fromJson(json),
       PixelAnimationType.sequence => PixelAnimationSequence.fromJson(json),
+      PixelAnimationType.blinkId => PixelAnimationBlinkId.fromJson(json),
       _ => throw UnsupportedError('Unsupported animation type: $t'),
     };
   }
@@ -391,6 +392,54 @@ class PixelAnimationRainbow extends PixelAnimation {
         fade: (json['fade'] as int?) ?? 0,
         intensity: (json['intensity'] as int?) ?? 128,
         cyclesTimes10: (json['cyclesTimes10'] as int?) ?? 10,
+      );
+}
+
+/// Blink-ID animation (type=8, 6 bytes): a white preamble then the die's
+/// identity blinked out on all LEDs. Procedural — no palette/tracks.
+class PixelAnimationBlinkId extends PixelAnimation {
+  @override
+  PixelAnimationType get type => PixelAnimationType.blinkId;
+
+  int animFlags;
+  int durationMs;
+  int framesPerBlink;
+  int brightness;
+
+  PixelAnimationBlinkId({
+    this.animFlags = 0,
+    this.durationMs = 1000,
+    this.framesPerBlink = 6,
+    this.brightness = 255,
+  });
+
+  @override
+  int get byteSize => 6;
+
+  @override
+  void writeTo(ByteData data, int offset, AnimationBits bits) {
+    data.setUint8(offset, PixelAnimationType.blinkId.index);
+    data.setUint8(offset + 1, animFlags);
+    data.setUint16(offset + 2, durationMs, Endian.little);
+    data.setUint8(offset + 4, framesPerBlink);
+    data.setUint8(offset + 5, brightness);
+  }
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': type.name,
+    'animFlags': animFlags,
+    'durationMs': durationMs,
+    'framesPerBlink': framesPerBlink,
+    'brightness': brightness,
+  };
+
+  factory PixelAnimationBlinkId.fromJson(Map<String, dynamic> json) =>
+      PixelAnimationBlinkId(
+        animFlags: (json['animFlags'] as int?) ?? 0,
+        durationMs: (json['durationMs'] as int?) ?? 1000,
+        framesPerBlink: (json['framesPerBlink'] as int?) ?? 6,
+        brightness: (json['brightness'] as int?) ?? 255,
       );
 }
 
@@ -1098,6 +1147,7 @@ abstract class PixelCondition {
       PixelConditionType.crooked => PixelConditionCrooked(),
       PixelConditionType.connection => PixelConditionConnectionState.fromJson(json),
       PixelConditionType.battery => PixelConditionBatteryState.fromJson(json),
+      PixelConditionType.idle => PixelConditionIdle.fromJson(json),
       _ => throw UnsupportedError('Unsupported condition type: $t'),
     };
   }
@@ -1200,18 +1250,21 @@ class PixelConditionHelloGoodbye extends PixelCondition {
       PixelConditionHelloGoodbye(flags: (json['flags'] as int?) ?? 1);
 }
 
-/// Triggers while the die is being picked up / handled (type=2, 2 bytes).
+/// Triggers while the die is being picked up / handled (type=2, 4 bytes:
+/// type + 3 padding, matching the firmware ConditionHandling struct).
 class PixelConditionHandling extends PixelCondition {
   @override
   PixelConditionType get type => PixelConditionType.handling;
 
   @override
-  int get byteSize => 2;
+  int get byteSize => 4;
 
   @override
   void writeTo(ByteData data, int offset) {
     data.setUint8(offset, PixelConditionType.handling.index);
     data.setUint8(offset + 1, 0);
+    data.setUint8(offset + 2, 0);
+    data.setUint8(offset + 3, 0);
   }
 
   @override
@@ -1221,17 +1274,21 @@ class PixelConditionHandling extends PixelCondition {
   Map<String, dynamic> toJson() => {'type': type.name};
 }
 
-/// Triggers when the die is placed crooked (type=5, 1 byte).
+/// Triggers when the die has landed but is crooked (type=5, 4 bytes:
+/// type + 3 padding, matching the firmware ConditionCrooked struct).
 class PixelConditionCrooked extends PixelCondition {
   @override
   PixelConditionType get type => PixelConditionType.crooked;
 
   @override
-  int get byteSize => 1;
+  int get byteSize => 4;
 
   @override
   void writeTo(ByteData data, int offset) {
     data.setUint8(offset, PixelConditionType.crooked.index);
+    data.setUint8(offset + 1, 0);
+    data.setUint8(offset + 2, 0);
+    data.setUint8(offset + 3, 0);
   }
 
   @override
@@ -1239,6 +1296,37 @@ class PixelConditionCrooked extends PixelCondition {
 
   @override
   Map<String, dynamic> toJson() => {'type': type.name};
+}
+
+/// Triggers when the die has been idle (resting on a face) for a while
+/// (type=8, 4 bytes: type + padding + repeatPeriodMs).
+class PixelConditionIdle extends PixelCondition {
+  @override
+  PixelConditionType get type => PixelConditionType.idle;
+
+  /// 0 = fire once, >0 = repeat every N ms while idle.
+  int repeatPeriodMs;
+
+  PixelConditionIdle({this.repeatPeriodMs = 0});
+
+  @override
+  int get byteSize => 4;
+
+  @override
+  void writeTo(ByteData data, int offset) {
+    data.setUint8(offset, PixelConditionType.idle.index);
+    data.setUint8(offset + 1, 0);
+    data.setUint16(offset + 2, repeatPeriodMs, Endian.little);
+  }
+
+  @override
+  String get displayName => 'Idle';
+
+  @override
+  Map<String, dynamic> toJson() => {'type': type.name, 'repeatPeriodMs': repeatPeriodMs};
+
+  factory PixelConditionIdle.fromJson(Map<String, dynamic> json) =>
+      PixelConditionIdle(repeatPeriodMs: (json['repeatPeriodMs'] as int?) ?? 0);
 }
 
 /// Triggers on BLE connect or disconnect (type=6, 4 bytes).

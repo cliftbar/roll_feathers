@@ -324,7 +324,7 @@ class _GradState {
 
 // ─── Animation editor dialog ──────────────────────────────────────────────────
 
-enum _AnimType { solid, rainbow, gradient, cycle, noise, normals, sequence, keyframed, gradientPattern }
+enum _AnimType { solid, rainbow, blinkId, gradient, cycle, noise, normals, sequence, keyframed, gradientPattern }
 
 class _AnimationEditorDialog extends StatefulWidget {
   const _AnimationEditorDialog({this.animation, required this.animCount});
@@ -347,6 +347,10 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
   // ── Rainbow
   int _rainbowDuration = 2000;
   int _intensity = 200;
+
+  // ── Blink ID
+  int _blinkIdDuration = 1000;
+  int _framesPerBlink = 6;
 
   // ── Gradient / Flow
   int _gradFlowDuration = 1000;
@@ -396,6 +400,10 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
       _type = _AnimType.rainbow;
       _rainbowDuration = a.durationMs;
       _intensity = a.intensity;
+    } else if (a is PixelAnimationBlinkId) {
+      _type = _AnimType.blinkId;
+      _blinkIdDuration = a.durationMs;
+      _framesPerBlink = a.framesPerBlink;
     } else if (a is PixelAnimationGradient) {
       _type = _AnimType.gradient;
       _gradFlowDuration = a.durationMs;
@@ -458,6 +466,10 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
       _AnimType.rainbow => PixelAnimationRainbow(
           durationMs: _rainbowDuration,
           intensity: _intensity,
+        ),
+      _AnimType.blinkId => PixelAnimationBlinkId(
+          durationMs: _blinkIdDuration,
+          framesPerBlink: _framesPerBlink,
         ),
       _AnimType.gradient => PixelAnimationGradient(
           durationMs: _gradFlowDuration,
@@ -592,6 +604,7 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
                 child: Text(switch (t) {
                   _AnimType.solid           => 'Solid Flash',
                   _AnimType.rainbow         => 'Rainbow',
+                  _AnimType.blinkId         => 'Blink ID',
                   _AnimType.gradient        => 'Flow',
                   _AnimType.cycle           => 'Color Cycle',
                   _AnimType.noise           => 'Noise',
@@ -661,6 +674,18 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
                   ),
                   Text('$_intensity'),
                 ],
+              ),
+            ],
+
+            // ── Blink ID ───────────────────────────────────────────────────
+            if (_type == _AnimType.blinkId) ...[
+              _intField('Preamble duration (ms)', _blinkIdDuration, 100, 10000, (v) => _blinkIdDuration = v),
+              const SizedBox(height: 8),
+              _intField('Frames per blink', _framesPerBlink, 1, 30, (v) => _framesPerBlink = v),
+              const SizedBox(height: 8),
+              const Text(
+                'Blinks the die\'s identity (white preamble, then an ID pattern on all LEDs).',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
 
@@ -938,7 +963,7 @@ class _AnimationEditorDialogState extends State<_AnimationEditorDialog> {
 
 // ─── Rule editor dialog ───────────────────────────────────────────────────────
 
-enum _CondType { rolled, rolling, helloGoodbye, handling }
+enum _CondType { rolled, rolling, helloGoodbye, handling, crooked, idle, battery, connection }
 
 class _RuleEditorDialog extends StatefulWidget {
   const _RuleEditorDialog({this.rule, required this.animationCount});
@@ -954,6 +979,10 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
   int _faceMask = 0xFFFFF; // all 20 faces
   int _rollingPeriodMs = 300;
   int _helloFlags = 3; // both hello and goodbye
+  int _battFlags = 2; // low
+  int _battPeriodMs = 5000;
+  int _connFlags = 3; // connected | disconnected
+  int _idlePeriodMs = 0;
 
   int _animIndex = 0;
   int _loopCount = 1;
@@ -975,6 +1004,18 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
       } else if (c is PixelConditionHelloGoodbye) {
         _condType = _CondType.helloGoodbye;
         _helloFlags = c.flags;
+      } else if (c is PixelConditionCrooked) {
+        _condType = _CondType.crooked;
+      } else if (c is PixelConditionIdle) {
+        _condType = _CondType.idle;
+        _idlePeriodMs = c.repeatPeriodMs;
+      } else if (c is PixelConditionBatteryState) {
+        _condType = _CondType.battery;
+        _battFlags = c.flags;
+        _battPeriodMs = c.repeatPeriodMs;
+      } else if (c is PixelConditionConnectionState) {
+        _condType = _CondType.connection;
+        _connFlags = c.flags;
       } else {
         _condType = _CondType.handling;
       }
@@ -992,6 +1033,10 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
       _CondType.rolling      => PixelConditionRolling(repeatPeriodMs: _rollingPeriodMs),
       _CondType.helloGoodbye => PixelConditionHelloGoodbye(flags: _helloFlags),
       _CondType.handling     => PixelConditionHandling(),
+      _CondType.crooked      => PixelConditionCrooked(),
+      _CondType.idle         => PixelConditionIdle(repeatPeriodMs: _idlePeriodMs),
+      _CondType.battery      => PixelConditionBatteryState(flags: _battFlags, repeatPeriodMs: _battPeriodMs),
+      _CondType.connection   => PixelConditionConnectionState(flags: _connFlags),
     };
     return PixelRule(
       condition: cond,
@@ -1017,6 +1062,10 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
                 DropdownMenuItem(value: _CondType.rolling,      child: Text('Rolling (in motion)')),
                 DropdownMenuItem(value: _CondType.helloGoodbye, child: Text('Hello / Goodbye')),
                 DropdownMenuItem(value: _CondType.handling,     child: Text('Handling (picked up)')),
+                DropdownMenuItem(value: _CondType.crooked,      child: Text('Crooked (landed askew)')),
+                DropdownMenuItem(value: _CondType.idle,         child: Text('Idle (resting)')),
+                DropdownMenuItem(value: _CondType.battery,      child: Text('Battery state')),
+                DropdownMenuItem(value: _CondType.connection,   child: Text('Connection (BLE)')),
               ],
               onChanged: (v) { if (v != null) setState(() => _condType = v); },
             ),
@@ -1063,6 +1112,64 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
                 value: (_helloFlags & 2) != 0,
                 onChanged: (v) => setState(() {
                   _helloFlags = (v == true) ? (_helloFlags | 2) : (_helloFlags & ~2);
+                }),
+              ),
+            ],
+            if (_condType == _CondType.crooked) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Fires when the die lands but is not flat on a face.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+            if (_condType == _CondType.idle) ...[
+              const SizedBox(height: 8),
+              Text('Repeat period: ${_idlePeriodMs == 0 ? "once" : "$_idlePeriodMs ms"}'),
+              Slider(
+                value: _idlePeriodMs.toDouble(),
+                min: 0, max: 30000,
+                divisions: 30,
+                onChanged: (v) => setState(() => _idlePeriodMs = v.round()),
+              ),
+            ],
+            if (_condType == _CondType.battery) ...[
+              const SizedBox(height: 8),
+              for (final (flag, label) in const [
+                (2, 'Low'), (4, 'Charging'), (8, 'Fully charged'),
+                (16, 'Bad charging'), (32, 'Error'),
+              ])
+                CheckboxListTile(
+                  dense: true,
+                  title: Text(label),
+                  value: (_battFlags & flag) != 0,
+                  onChanged: (v) => setState(() {
+                    _battFlags = (v == true) ? (_battFlags | flag) : (_battFlags & ~flag);
+                  }),
+                ),
+              Text('Recheck period: $_battPeriodMs ms'),
+              Slider(
+                value: _battPeriodMs.toDouble(),
+                min: 0, max: 30000,
+                divisions: 30,
+                onChanged: (v) => setState(() => _battPeriodMs = v.round()),
+              ),
+            ],
+            if (_condType == _CondType.connection) ...[
+              const SizedBox(height: 8),
+              CheckboxListTile(
+                dense: true,
+                title: const Text('On connect'),
+                value: (_connFlags & 1) != 0,
+                onChanged: (v) => setState(() {
+                  _connFlags = (v == true) ? (_connFlags | 1) : (_connFlags & ~1);
+                }),
+              ),
+              CheckboxListTile(
+                dense: true,
+                title: const Text('On disconnect'),
+                value: (_connFlags & 2) != 0,
+                onChanged: (v) => setState(() {
+                  _connFlags = (v == true) ? (_connFlags | 2) : (_connFlags & ~2);
                 }),
               ),
             ],

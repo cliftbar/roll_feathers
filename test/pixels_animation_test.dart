@@ -186,6 +186,67 @@ void main() {
     });
   });
 
+  group('PixelConditionHandling', () {
+    test('serializes to 4 bytes (type + 3 padding) with type=2', () {
+      final cond = PixelConditionHandling();
+      expect(cond.byteSize, 4);
+      final buf = ByteData(4);
+      cond.writeTo(buf, 0);
+      expect(buf.getUint8(0), 2);
+      expect(buf.getUint32(0, Endian.little), 2); // padding bytes are zero
+    });
+  });
+
+  group('PixelConditionCrooked', () {
+    test('serializes to 4 bytes (type + 3 padding) with type=5', () {
+      final cond = PixelConditionCrooked();
+      expect(cond.byteSize, 4);
+      final buf = ByteData(4);
+      cond.writeTo(buf, 0);
+      expect(buf.getUint8(0), 5);
+      expect(buf.getUint32(0, Endian.little), 5);
+    });
+  });
+
+  group('PixelConditionIdle', () {
+    test('serializes to 4 bytes with type=8 and repeatPeriodMs', () {
+      final cond = PixelConditionIdle(repeatPeriodMs: 5000);
+      expect(cond.byteSize, 4);
+      final buf = ByteData(4);
+      cond.writeTo(buf, 0);
+      expect(buf.getUint8(0), 8);
+      expect(buf.getUint16(2, Endian.little), 5000);
+    });
+
+    test('JSON round-trip', () {
+      final restored = PixelConditionIdle.fromJson(
+        PixelConditionIdle(repeatPeriodMs: 1234).toJson());
+      expect(restored.repeatPeriodMs, 1234);
+    });
+  });
+
+  group('PixelAnimationBlinkId', () {
+    test('serializes to 6 bytes with type=8', () {
+      final bits = AnimationBits();
+      final anim = PixelAnimationBlinkId(durationMs: 1000, framesPerBlink: 6, brightness: 200);
+      expect(anim.byteSize, 6);
+      final buf = ByteData(6);
+      anim.writeTo(buf, 0, bits);
+      expect(buf.getUint8(0), 8); // AnimationType.blinkId
+      expect(buf.getUint16(2, Endian.little), 1000);
+      expect(buf.getUint8(4), 6); // framesPerBlink
+      expect(buf.getUint8(5), 200); // brightness
+    });
+
+    test('JSON round-trip', () {
+      final restored = PixelAnimationBlinkId.fromJson(
+        PixelAnimationBlinkId(durationMs: 800, framesPerBlink: 4, brightness: 128).toJson());
+      expect(restored.durationMs, 800);
+      expect(restored.framesPerBlink, 4);
+      expect(restored.brightness, 128);
+    });
+  });
+
   group('PixelActionPlayAnimation', () {
     test('serializes to 4 bytes with type=1', () {
       final action = PixelActionPlayAnimation(animIndex: 2, faceIndex: -1, loopCount: 3);

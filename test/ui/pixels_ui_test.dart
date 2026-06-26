@@ -158,6 +158,42 @@ void main() {
       expect(find.text('Duration (ms)'), findsOneWidget);
     });
 
+    testWidgets('Blink ID type shows its fields', (tester) async {
+      final profile = PixelProfile(id: 'b1', name: 'B', animations: [], rules: []);
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile)));
+
+      await tester.tap(find.text('Add').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Solid Flash'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Blink ID').last);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Frames per blink'), findsOneWidget);
+    });
+
+    testWidgets('rule editor offers battery/idle/crooked/connection conditions', (tester) async {
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile())));
+
+      await tester.tap(find.text('Add').last); // rules section add
+      await tester.pumpAndSettle();
+      expect(find.text('Edit Rule'), findsOneWidget);
+
+      // Open the condition dropdown.
+      await tester.tap(find.text('Rolled (face landed)'));
+      await tester.pumpAndSettle();
+      expect(find.text('Battery state'), findsWidgets);
+      expect(find.text('Idle (resting)'), findsWidgets);
+      expect(find.text('Crooked (landed askew)'), findsWidgets);
+      expect(find.text('Connection (BLE)'), findsWidgets);
+
+      // Selecting Battery reveals its flag checkboxes.
+      await tester.tap(find.text('Battery state').last);
+      await tester.pumpAndSettle();
+      expect(find.text('Low'), findsOneWidget);
+      expect(find.text('Charging'), findsOneWidget);
+    });
+
     testWidgets('Gradient Pattern type shows Pattern picker and Color Gradient', (tester) async {
       registerBuiltinPatterns(kBuiltinPatterns);
       final profile = PixelProfile(

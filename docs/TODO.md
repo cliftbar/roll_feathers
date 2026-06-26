@@ -46,6 +46,13 @@ Deferred work and known limitations from the Pixels profile/animation effort
 
 ### Editor gaps (smaller)
 
+- **(Code cleanup, low priority) Animation editor dialog "fat state".**
+  `_AnimationEditorDialogState` holds ~30 flat fields across all 9 animation types
+  with large init/build switches. A per-type sub-model (one class per type with
+  `build()` + `fields()`) would cut the coupling. Purely cosmetic — deferred
+  because it's a sizeable rewrite of working, tested UI with no functional gain
+  and no test coverage for every type's field round-trip. Best done alongside the
+  gradient editor, which will reshape this dialog anyway.
 - **Per-animation `faceMask`** not exposed (only the rule/condition face mask is editable).
 - **Action `faceIndex`** not exposed — can't choose "play on the rolled face vs. a fixed
   face"; only animIndex + loopCount.

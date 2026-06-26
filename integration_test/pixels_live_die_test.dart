@@ -76,11 +76,28 @@ Future<BleDevice?> _scanForPixelsDie() async {
 
 /// Connect, discover services, and initialise a [PixelDie].
 /// The caller owns disconnecting the device afterward.
+///
+/// This suite reconnects to the same die once per profile, and the die's BLE
+/// stack is occasionally slow to accept/setup a new connection right after a
+/// disconnect (GATT setup times out). Retry once, cleaning up in between, so a
+/// single transient timeout doesn't fail the run.
 Future<PixelDie> _connectDie(BleDevice device) async {
-  await UniversalBle.connect(device.deviceId).timeout(_kConnectTimeout);
-  final wrapper = UniversalBleDevice(device: device);
-  final die = await GenericBleDie.fromDevice(wrapper) as PixelDie;
-  return die;
+  Object? lastError;
+  for (var attempt = 0; attempt < 2; attempt++) {
+    try {
+      await UniversalBle.connect(device.deviceId).timeout(_kConnectTimeout);
+      final wrapper = UniversalBleDevice(device: device);
+      return await GenericBleDie.fromDevice(wrapper) as PixelDie;
+    } catch (e) {
+      lastError = e;
+      debugPrint('[live-die] connect/setup attempt ${attempt + 1} failed: $e');
+      try {
+        await UniversalBle.disconnect(device.deviceId);
+      } catch (_) {}
+      await Future.delayed(const Duration(seconds: 2));
+    }
+  }
+  throw Exception('Failed to connect/setup die after retries: $lastError');
 }
 
 /// Request IAmADie and wait for the response.
@@ -121,6 +138,9 @@ void main() {
         await UniversalBle.disconnect(die!.dieId);
       } catch (_) {}
       die = null;
+      // Give the die's BLE stack a moment to settle before the next test
+      // reconnects, to reduce setup-timeout flakiness.
+      await Future.delayed(const Duration(milliseconds: 750));
     }
   });
 

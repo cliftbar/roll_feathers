@@ -58,6 +58,12 @@ Deferred work and known limitations from the Pixels profile/animation effort
   no handler in `behavior_controller.cpp`). No on-die "matched value X" detection — arbitrary
   result logic must stay app-side (the DSL). Our `PixelConditionType` reserves the slot but
   there is no usable condition for it.
+- **(Resolved) friendlyName vs. external rename** — Pixels are now firmware-authoritative
+  for their name: the true BLE rename writes it to the die, the app keeps only a transient
+  in-session override for immediate feedback, and `asyncConvertToDie` no longer restores a
+  saved name for Pixels (the advertised/firmware name wins on reconnect). Virtual dice are
+  unaffected.
+
 - **Rolling flash vs. on-die rolled animations are mutually exclusive.** App blinks and
   on-die animations blend additively, and the only app-reachable stop (`StopAllAnimations`)
   clobbers everything (there is no tag-scoped stop message). The stop is gated on

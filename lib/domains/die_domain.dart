@@ -59,7 +59,12 @@ class DieDomain {
         if (_appService != null) {
           final saved = await _appService.getDieSettings(pd.dieId);
           if (saved != null) {
-            pd.friendlyName = saved.friendlyName ?? pd.friendlyName;
+            // Pixels are firmware-authoritative for their name (true BLE rename
+            // writes it to the die), so the advertised name wins on reconnect.
+            // Only restore a saved name for die types with no on-die name.
+            if (saved.friendlyName != null && pd.type != GenericDieType.pixel) {
+              pd.friendlyName = saved.friendlyName!;
+            }
             pd.blinkColor = saved.blinkColor;
             pd.haEntityTargets = saved.haEntityTargets;
             pd.rollingFlashEnabled = saved.rollingFlashEnabled;

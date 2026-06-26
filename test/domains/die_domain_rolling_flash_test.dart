@@ -289,7 +289,7 @@ void main() {
       expect(die.rollingFlashPreset, equals(RollingFlashPreset.strobe));
     });
 
-    test('restores friendlyName from saved settings (overrides advertised name)', () async {
+    test('Pixels die ignores a saved friendlyName on connect (firmware-authoritative)', () async {
       await service.saveDieSettings('pixel-test-id', DieSettings(
         friendlyName: 'Sparkle',
       ));
@@ -297,8 +297,9 @@ void main() {
       await domainWithService.asyncConvertToDie({'pixel-test-id': mockDevice});
 
       final die = domainWithService.getDieById('pixel-test-id');
-      // mockDevice advertises 'Test Pixel'; the saved name must win.
-      expect(die!.friendlyName, equals('Sparkle'));
+      // A true BLE rename writes the name to the die, so the advertised name
+      // ('Test Pixel') is authoritative on reconnect — the saved name is ignored.
+      expect(die!.friendlyName, equals('Test Pixel'));
     });
   });
 }

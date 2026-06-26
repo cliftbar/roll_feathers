@@ -1679,7 +1679,6 @@ class PixelDataSet {
     }
 
     // Rules (8 bytes each)
-    var actionOffsetForRule = 0;
     var actionRunningIdx = 0;
     for (var i = 0; i < profile.rules.length; i++) {
       final rule = profile.rules[i];

@@ -51,6 +51,10 @@ class RollDomain {
   List<RollResult> get rollHistory => _rollHistory;
   bool _isRolling = false;
   final Map<String, GenericDie> _rolledDie = {};
+  // Latest non-virtual dice snapshot, kept current by rollStreamListener so the
+  // (register-once) roll callbacks can check "are all dice done" against the
+  // present set rather than a stale capture.
+  Map<String, GenericDie> _latestDice = {};
   RollType rollType = RollType.sum;
   bool autoRollVirtualDice = true;
 
@@ -179,7 +183,15 @@ class RollDomain {
 
   // attach listeners to die
   void rollStreamListener(Map<String, GenericDie> data) {
+    _latestDice = data;
     for (var die in data.values.where((d) => d.type != GenericDieType.virtual)) {
+      // Register callbacks once per die instance. A reconnect produces a new die
+      // object with an empty callback map, so it re-registers naturally; this
+      // avoids recreating the per-die `dieBlinking` flag on every stream emit.
+      if (die.rollCallbacks[DiceRollState.rolling]?.containsKey("$hashCode.rolling") ?? false) {
+        continue;
+      }
+
       // Per-die flag: prevents re-sending blinkRolling if rolling fires multiple
       // times for the same die during a single roll session.
       bool dieBlinking = false;
@@ -208,7 +220,7 @@ class RollDomain {
         if (die.rollingFlashEnabled) {
           await _diceDomain.stopAnimations(die);
         }
-        bool allDiceRolled = areDieRolling(data.values.where((d) => d.type != GenericDieType.virtual).toList());
+        bool allDiceRolled = areDieRolling(_latestDice.values.where((d) => d.type != GenericDieType.virtual).toList());
         _rolledDie[die.dieId] = die;
         _rollEndVirtualDie();
 

@@ -194,6 +194,30 @@ void main() {
       expect(find.text('Charging'), findsOneWidget);
     });
 
+    testWidgets('editing a rule with no animations does not crash and disables OK', (tester) async {
+      final profile = PixelProfile(
+        id: 'r0', name: 'NoAnims',
+        animations: [],
+        rules: [
+          PixelRule(
+            condition: PixelConditionRolled(),
+            actions: [PixelActionPlayAnimation(animIndex: 0)],
+          ),
+        ],
+      );
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile)));
+
+      // With no animations there's only the rule's edit icon; opening it used to
+      // throw (clamp(0, -1)).
+      await tester.tap(find.byIcon(Icons.edit));
+      await tester.pumpAndSettle();
+      expect(find.text('Edit Rule'), findsOneWidget);
+
+      // OK is disabled because a rule needs an animation to play.
+      final ok = tester.widget<TextButton>(find.widgetWithText(TextButton, 'OK'));
+      expect(ok.onPressed, isNull);
+    });
+
     testWidgets('Gradient Pattern type shows Pattern picker and Color Gradient', (tester) async {
       registerBuiltinPatterns(kBuiltinPatterns);
       final profile = PixelProfile(

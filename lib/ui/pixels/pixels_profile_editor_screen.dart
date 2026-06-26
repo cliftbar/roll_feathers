@@ -1021,7 +1021,11 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
       }
       final action = rule.actions.whereType<PixelActionPlayAnimation>().firstOrNull;
       if (action != null) {
-        _animIndex = action.animIndex.clamp(0, widget.animationCount - 1);
+        // Guard the clamp: animationCount-1 == -1 when the profile has no
+        // animations (all deleted), which would make clamp(0, -1) throw.
+        _animIndex = widget.animationCount > 0
+            ? action.animIndex.clamp(0, widget.animationCount - 1)
+            : 0;
         _loopCount = action.loopCount;
       }
     }
@@ -1201,7 +1205,12 @@ class _RuleEditorDialogState extends State<_RuleEditorDialog> {
       ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        TextButton(onPressed: () => Navigator.pop(context, _build()), child: const Text('OK')),
+        // A rule's only action is "play animation", so it's meaningless without
+        // at least one animation to point at.
+        TextButton(
+          onPressed: widget.animationCount == 0 ? null : () => Navigator.pop(context, _build()),
+          child: const Text('OK'),
+        ),
       ],
     );
   }

@@ -9,7 +9,7 @@
 /// the SDK's transport/protocol code), so it is conceptually core→core.
 library;
 
-import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 
 /// Resolves an animation "import": clones [source]'s animation at [index] plus
 /// every animation it references (transitively, via [PixelAnimationSequence]

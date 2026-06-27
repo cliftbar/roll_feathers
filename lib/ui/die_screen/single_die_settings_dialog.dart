@@ -5,7 +5,7 @@ import 'package:flutter/widget_previews.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/dice_sdks/godice.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart' as pix;
 import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/domains/pixel_profile_domain.dart';
 import 'package:roll_feathers/repositories/pixels/pixel_profile_repository.dart';

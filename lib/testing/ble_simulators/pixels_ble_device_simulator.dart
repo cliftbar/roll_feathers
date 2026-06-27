@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart' as pix;
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 
 /// BLE-device-layer simulator for a Pixels die.

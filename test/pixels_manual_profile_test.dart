@@ -7,8 +7,8 @@
 /// Run:  flutter test test/pixels_manual_profile_test.dart
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
-import 'package:roll_feathers/dice_sdks/pixels_builtin_profiles.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 
 // ─── Face mask constants (mirror of private consts in pixels_builtin_profiles) ──
 const int _kAll        = 0xFFFFF;  // bits 0–19, all 20 d20 faces

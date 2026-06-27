@@ -1,4 +1,4 @@
-import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 
 // ─── PixelPattern — per-LED keyframe data ─────────────────────────────────────
 

@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roll_feathers/core/pixels/animation_import.dart';
-import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 
 void main() {
   group('resolveAnimationImport', () {

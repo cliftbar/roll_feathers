@@ -1,4 +1,4 @@
-import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 
 // d20 face bitmasks (bit N = face N+1, i.e. face 1 = bit 0)
 const int _kAllFaces = 0xFFFFF; // faces 1–20 (bits 0–19)

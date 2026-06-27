@@ -13,10 +13,10 @@ import 'package:integration_test/integration_test.dart';
 import 'package:universal_ble/universal_ble.dart';
 
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
-import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
-import 'package:roll_feathers/dice_sdks/pixels_builtin_profiles.dart';
-import 'package:roll_feathers/dice_sdks/pixels_patterns.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart' as pix;
+import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_patterns.dart';
 import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
 import 'package:roll_feathers/repositories/ble/ble_universal_repository.dart';
 

@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 
 /// Repository over the persisted set of [PixelProfile]s — the canonical
 /// Repository pattern: abstracts the data store and presents an in-memory

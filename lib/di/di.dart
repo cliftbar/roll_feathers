@@ -7,9 +7,9 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:roll_feathers/services/home_assistant/ha_api_service.dart';
 
 import 'package:roll_feathers/dice_sdks/godice.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart';
-import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
-import 'package:roll_feathers/dice_sdks/pixels_patterns.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_patterns.dart';
 import 'package:roll_feathers/domains/api_domain.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';

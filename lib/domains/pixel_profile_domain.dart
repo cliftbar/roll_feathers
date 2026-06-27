@@ -1,7 +1,7 @@
 import 'package:uuid/uuid.dart';
 
 import 'package:roll_feathers/core/pixels/animation_import.dart';
-import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 import 'package:roll_feathers/repositories/pixels/pixel_profile_repository.dart';
 import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
 

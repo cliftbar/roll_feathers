@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'package:roll_feathers/di/di.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart';
 import 'package:roll_feathers/domains/api_domain.dart';
 import 'package:roll_feathers/domains/dddice_domain.dart';
 import 'package:roll_feathers/domains/die_domain.dart';

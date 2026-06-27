@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roll_feathers/dice_sdks/message_sdk.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
-import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart' as pix;
+import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
 import 'package:roll_feathers/testing/pixels_die_simulator.dart';
 

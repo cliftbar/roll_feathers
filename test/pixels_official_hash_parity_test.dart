@@ -11,9 +11,9 @@
 // Run:  flutter test test/pixels_official_hash_parity_test.dart
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
-import 'package:roll_feathers/dice_sdks/pixels_builtin_profiles.dart';
-import 'package:roll_feathers/dice_sdks/pixels_patterns.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_patterns.dart';
 
 // Official pixels-js d20 hashes, keyed by our built-in profile name.
 const Map<String, int> _officialD20Hashes = {

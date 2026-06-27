@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:roll_feathers/dice_sdks/godice.dart' as godice;
 import 'package:roll_feathers/dice_sdks/message_sdk.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart' as pix;
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 
 class MessageParseError extends IOException {

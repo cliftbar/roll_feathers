@@ -3,8 +3,8 @@ import 'dart:typed_data';
 
 import 'package:logging/logging.dart';
 import 'package:roll_feathers/dice_sdks/message_sdk.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
-import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart' as pix;
+import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
 
 final _log = Logger('PixelsDieSimulator');

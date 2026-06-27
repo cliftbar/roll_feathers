@@ -6,43 +6,39 @@ import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_patterns.dart';
 import 'package:roll_feathers/domains/pixel_profile_domain.dart';
 import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
+import 'package:roll_feathers/ui/pixels/pixels_profile_editor_screen_vm.dart';
 
 /// Edits a single [PixelProfile]: name, list of animations, list of rules.
 ///
 /// Returns the updated [PixelProfile] via [Navigator.pop] when saved,
 /// or null when cancelled.
 class PixelsProfileEditorScreen extends StatefulWidget {
-  const PixelsProfileEditorScreen({
-    super.key,
-    required this.profile,
-    required this.domain,
-    this.dieService,
-  });
+  const PixelsProfileEditorScreen({super.key, required this.viewModel});
 
-  final PixelProfile profile;
+  /// Builds the editor with a [PixelsProfileEditorViewModel] for [profile].
+  static PixelsProfileEditorScreen create(
+    PixelProfileDomain domain,
+    PixelDieService? dieService,
+    PixelProfile profile,
+  ) =>
+      PixelsProfileEditorScreen(
+        viewModel: PixelsProfileEditorViewModel(domain, dieService, profile),
+      );
 
-  /// The only layer this screen talks to (UI → domain).
-  final PixelProfileDomain domain;
-
-  /// The active die's service used for live previews. When null (no die
-  /// connected, or in tests), preview controls are hidden.
-  final PixelDieService? dieService;
+  final PixelsProfileEditorViewModel viewModel;
 
   @override
   State<PixelsProfileEditorScreen> createState() => _PixelsProfileEditorScreenState();
 }
 
 class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
-  late TextEditingController _nameCtrl;
-  late List<PixelAnimation> _animations;
-  late List<PixelRule> _rules;
+  PixelsProfileEditorViewModel get _vm => widget.viewModel;
+  late final TextEditingController _nameCtrl;
 
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.profile.name);
-    _animations = List.of(widget.profile.animations);
-    _rules = List.of(widget.profile.rules);
+    _nameCtrl = TextEditingController(text: _vm.initialName);
   }
 
   @override
@@ -51,21 +47,25 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
     super.dispose();
   }
 
-  PixelProfile _buildProfile() => PixelProfile(
-    id: widget.profile.id,
-    name: _nameCtrl.text.trim().isEmpty ? 'Unnamed' : _nameCtrl.text.trim(),
-    brightness: widget.profile.brightness,
-    animations: List.of(_animations),
-    rules: List.of(_rules),
-  );
+  void _save() => Navigator.of(context).pop(_vm.buildProfile(_nameCtrl.text));
 
-  void _save() => Navigator.of(context).pop(_buildProfile());
+  /// Runs a preview command, then surfaces the VM's resulting status (the
+  /// success/failure text Commands don't model) as a SnackBar.
+  Future<void> _runPreview(Future<void> Function() exec) async {
+    await exec();
+    if (!mounted) return;
+    final msg = _vm.statusMessage;
+    if (msg != null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(msg), duration: const Duration(seconds: 1)));
+    }
+  }
 
   // ── Animations ────────────────────────────────────────────────────────────
 
   Future<void> _addAnimation() async {
     final result = await _showAnimationEditor(null);
-    if (result != null) setState(() => _animations.add(result));
+    if (result != null) _vm.addAnimation(result);
   }
 
   /// Imports an animation from a built-in profile as a starting point.
@@ -82,75 +82,17 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
       builder: (_) => const _ImportAnimationSheet(),
     );
     if (chosen == null || !mounted) return;
-    final imported = widget.domain.importAnimation(chosen.source, chosen.index, _animations.length);
-    setState(() => _animations.addAll(imported));
-    if (imported.length > 1) {
+    final count = _vm.importAnimation(chosen.source, chosen.index);
+    if (count > 1) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Imported with ${imported.length - 1} referenced animation${imported.length - 1 == 1 ? '' : 's'}')),
+        SnackBar(content: Text('Imported with ${count - 1} referenced animation${count - 1 == 1 ? '' : 's'}')),
       );
     }
   }
 
-  /// Whether a preview transfer is currently in flight (disables preview
-  /// buttons to prevent overlapping transfers to the die).
-  bool _previewing = false;
-
-  /// Uploads [animations] to the die's instant slot and plays [playIndex] once.
-  /// The whole set is sent (not just one animation) so sibling references —
-  /// e.g. a [PixelAnimationSequence]'s entries — resolve. Owns the editor's
-  /// preview feedback; the preview convention lives in [PixelDieService].
-  Future<void> _previewSet(List<PixelAnimation> animations, int playIndex) async {
-    final dieService = widget.dieService;
-    if (dieService == null || _previewing) return;
-    setState(() => _previewing = true);
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final profile = PixelProfile(id: '', name: 'preview', animations: animations, rules: const []);
-      await widget.domain.preview(dieService, profile, playIndex);
-      messenger.showSnackBar(const SnackBar(content: Text('Preview sent'), duration: Duration(seconds: 1)));
-    } catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text('Preview failed: $e')));
-    } finally {
-      if (mounted) setState(() => _previewing = false);
-    }
-  }
-
-  /// Previews the (possibly uncommitted) [anim] in the context of the current
-  /// animation list: substitutes it at [replaceIndex] when editing, or appends
-  /// it when adding, then plays that slot. Keeps sibling indices intact so
-  /// Sequence references stay valid.
-  Future<void> _previewInContext(PixelAnimation anim, {int? replaceIndex}) {
-    final anims = List<PixelAnimation>.of(_animations);
-    final int playIndex;
-    if (replaceIndex != null) {
-      anims[replaceIndex] = anim;
-      playIndex = replaceIndex;
-    } else {
-      anims.add(anim);
-      playIndex = anims.length - 1;
-    }
-    return _previewSet(anims, playIndex);
-  }
-
   Future<void> _editAnimation(int index) async {
-    final result = await _showAnimationEditor(_animations[index], editIndex: index);
-    if (result != null) setState(() => _animations[index] = result);
-  }
-
-  void _deleteAnimation(int index) {
-    setState(() {
-      _animations.removeAt(index);
-      // Fix any rules that reference a deleted animation index.
-      _rules = _rules.map((r) {
-        final fixed = r.actions.map((a) {
-          if (a is PixelActionPlayAnimation && a.animIndex >= _animations.length) {
-            return PixelActionPlayAnimation(animIndex: (_animations.length - 1).clamp(0, 255));
-          }
-          return a;
-        }).toList();
-        return PixelRule(condition: r.condition, actions: fixed);
-      }).toList();
-    });
+    final result = await _showAnimationEditor(_vm.animations[index], editIndex: index);
+    if (result != null) _vm.replaceAnimation(index, result);
   }
 
   Future<PixelAnimation?> _showAnimationEditor(PixelAnimation? existing, {int? editIndex}) {
@@ -158,8 +100,8 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
       context: context,
       builder: (_) => _AnimationEditorDialog(
         animation: existing,
-        animCount: _animations.length,
-        onPreview: widget.dieService == null ? null : (anim) => _previewInContext(anim, replaceIndex: editIndex),
+        animCount: _vm.animations.length,
+        onPreview: _vm.canPreview ? (anim) => _runPreview(() => _vm.previewInContext(anim, replaceIndex: editIndex)) : null,
       ),
     );
   }
@@ -167,29 +109,27 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
   // ── Rules ─────────────────────────────────────────────────────────────────
 
   Future<void> _addRule() async {
-    if (_animations.isEmpty) {
+    if (_vm.animations.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Add at least one animation first')),
       );
       return;
     }
     final result = await _showRuleEditor(null);
-    if (result != null) setState(() => _rules.add(result));
+    if (result != null) _vm.addRule(result);
   }
 
   Future<void> _editRule(int index) async {
-    final result = await _showRuleEditor(_rules[index]);
-    if (result != null) setState(() => _rules[index] = result);
+    final result = await _showRuleEditor(_vm.rules[index]);
+    if (result != null) _vm.replaceRule(index, result);
   }
-
-  void _deleteRule(int index) => setState(() => _rules.removeAt(index));
 
   Future<PixelRule?> _showRuleEditor(PixelRule? existing) {
     return showDialog<PixelRule>(
       context: context,
       builder: (_) => _RuleEditorDialog(
         rule: existing,
-        animationCount: _animations.length,
+        animationCount: _vm.animations.length,
       ),
     );
   }
@@ -203,108 +143,111 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
           TextButton(onPressed: _save, child: const Text('Save')),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          // Profile name
-          TextField(
-            controller: _nameCtrl,
-            decoration: const InputDecoration(labelText: 'Profile Name'),
-          ),
-          const SizedBox(height: 24),
-
-          // Animations section
-          Row(
-            children: [
-              const Expanded(child: Text('Animations', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
-              TextButton.icon(
-                onPressed: _importAnimation,
-                icon: const Icon(Icons.download, size: 18),
-                label: const Text('Import'),
-              ),
-              TextButton.icon(
-                onPressed: _addAnimation,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Add'),
-              ),
-            ],
-          ),
-          if (_animations.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('No animations yet.', style: TextStyle(color: Colors.grey)),
+      body: ListenableBuilder(
+        listenable: _vm,
+        builder: (context, _) => ListView(
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Profile name
+            TextField(
+              controller: _nameCtrl,
+              decoration: const InputDecoration(labelText: 'Profile Name'),
             ),
-          ...List.generate(_animations.length, (i) {
-            final anim = _animations[i];
-            return Card(
-              child: ListTile(
-                leading: _AnimationIcon(anim),
-                title: Text(_animLabel(i, anim)),
-                subtitle: Text(_animSubtitle(anim)),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (widget.dieService != null)
+            const SizedBox(height: 24),
+
+            // Animations section
+            Row(
+              children: [
+                const Expanded(child: Text('Animations', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+                TextButton.icon(
+                  onPressed: _importAnimation,
+                  icon: const Icon(Icons.download, size: 18),
+                  label: const Text('Import'),
+                ),
+                TextButton.icon(
+                  onPressed: _addAnimation,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add'),
+                ),
+              ],
+            ),
+            if (_vm.animations.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('No animations yet.', style: TextStyle(color: Colors.grey)),
+              ),
+            ...List.generate(_vm.animations.length, (i) {
+              final anim = _vm.animations[i];
+              return Card(
+                child: ListTile(
+                  leading: _AnimationIcon(anim),
+                  title: Text(_animLabel(i, anim)),
+                  subtitle: Text(_animSubtitle(anim)),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_vm.canPreview)
+                        IconButton(
+                          icon: const Icon(Icons.play_circle_outline, size: 20),
+                          tooltip: 'Preview on die',
+                          onPressed: _vm.preview.running ? null : () => _runPreview(() => _vm.preview.execute(_vm.animations, i)),
+                        ),
                       IconButton(
-                        icon: const Icon(Icons.play_circle_outline, size: 20),
-                        tooltip: 'Preview on die',
-                        onPressed: _previewing ? null : () => _previewSet(_animations, i),
+                        icon: const Icon(Icons.edit, size: 20),
+                        onPressed: () => _editAnimation(i),
                       ),
-                    IconButton(
-                      icon: const Icon(Icons.edit, size: 20),
-                      onPressed: () => _editAnimation(i),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 20),
-                      onPressed: () => _deleteAnimation(i),
-                    ),
-                  ],
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 20),
+                        onPressed: () => _vm.deleteAnimation(i),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            );
-          }),
+              );
+            }),
 
-          const SizedBox(height: 24),
+            const SizedBox(height: 24),
 
-          // Rules section
-          Row(
-            children: [
-              const Expanded(child: Text('Rules', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
-              TextButton.icon(
-                onPressed: _addRule,
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Add'),
-              ),
-            ],
-          ),
-          if (_rules.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('No rules yet.', style: TextStyle(color: Colors.grey)),
+            // Rules section
+            Row(
+              children: [
+                const Expanded(child: Text('Rules', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+                TextButton.icon(
+                  onPressed: _addRule,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add'),
+                ),
+              ],
             ),
-          ...List.generate(_rules.length, (i) {
-            final rule = _rules[i];
-            return Card(
-              child: ListTile(
-                title: Text('When: ${rule.condition.displayName}'),
-                subtitle: Text(_ruleSubtitle(rule)),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, size: 20),
-                      onPressed: () => _editRule(i),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 20),
-                      onPressed: () => _deleteRule(i),
-                    ),
-                  ],
-                ),
+            if (_vm.rules.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('No rules yet.', style: TextStyle(color: Colors.grey)),
               ),
-            );
-          }),
-        ],
+            ...List.generate(_vm.rules.length, (i) {
+              final rule = _vm.rules[i];
+              return Card(
+                child: ListTile(
+                  title: Text('When: ${rule.condition.displayName}'),
+                  subtitle: Text(_ruleSubtitle(rule)),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit, size: 20),
+                        onPressed: () => _editRule(i),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 20),
+                        onPressed: () => _vm.deleteRule(i),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }

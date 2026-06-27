@@ -5,49 +5,34 @@ import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/domains/pixel_profile_domain.dart';
 import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
 import 'package:roll_feathers/ui/pixels/pixels_profile_editor_screen.dart';
+import 'package:roll_feathers/ui/pixels/pixels_profiles_screen_vm.dart';
 
 class PixelsProfilesScreen extends StatefulWidget {
-  const PixelsProfilesScreen({
-    super.key,
-    required this.domain,
-    required this.dieService,
-    required this.dieName,
-  });
+  const PixelsProfilesScreen({super.key, required this.viewModel});
 
-  /// The only layer this screen talks to (UI → domain).
-  final PixelProfileDomain domain;
+  /// Builds the screen with a [PixelsProfilesScreenViewModel] for [dieService].
+  static PixelsProfilesScreen create(
+    PixelProfileDomain domain,
+    PixelDieService dieService,
+    String dieName,
+  ) =>
+      PixelsProfilesScreen(
+        viewModel: PixelsProfilesScreenViewModel(domain, dieService, dieName),
+      );
 
-  /// The active die's service, for die-bound operations (preview/flash/on-die).
-  final PixelDieService dieService;
-  final String dieName;
+  final PixelsProfilesScreenViewModel viewModel;
 
   @override
   State<PixelsProfilesScreen> createState() => _PixelsProfilesScreenState();
 }
 
 class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
-  List<PixelProfile> _profiles = [];
-  Map<String, int> _hashes = {};
-  late final Map<String, int> _builtinHashes;
-  bool _loading = true;
-  String? _transferring;
-  String? _statusMessage;
-  int? _dieHash;
+  PixelsProfilesScreenViewModel get _vm => widget.viewModel;
 
+  // View-only state (the rest lives in the ViewModel).
   bool _builtinsExpanded = true;
   bool _myProfilesExpanded = true;
   final ScrollController _scrollController = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    _builtinHashes = {
-      for (final p in kBuiltinProfiles)
-        p.name: widget.domain.profileHash(p.build()),
-    };
-    _dieHash = widget.dieService.currentDataSetHash;
-    _load();
-  }
 
   @override
   void dispose() {
@@ -55,36 +40,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    final profiles = await widget.domain.loadProfiles();
-    if (!mounted) return;
-    final hashes = {for (final p in profiles) p.id: widget.domain.profileHash(p)};
-    setState(() {
-      _profiles = profiles;
-      _hashes = hashes;
-      _loading = false;
-    });
-  }
-
-  // ─── Built-in actions ────────────────────────────────────────────────────
-
-  Future<void> _flashBuiltin(BuiltinProfile preset) async {
-    setState(() { _transferring = preset.name; _statusMessage = null; });
-    try {
-      await widget.domain.flash(widget.dieService, preset.build());
-      if (mounted) {
-        setState(() {
-          _transferring = null;
-          _statusMessage = '✓ "${preset.name}" flashed to die';
-          _dieHash = _builtinHashes[preset.name];
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() { _transferring = null; _statusMessage = 'Transfer failed: $e'; });
-    }
-  }
-
-  // ─── User profile actions ─────────────────────────────────────────────────
+  // ─── Navigation (build the profile via the VM, open the editor, save) ───────
 
   Future<void> _addProfile() async {
     final chosen = await showModalBottomSheet<PixelProfile>(
@@ -92,42 +48,27 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
       isScrollControlled: true,
       builder: (_) => const _PresetPickerSheet(),
     );
-    if (chosen == null) return;
-
-    final saved = await _openEditor(widget.domain.newFromTemplate(chosen));
-    if (saved != null) {
-      await widget.domain.save(saved);
-      await _load();
-    }
+    if (chosen == null || !mounted) return;
+    final saved = await _openEditor(_vm.newFromTemplate(chosen));
+    if (saved != null) await _vm.saveEdited.execute(saved);
   }
 
   Future<void> _editProfile(PixelProfile profile) async {
     final saved = await _openEditor(profile);
-    if (saved != null) {
-      await widget.domain.save(saved);
-      await _load();
-    }
+    if (saved != null) await _vm.saveEdited.execute(saved);
   }
 
   /// Clones [profile] (deep copy, fresh id, "(copy)" name) and opens it in the
-  /// editor so it can be tweaked before saving — works for both user profiles
-  /// and built-ins.
+  /// editor so it can be tweaked before saving.
   Future<void> _duplicateProfile(PixelProfile profile) async {
-    final saved = await _openEditor(widget.domain.duplicate(profile));
-    if (saved != null) {
-      await widget.domain.save(saved);
-      await _load();
-    }
+    final saved = await _openEditor(_vm.duplicate(profile));
+    if (saved != null) await _vm.saveEdited.execute(saved);
   }
 
   Future<PixelProfile?> _openEditor(PixelProfile profile) {
     return Navigator.of(context).push<PixelProfile>(
       MaterialPageRoute(
-        builder: (_) => PixelsProfileEditorScreen(
-          profile: profile,
-          domain: widget.domain,
-          dieService: widget.dieService,
-        ),
+        builder: (_) => PixelsProfileEditorScreen.create(_vm.domain, _vm.dieService, profile),
       ),
     );
   }
@@ -144,42 +85,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
         ],
       ),
     );
-    if (confirmed == true) {
-      await widget.domain.delete(profile.id);
-      await _load();
-    }
-  }
-
-  Future<void> _flashProfile(PixelProfile profile) async {
-    setState(() { _transferring = profile.id; _statusMessage = null; });
-    try {
-      await widget.domain.flash(widget.dieService, profile);
-      if (mounted) {
-        setState(() {
-          _transferring = null;
-          _statusMessage = '✓ "${profile.name}" flashed to die';
-          _dieHash = _hashes[profile.id];
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() { _transferring = null; _statusMessage = 'Transfer failed: $e'; });
-    }
-  }
-
-  // ─── Shared preview ───────────────────────────────────────────────────────
-
-  Future<void> _previewAnimation(
-    PixelProfile profile,
-    String transferId,
-    int animIndex,
-  ) async {
-    setState(() { _transferring = transferId; _statusMessage = null; });
-    try {
-      await widget.domain.preview(widget.dieService, profile, animIndex);
-      if (mounted) setState(() { _transferring = null; _statusMessage = 'Preview sent'; });
-    } catch (e) {
-      if (mounted) setState(() { _transferring = null; _statusMessage = 'Preview failed: $e'; });
-    }
+    if (confirmed == true) await _vm.deleteProfile.execute(profile);
   }
 
   // ─── Rule/event helpers ───────────────────────────────────────────────────
@@ -219,9 +125,9 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
           trailing: IconButton(
             icon: const Icon(Icons.play_circle_outline, size: 20),
             tooltip: 'Preview: $label',
-            onPressed: _transferring != null
+            onPressed: _vm.transferringId != null
                 ? null
-                : () => _previewAnimation(profile, transferId, idx),
+                : () => _vm.previewAnimation.execute(profile, transferId, idx),
           ),
         ));
       }
@@ -335,28 +241,32 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Animations — ${widget.dieName}'),
+        title: Text('Animations — ${_vm.dieName}'),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _addProfile,
         tooltip: 'New profile',
         child: const Icon(Icons.add),
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : Column(
+      body: ListenableBuilder(
+        listenable: _vm,
+        builder: (context, _) {
+          if (_vm.loading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          return Column(
               children: [
-                if (_statusMessage != null)
+                if (_vm.statusMessage != null)
                   Material(
                     color: Theme.of(context).colorScheme.secondaryContainer,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                       child: Row(
                         children: [
-                          Expanded(child: Text(_statusMessage!)),
+                          Expanded(child: Text(_vm.statusMessage!)),
                           IconButton(
                             icon: const Icon(Icons.close, size: 18),
-                            onPressed: () => setState(() => _statusMessage = null),
+                            onPressed: _vm.clearStatus,
                           ),
                         ],
                       ),
@@ -379,9 +289,8 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
                           delegate: SliverChildBuilderDelegate(
                             (_, i) {
                               final preset = kBuiltinProfiles[i];
-                              final isTransferring = _transferring == preset.name;
-                              final isOnDie = _dieHash != null &&
-                                  _builtinHashes[preset.name] == _dieHash!.toUnsigned(32);
+                              final isTransferring = _vm.transferringId == preset.name;
+                              final isOnDie = _vm.isBuiltinOnDie(preset);
                               final profile = preset.build();
                               return Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -415,7 +324,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
                                         : IconButton(
                                             icon: const Icon(Icons.upload),
                                             tooltip: 'Flash to die',
-                                            onPressed: () => _flashBuiltin(preset),
+                                            onPressed: () => _vm.flashBuiltin.execute(preset),
                                           ),
                                     children: _ruleRows(profile, preset.name),
                                   ),
@@ -435,7 +344,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
                         ),
                       ),
                       if (_myProfilesExpanded)
-                        if (_profiles.isEmpty)
+                        if (_vm.profiles.isEmpty)
                           const SliverToBoxAdapter(
                             child: Padding(
                               padding: EdgeInsets.symmetric(vertical: 32),
@@ -451,10 +360,9 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
                           SliverList(
                             delegate: SliverChildBuilderDelegate(
                               (_, i) {
-                                final p = _profiles[i];
-                                final isTransferring = _transferring == p.id;
-                                final isOnDie = _dieHash != null &&
-                                    _hashes[p.id]?.toUnsigned(32) == _dieHash!.toUnsigned(32);
+                                final p = _vm.profiles[i];
+                                final isTransferring = _vm.transferringId == p.id;
+                                final isOnDie = _vm.isProfileOnDie(p);
                                 return Padding(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                                   child: Card(
@@ -491,7 +399,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
                                                 IconButton(
                                                   icon: const Icon(Icons.upload),
                                                   tooltip: 'Flash to die',
-                                                  onPressed: () => _flashProfile(p),
+                                                  onPressed: () => _vm.flashProfile.execute(p),
                                                 ),
                                                 PopupMenuButton<_Action>(
                                                   onSelected: (a) => switch (a) {
@@ -512,7 +420,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
                                   ),
                                 );
                               },
-                              childCount: _profiles.length,
+                              childCount: _vm.profiles.length,
                             ),
                           ),
 
@@ -521,7 +429,9 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
                   ),
                 ),
               ],
-            ),
+            );
+        },
+      ),
     );
   }
 }

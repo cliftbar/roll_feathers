@@ -873,10 +873,10 @@ class _PixelsProfilesRoute extends StatelessWidget {
   final PixelProfileDomain domain;
 
   @override
-  Widget build(BuildContext context) => PixelsProfilesScreen(
-    domain: domain,
-    dieService: PixelDieService(PixelBleAdapter(die)),
-    dieName: die.friendlyName,
+  Widget build(BuildContext context) => PixelsProfilesScreen.create(
+    domain,
+    PixelDieService(PixelBleAdapter(die)),
+    die.friendlyName,
   );
 }
 

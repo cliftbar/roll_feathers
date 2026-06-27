@@ -45,7 +45,37 @@ pass-through to a repository, it has no reason to exist; fold it away.
 
 ### UI (`lib/ui/`)
 Screens, widgets, view-models. No business logic, no persistence, no transport.
-Reaches exactly one layer: the Domain. Gets its domain(s) via DI.
+Reaches exactly one layer: the Domain. Gets its domain(s) via DI. Internally the
+UI follows MVVM + Command — see below.
+
+#### UI architecture: MVVM + Command
+
+The UI uses Flutter's official app-architecture pattern (`util/command.dart` is
+the flutter/website sample). Three roles:
+
+- **View** — a `StatefulWidget` with a `static create(...)` factory that builds
+  its ViewModel. `build()` wraps content in
+  `ListenableBuilder(listenable: viewModel, …)` and rebuilds on notify. Holds no
+  business logic — only layout, ephemeral form state (text controllers), and
+  navigation; dispatches user actions to commands.
+- **ViewModel** (`*_vm.dart`) — extends `ChangeNotifier`. Holds the screen's
+  state, exposes `Command`s, subscribes to domain streams, and calls
+  `notifyListeners()`. The bridge from View to Domain.
+- **Command0..4** (`util/command.dart`) — wraps one async action; exposes
+  `running` / `error` / `completed` / `result` (a `Result<T>`) and is
+  single-flight (can't relaunch until it finishes). Views bind buttons to
+  `command.execute(...)` and drive spinners/disabled state from `running`.
+
+Data flow:
+
+```
+user action → command.execute(args) → ViewModel calls a Domain method
+            → updates state + notifyListeners() → ListenableBuilder rebuilds
+domain stream → ViewModel subscription → notifyListeners() → rebuild
+```
+
+Success text and per-item progress (which Commands don't model) live in plain
+VM fields (e.g. `statusMessage`, `transferringId`).
 
 ### Domain (`lib/domains/`)
 The application core. Holds business logic and orchestration, owns live app
@@ -110,6 +140,9 @@ end-to-end and is the worked example to copy:
 - Pure logic: `core/pixels/animation_import.dart`.
 - App-scoped domain (in `DiWrapper`) + a per-die `PixelDieService` passed into
   die-bound methods.
+- UI: `PixelsProfilesScreen` / `PixelsProfileEditorScreen` follow MVVM + Command
+  (`*_vm.dart` ViewModels), taking their specific deps (domain + per-die service)
+  rather than `DiWrapper`.
 
 ## Known divergences (to migrate toward the rules)
 
@@ -132,3 +165,6 @@ The codebase predates this document; these are the gaps to close over time:
   the sibling rule; reclassify to match its real role.
 - **Home Assistant appears as both a repository and a service** — clarify:
   repository = HTTP transport, service = the app-facing operations on top.
+- **ViewModels depend on the whole `DiWrapper`** — `die_screen` / `app_settings`
+  VMs take the entire DI container and reach into it, rather than receiving the
+  specific domains they need (the way the `pixels/` VMs do). Tighten over time.

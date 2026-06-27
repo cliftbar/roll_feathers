@@ -2,6 +2,7 @@ import 'package:async/async.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/domains/pixel_profile_domain.dart';
 import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
 import 'package:roll_feathers/util/command.dart';
@@ -31,6 +32,9 @@ class PixelsProfileEditorViewModel extends ChangeNotifier {
 
   /// Whether live preview is available (a die is connected).
   bool get canPreview => dieService != null;
+
+  /// The built-in profile catalog (via the domain), for the import picker.
+  List<BuiltinProfile> get builtins => domain.builtins();
 
   final List<PixelAnimation> animations;
   final List<PixelRule> rules;

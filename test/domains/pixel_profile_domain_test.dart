@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/domains/pixel_profile_domain.dart';
 import 'package:roll_feathers/repositories/pixels/pixel_profile_repository.dart';
 import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
@@ -24,6 +25,8 @@ class _FakeRepo implements PixelProfileRepository {
   }
   @override
   Future<void> delete(String id) async => items.removeWhere((e) => e.id == id);
+  @override
+  List<BuiltinProfile> builtins() => kBuiltinProfiles;
 }
 
 PixelProfile _profile({String id = 'p1', String name = 'Test'}) => PixelProfile(

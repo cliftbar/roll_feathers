@@ -2,6 +2,7 @@ import 'package:uuid/uuid.dart';
 
 import 'package:roll_feathers/core/pixels/animation_import.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/repositories/pixels/pixel_profile_repository.dart';
 import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
 
@@ -25,6 +26,9 @@ class PixelProfileDomain {
   Future<void> save(PixelProfile profile) => _repo.upsert(profile);
 
   Future<void> delete(String id) => _repo.delete(id);
+
+  /// The built-in profile catalog (from the repository, not imported directly).
+  List<BuiltinProfile> builtins() => _repo.builtins();
 
   // ─── Pure profile/animation logic ───────────────────────────────────────────
 

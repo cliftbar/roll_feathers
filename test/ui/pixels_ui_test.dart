@@ -42,6 +42,8 @@ class _FakeProfileRepo implements PixelProfileRepository {
   }
   @override
   Future<void> delete(String id) async => items.removeWhere((e) => e.id == id);
+  @override
+  List<BuiltinProfile> builtins() => kBuiltinProfiles;
 }
 
 PixelProfileDomain _domain([PixelProfileRepository? repo]) =>
@@ -270,7 +272,6 @@ void main() {
     });
 
     testWidgets('Keyframed type shows Pattern picker', (tester) async {
-      registerBuiltinPatterns(kBuiltinPatterns);
       final profile = PixelProfile(
         id: 'k1', name: 'K',
         animations: [],
@@ -356,7 +357,6 @@ void main() {
     });
 
     testWidgets('Gradient Pattern type shows Pattern picker and Color Gradient', (tester) async {
-      registerBuiltinPatterns(kBuiltinPatterns);
       final profile = PixelProfile(
         id: 'gp1', name: 'GP',
         animations: [],
@@ -379,7 +379,6 @@ void main() {
     });
 
     testWidgets('Keyframed anim shows subtitle with pattern name', (tester) async {
-      registerBuiltinPatterns(kBuiltinPatterns);
       final profile = PixelProfile(
         id: 'k2', name: 'K',
         animations: [
@@ -398,7 +397,6 @@ void main() {
     });
 
     testWidgets('GradientPattern anim shows subtitle with pattern name', (tester) async {
-      registerBuiltinPatterns(kBuiltinPatterns);
       final profile = PixelProfile(
         id: 'gp2', name: 'GP',
         animations: [

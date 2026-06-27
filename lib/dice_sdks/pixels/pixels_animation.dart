@@ -2,6 +2,8 @@ import 'dart:math' show pow;
 import 'dart:typed_data';
 import 'dart:ui' show Color;
 
+import 'package:roll_feathers/dice_sdks/pixels/pixels_patterns.dart';
+
 part 'pixels_conditions.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -634,17 +636,15 @@ class PixelPattern {
   }
 }
 
-// Global lookup populated by registerBuiltinPatterns() (called from DiWrapper
-// and test setUp). PixelAnimationKeyframed.fromJson uses this to resolve names.
-final _patternRegistry = <String, PixelPattern>{};
+// Resolves a pattern name to its built-in [PixelPattern]. Patterns serialize by
+// name (the data is large and lives in pixels_patterns.dart), so deserialization
+// resolves them here against the static kBuiltinPatterns catalog. Memoized on
+// first use — no registration/init step, so it is self-sufficient everywhere
+// fromJson is used (load, duplicate, import) and needs no test setup.
+Map<String, PixelPattern>? _patternsByName;
 
-void registerBuiltinPatterns(List<PixelPattern> patterns) {
-  for (final p in patterns) {
-    _patternRegistry[p.name] = p;
-  }
-}
-
-PixelPattern? lookupPattern(String name) => _patternRegistry[name];
+PixelPattern? lookupPattern(String name) =>
+    (_patternsByName ??= {for (final p in kBuiltinPatterns) p.name: p})[name];
 
 // ─────────────────────────────────────────────────────────────
 // Gradient animation (type=5, 12 bytes)

@@ -14,8 +14,9 @@ import 'package:roll_feathers/util/command.dart';
 /// and per-row progress live in plain fields ([statusMessage]/[transferringId]).
 class PixelsProfilesScreenViewModel extends ChangeNotifier {
   PixelsProfilesScreenViewModel(this.domain, this.dieService, this.dieName) {
+    builtins = domain.builtins();
     _builtinHashes = {
-      for (final p in kBuiltinProfiles) p.name: domain.profileHash(p.build()),
+      for (final p in builtins) p.name: domain.profileHash(p.build()),
     };
     _dieHash = dieService.currentDataSetHash;
     load = Command0(_load)..execute();
@@ -29,6 +30,9 @@ class PixelsProfilesScreenViewModel extends ChangeNotifier {
   final PixelProfileDomain domain;
   final PixelDieService dieService;
   final String dieName;
+
+  /// The built-in profile catalog (via the domain, not imported directly).
+  late final List<BuiltinProfile> builtins;
 
   late final Command0 load;
   late final Command1<void, BuiltinProfile> flashBuiltin;

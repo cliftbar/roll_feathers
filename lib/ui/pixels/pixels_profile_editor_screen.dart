@@ -79,7 +79,7 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
     final chosen = await showModalBottomSheet<_ImportSelection>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => const _ImportAnimationSheet(),
+      builder: (_) => _ImportAnimationSheet(profiles: _vm.builtins),
     );
     if (chosen == null || !mounted) return;
     final count = _vm.importAnimation(chosen.source, chosen.index);
@@ -292,7 +292,8 @@ String _animSubtitle(PixelAnimation anim) => switch (anim) {
 /// Bottom sheet listing every built-in profile's animations; tapping one pops
 /// it back to the caller to be imported as a base for a custom animation.
 class _ImportAnimationSheet extends StatelessWidget {
-  const _ImportAnimationSheet();
+  const _ImportAnimationSheet({required this.profiles});
+  final List<BuiltinProfile> profiles;
 
   @override
   Widget build(BuildContext context) {
@@ -310,7 +311,7 @@ class _ImportAnimationSheet extends StatelessWidget {
             child: ListView(
               shrinkWrap: true,
               children: [
-                for (final preset in kBuiltinProfiles)
+                for (final preset in profiles)
                   _ImportProfileTile(preset: preset),
               ],
             ),

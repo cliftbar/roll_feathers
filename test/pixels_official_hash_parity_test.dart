@@ -13,7 +13,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
-import 'package:roll_feathers/dice_sdks/pixels/pixels_patterns.dart';
 
 // Official pixels-js d20 hashes, keyed by our built-in profile name.
 const Map<String, int> _officialD20Hashes = {
@@ -37,8 +36,6 @@ const Map<String, int> _officialD20Hashes = {
 String _hex(int h) => '0x${h.toUnsigned(32).toRadixString(16).toUpperCase().padLeft(8, '0')}';
 
 void main() {
-  setUp(() => registerBuiltinPatterns(kBuiltinPatterns));
-
   group('official hash parity (d20)', () {
     for (final entry in _officialD20Hashes.entries) {
       test('${entry.key} matches official', () {

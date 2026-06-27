@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/domains/pixel_profile_domain.dart';
 import 'package:roll_feathers/repositories/pixels/pixel_profile_repository.dart';
 import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
@@ -15,6 +16,8 @@ class _FakeRepo implements PixelProfileRepository {
   Future<void> upsert(PixelProfile p) async {}
   @override
   Future<void> delete(String id) async {}
+  @override
+  List<BuiltinProfile> builtins() => kBuiltinProfiles;
 }
 
 PixelAnimationSimple _simple(int r) => PixelAnimationSimple(durationMs: 100, color: PixelColor(r, 0, 0));

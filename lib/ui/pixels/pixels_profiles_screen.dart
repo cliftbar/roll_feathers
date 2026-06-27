@@ -46,7 +46,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
     final chosen = await showModalBottomSheet<PixelProfile>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => const _PresetPickerSheet(),
+      builder: (_) => _PresetPickerSheet(presets: _vm.builtins),
     );
     if (chosen == null || !mounted) return;
     final saved = await _openEditor(_vm.newFromTemplate(chosen));
@@ -288,7 +288,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
                         SliverList(
                           delegate: SliverChildBuilderDelegate(
                             (_, i) {
-                              final preset = kBuiltinProfiles[i];
+                              final preset = _vm.builtins[i];
                               final isTransferring = _vm.transferringId == preset.name;
                               final isOnDie = _vm.isBuiltinOnDie(preset);
                               final profile = preset.build();
@@ -331,7 +331,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
                                 ),
                               );
                             },
-                            childCount: kBuiltinProfiles.length,
+                            childCount: _vm.builtins.length,
                           ),
                         ),
 
@@ -473,11 +473,11 @@ enum _Action { edit, duplicate, delete }
 // ─── Preset picker (for creating a custom profile from a starting point) ──────
 
 class _PresetPickerSheet extends StatelessWidget {
-  const _PresetPickerSheet();
+  const _PresetPickerSheet({required this.presets});
+  final List<BuiltinProfile> presets;
 
   @override
   Widget build(BuildContext context) {
-    final presets = kBuiltinProfiles;
     final blank = PixelProfile(
       id: '',
       name: 'New Profile',

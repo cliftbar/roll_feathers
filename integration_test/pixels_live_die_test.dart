@@ -124,7 +124,6 @@ void main() {
   PixelDie? die;
 
   setUp(() async {
-    registerBuiltinPatterns(kBuiltinPatterns);
     UniversalBle.timeout = const Duration(seconds: 25);
     if (!await _waitForBle()) {
       // BLE state will cause individual tests to skip

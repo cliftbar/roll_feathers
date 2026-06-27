@@ -22,6 +22,8 @@ class _FakeRepo implements PixelProfileRepository {
   }
   @override
   Future<void> delete(String id) async => items.removeWhere((e) => e.id == id);
+  @override
+  List<BuiltinProfile> builtins() => kBuiltinProfiles;
 }
 
 PixelProfile _profile({String id = 'p1', String name = 'Test'}) => PixelProfile(

@@ -17,7 +17,7 @@ import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
 import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
 import 'package:roll_feathers/dice_sdks/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/dice_sdks/pixels_patterns.dart';
-import 'package:roll_feathers/dice_sdks/pixels_profile_transfer.dart';
+import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
 import 'package:roll_feathers/repositories/ble/ble_universal_repository.dart';
 
 // ─── timeouts ────────────────────────────────────────────────────────────────
@@ -215,7 +215,7 @@ void main() {
         '(expected hash=0x${expectedHash.toRadixString(16).padLeft(8, '0')})',
       );
 
-      final transfer = PixelsProfileTransfer(adapter);
+      final transfer = PixelDieService(adapter);
       await transfer.transferProfile(profile).timeout(_kTransferTimeout);
 
       // Flash is done — actively request IAmADie to read the updated hash.
@@ -237,7 +237,7 @@ void main() {
   // 3 — Instant-animation preview (the editor / profiles-list preview path)
   // ---------------------------------------------------------------------------
 
-  // Exercises PixelsProfileTransfer.previewProfileAnimation — the single method
+  // Exercises PixelDieService.previewProfileAnimation — the single method
   // both the editor and the profiles screen call for preview. Validates the
   // centralized convention (upload set → play one index, single-shot) on real
   // hardware, rather than the raw two-call sequence the UI no longer uses.
@@ -257,7 +257,7 @@ void main() {
     final adapter = PixelBleAdapter(die!);
 
     final profile = kBuiltinProfiles.firstWhere((p) => p.name == 'Rainbow').build();
-    final transfer = PixelsProfileTransfer(adapter);
+    final transfer = PixelDieService(adapter);
 
     // Should upload the set and play index 0 without throwing.
     await expectLater(
@@ -298,7 +298,7 @@ void main() {
       ],
       rules: const [],
     );
-    final transfer = PixelsProfileTransfer(adapter);
+    final transfer = PixelDieService(adapter);
 
     await expectLater(
       transfer.previewProfileAnimation(profile, 2).timeout(_kTransferTimeout),
@@ -347,7 +347,7 @@ void main() {
       'hash=0x${expectedHash.toRadixString(16).padLeft(8, '0')}',
     );
 
-    final transfer = PixelsProfileTransfer(adapter);
+    final transfer = PixelDieService(adapter);
     await transfer.transferProfile(profile).timeout(_kTransferTimeout);
 
     await Future.delayed(const Duration(milliseconds: 200));
@@ -400,7 +400,7 @@ void main() {
       'hash=0x${expectedHash.toRadixString(16).padLeft(8, '0')}',
     );
 
-    final transfer = PixelsProfileTransfer(adapter);
+    final transfer = PixelDieService(adapter);
     await transfer.transferProfile(profile).timeout(_kTransferTimeout);
 
     await Future.delayed(const Duration(milliseconds: 200));

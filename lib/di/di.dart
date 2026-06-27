@@ -15,8 +15,10 @@ import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
 import 'package:roll_feathers/domains/dddice_domain.dart';
+import 'package:roll_feathers/domains/pixel_profile_domain.dart';
 import 'package:roll_feathers/domains/webhook_domain.dart';
 import 'package:roll_feathers/repositories/app_repository.dart';
+import 'package:roll_feathers/repositories/pixels/pixel_profile_repository.dart';
 import 'package:roll_feathers/repositories/dddice_repository.dart';
 import 'package:roll_feathers/services/dddice/dddice_config_service.dart';
 import 'package:roll_feathers/repositories/ble/ble_noop_repository.dart';
@@ -47,6 +49,7 @@ class DiWrapper {
   final RollDomain rollDomain;
   final ApiDomain apiDomain;
   final DddiceDomain dddiceDomain;
+  final PixelProfileDomain pixelProfileDomain;
 
   static Future<DiWrapper> initDi() async {
     registerBuiltinPatterns(kBuiltinPatterns);
@@ -97,6 +100,8 @@ class DiWrapper {
         baseUrl: dddiceBaseUrlOverride.isEmpty ? null : dddiceBaseUrlOverride);
     DddiceDomain dddiceDomain = DddiceDomain(dddiceRepository, dddiceConfigService);
 
+    PixelProfileDomain pixelProfileDomain = PixelProfileDomain(SharedPrefsPixelProfileRepository());
+
     RuleEvaluator ruleParser = RuleEvaluator(dieDomain, appService, webhookDomain);
     await ruleParser.init();
 
@@ -123,6 +128,7 @@ class DiWrapper {
       rollDomain,
       apiDomain,
       dddiceDomain,
+      pixelProfileDomain,
     );
   }
 
@@ -140,6 +146,7 @@ class DiWrapper {
     this.rollDomain,
     this.apiDomain,
     this.dddiceDomain,
+    this.pixelProfileDomain,
   );
 
   @visibleForTesting
@@ -172,6 +179,7 @@ class DiWrapper {
       rollDomain,
       EmptyApiDomain(),
       DddiceDomain(dddiceRepo, dddiceCs),
+      PixelProfileDomain(SharedPrefsPixelProfileRepository()),
     );
   }
 }

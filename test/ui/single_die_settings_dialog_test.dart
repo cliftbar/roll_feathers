@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
+import 'package:roll_feathers/domains/pixel_profile_domain.dart';
+import 'package:roll_feathers/repositories/pixels/pixel_profile_repository.dart';
 import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/testing/dsl_test_harness.dart';
 import 'package:roll_feathers/ui/die_screen/single_die_settings_dialog.dart';
@@ -56,6 +58,7 @@ Future<void> _pumpHost(
             builder: (_) => SingleDieSettingsDialog(
               die: die,
               haEnabled: haEnabled,
+              pixelProfileDomain: PixelProfileDomain(SharedPrefsPixelProfileRepository()),
               onBlink: (c, d, e) async => onBlink?.call(c, d, e),
               onPreviewRolling: (c, p, d) async => onPreviewRolling?.call(c, p, d),
               onDisconnect: (id) async => onDisconnect?.call(id),

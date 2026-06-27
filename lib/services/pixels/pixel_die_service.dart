@@ -7,7 +7,7 @@ import 'package:roll_feathers/dice_sdks/message_sdk.dart';
 import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
 import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
 
-final _log = Logger('PixelsProfileTransfer');
+final _log = Logger('PixelDieService');
 
 const int _kMaxChunkSize = 100;
 const int _kAckTimeoutMs = 5000;
@@ -19,14 +19,21 @@ class PixelsTransferException implements Exception {
   String toString() => 'PixelsTransferException: $message';
 }
 
-/// Manages profile upload to a Pixels die via the bulk-transfer protocol.
+/// Service wrapping a Pixels die (an external system reached via its SDK).
 ///
-/// Both flash-transfer (permanent) and instant-animation (RAM, preview) are
-/// supported. Use a [PixelsDieInterface] so tests can inject a simulator.
-class PixelsProfileTransfer {
+/// Owns the die-facing operations the app needs — flash-transfer (permanent),
+/// instant-animation (RAM, preview), single-animation preview, and rename — over
+/// the bulk-transfer protocol. Talks to the die through [PixelsDieInterface] so
+/// a simulator can be injected in tests. Contains no business logic; the domain
+/// orchestrates it.
+class PixelDieService {
   final PixelsDieInterface die;
 
-  PixelsProfileTransfer(this.die);
+  PixelDieService(this.die);
+
+  /// Hash of the animation set currently on the die (from the last `IAmADie`),
+  /// or null if unknown. Used to tell which profile is currently flashed.
+  int? get currentDataSetHash => die.currentDataSetHash;
 
   /// Upload [profile] to the die's flash memory (survives sleep/reboot).
   Future<void> transferProfile(PixelProfile profile) async {
@@ -246,7 +253,10 @@ class PixelsProfileTransfer {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PixelsDieInterface — abstract over real BLE die and simulator
+// PixelsDieInterface — the service's port over the die's SDK message plumbing.
+// Kept here (not in core/) because it is coupled to the SDK message types
+// (TxMessage/RxMessage/PixelMessageType); it is a service-layer port, not a
+// clean app port. Implemented by PixelBleAdapter (real) and PixelsDieSimulator.
 // ─────────────────────────────────────────────────────────────────────────────
 
 abstract class PixelsDieInterface {

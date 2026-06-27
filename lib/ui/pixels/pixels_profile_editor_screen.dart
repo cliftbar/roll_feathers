@@ -4,20 +4,29 @@ import 'package:flutter/services.dart';
 import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
 import 'package:roll_feathers/dice_sdks/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/dice_sdks/pixels_patterns.dart';
-import 'package:roll_feathers/dice_sdks/pixels_profile_transfer.dart';
+import 'package:roll_feathers/domains/pixel_profile_domain.dart';
+import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
 
 /// Edits a single [PixelProfile]: name, list of animations, list of rules.
 ///
 /// Returns the updated [PixelProfile] via [Navigator.pop] when saved,
 /// or null when cancelled.
 class PixelsProfileEditorScreen extends StatefulWidget {
-  const PixelsProfileEditorScreen({super.key, required this.profile, this.die});
+  const PixelsProfileEditorScreen({
+    super.key,
+    required this.profile,
+    required this.domain,
+    this.dieService,
+  });
 
   final PixelProfile profile;
 
-  /// The connected die used for live previews. When null (e.g. no die
+  /// The only layer this screen talks to (UI → domain).
+  final PixelProfileDomain domain;
+
+  /// The active die's service used for live previews. When null (no die
   /// connected, or in tests), preview controls are hidden.
-  final PixelsDieInterface? die;
+  final PixelDieService? dieService;
 
   @override
   State<PixelsProfileEditorScreen> createState() => _PixelsProfileEditorScreenState();
@@ -73,7 +82,7 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
       builder: (_) => const _ImportAnimationSheet(),
     );
     if (chosen == null || !mounted) return;
-    final imported = resolveAnimationImport(chosen.source, chosen.index, _animations.length);
+    final imported = widget.domain.importAnimation(chosen.source, chosen.index, _animations.length);
     setState(() => _animations.addAll(imported));
     if (imported.length > 1) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -89,15 +98,15 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
   /// Uploads [animations] to the die's instant slot and plays [playIndex] once.
   /// The whole set is sent (not just one animation) so sibling references —
   /// e.g. a [PixelAnimationSequence]'s entries — resolve. Owns the editor's
-  /// preview feedback; the transfer convention lives in [PixelsProfileTransfer].
+  /// preview feedback; the preview convention lives in [PixelDieService].
   Future<void> _previewSet(List<PixelAnimation> animations, int playIndex) async {
-    final die = widget.die;
-    if (die == null || _previewing) return;
+    final dieService = widget.dieService;
+    if (dieService == null || _previewing) return;
     setState(() => _previewing = true);
     final messenger = ScaffoldMessenger.of(context);
     try {
       final profile = PixelProfile(id: '', name: 'preview', animations: animations, rules: const []);
-      await PixelsProfileTransfer(die).previewProfileAnimation(profile, playIndex);
+      await widget.domain.preview(dieService, profile, playIndex);
       messenger.showSnackBar(const SnackBar(content: Text('Preview sent'), duration: Duration(seconds: 1)));
     } catch (e) {
       messenger.showSnackBar(SnackBar(content: Text('Preview failed: $e')));
@@ -150,7 +159,7 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
       builder: (_) => _AnimationEditorDialog(
         animation: existing,
         animCount: _animations.length,
-        onPreview: widget.die == null ? null : (anim) => _previewInContext(anim, replaceIndex: editIndex),
+        onPreview: widget.dieService == null ? null : (anim) => _previewInContext(anim, replaceIndex: editIndex),
       ),
     );
   }
@@ -235,7 +244,7 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (widget.die != null)
+                    if (widget.dieService != null)
                       IconButton(
                         icon: const Icon(Icons.play_circle_outline, size: 20),
                         tooltip: 'Preview on die',

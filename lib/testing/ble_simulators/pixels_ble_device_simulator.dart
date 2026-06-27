@@ -15,7 +15,7 @@ import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 /// sends during initialisation and normal operation. Everything else is
 /// silently captured in [writtenMessages] for assertion in tests.
 ///
-/// For testing [PixelsProfileTransfer] (the higher-level bulk-transfer
+/// For testing [PixelDieService] (the higher-level bulk-transfer
 /// layer), use [PixelsDieSimulator] instead.
 ///
 /// Usage:

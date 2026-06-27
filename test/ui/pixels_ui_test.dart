@@ -3,13 +3,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
 import 'package:roll_feathers/dice_sdks/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/dice_sdks/pixels_patterns.dart';
-import 'package:roll_feathers/dice_sdks/pixels_profile_transfer.dart';
-import 'package:roll_feathers/services/pixels/pixel_profile_store.dart';
+import 'package:roll_feathers/domains/pixel_profile_domain.dart';
+import 'package:roll_feathers/repositories/pixels/pixel_profile_repository.dart';
+import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
 import 'package:roll_feathers/testing/pixels_die_simulator.dart';
 import 'package:roll_feathers/ui/pixels/pixels_profile_editor_screen.dart';
 import 'package:roll_feathers/ui/pixels/pixels_profiles_screen.dart';
-import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
-import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -23,24 +22,49 @@ PixelProfile _simpleProfile({String id = 'p1', String name = 'Test'}) => PixelPr
   rules: [PixelRule(condition: PixelConditionRolled(), actions: [PixelActionPlayAnimation(animIndex: 0)])],
 );
 
+/// In-memory [PixelProfileRepository] so widget tests need no real storage.
+class _FakeProfileRepo implements PixelProfileRepository {
+  final List<PixelProfile> items = [];
+  @override
+  Future<List<PixelProfile>> loadAll() async => List.of(items);
+  @override
+  Future<void> saveAll(List<PixelProfile> profiles) async => items
+    ..clear()
+    ..addAll(profiles);
+  @override
+  Future<void> upsert(PixelProfile profile) async {
+    final i = items.indexWhere((e) => e.id == profile.id);
+    if (i >= 0) {
+      items[i] = profile;
+    } else {
+      items.add(profile);
+    }
+  }
+  @override
+  Future<void> delete(String id) async => items.removeWhere((e) => e.id == id);
+}
+
+PixelProfileDomain _domain([PixelProfileRepository? repo]) =>
+    PixelProfileDomain(repo ?? _FakeProfileRepo());
+
 // ─── PixelsProfileEditorScreen ────────────────────────────────────────────────
 
 void main() {
   group('PixelsProfileEditorScreen', () {
     testWidgets('renders profile name field', (tester) async {
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile())));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), domain: _domain())));
       expect(find.text('Edit Profile'), findsOneWidget);
       expect(find.text('Test'), findsOneWidget); // name field
     });
 
     testWidgets('shows animations section with existing animation', (tester) async {
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile())));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), domain: _domain())));
       expect(find.text('Animations'), findsOneWidget);
       expect(find.text('Animation 1: Solid Flash'), findsOneWidget);
     });
 
     testWidgets('shows rules section with existing rule', (tester) async {
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile())));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), domain: _domain())));
       expect(find.text('Rules'), findsOneWidget);
       expect(find.text('When: Rolled'), findsOneWidget);
     });
@@ -53,7 +77,7 @@ void main() {
             onPressed: () async {
               result = await Navigator.of(ctx).push<PixelProfile>(
                 MaterialPageRoute(
-                  builder: (_) => PixelsProfileEditorScreen(profile: _simpleProfile()),
+                  builder: (_) => PixelsProfileEditorScreen(profile: _simpleProfile(), domain: _domain()),
                 ),
               );
             },
@@ -73,7 +97,7 @@ void main() {
     });
 
     testWidgets('add animation dialog opens and cancels', (tester) async {
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile())));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), domain: _domain())));
       // Find and tap the Add button next to Animations
       final addButtons = find.text('Add');
       await tester.tap(addButtons.first);
@@ -89,7 +113,7 @@ void main() {
     });
 
     testWidgets('add rule dialog opens and cancels', (tester) async {
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile())));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), domain: _domain())));
       final addButtons = find.text('Add');
       await tester.tap(addButtons.last);
       await tester.pumpAndSettle();
@@ -109,7 +133,7 @@ void main() {
         animations: [],
         rules: [],
       );
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile)));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile, domain: _domain())));
 
       await tester.tap(find.text('Add').first);
       await tester.pumpAndSettle();
@@ -122,7 +146,7 @@ void main() {
     });
 
     testWidgets('delete animation removes it from list', (tester) async {
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile())));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), domain: _domain())));
 
       expect(find.text('Animation 1: Solid Flash'), findsOneWidget);
       await tester.tap(find.byIcon(Icons.delete_outline).first);
@@ -133,7 +157,7 @@ void main() {
     });
 
     testWidgets('Import opens built-in animation picker and adds the chosen one', (tester) async {
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile())));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), domain: _domain())));
 
       // Starts with the single seed animation only.
       expect(find.text('Animation 1: Solid Flash'), findsOneWidget);
@@ -188,7 +212,7 @@ void main() {
           builder: (ctx) => ElevatedButton(
             onPressed: () async {
               saved = await Navigator.of(ctx).push<PixelProfile>(
-                MaterialPageRoute(builder: (_) => PixelsProfileEditorScreen(profile: profile)),
+                MaterialPageRoute(builder: (_) => PixelsProfileEditorScreen(profile: profile, domain: _domain())),
               );
             },
             child: const Text('Open'),
@@ -217,14 +241,14 @@ void main() {
     });
 
     testWidgets('no preview button when no die is connected', (tester) async {
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile())));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), domain: _domain())));
       expect(find.byIcon(Icons.play_circle_outline), findsNothing);
     });
 
     testWidgets('preview button appears with a die and sends a preview', (tester) async {
       final sim = PixelsDieSimulator(name: 'TestDie');
       addTearDown(sim.dispose);
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), die: sim)));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), domain: _domain(), dieService: PixelDieService(sim))));
 
       // One preview button for the single animation card.
       expect(find.byIcon(Icons.play_circle_outline), findsOneWidget);
@@ -237,7 +261,7 @@ void main() {
     testWidgets('animation dialog shows a Preview action when a die is connected', (tester) async {
       final sim = PixelsDieSimulator(name: 'TestDie');
       addTearDown(sim.dispose);
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), die: sim)));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), domain: _domain(), dieService: PixelDieService(sim))));
 
       await tester.tap(find.text('Add').first);
       await tester.pumpAndSettle();
@@ -252,7 +276,7 @@ void main() {
         animations: [],
         rules: [],
       );
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile)));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile, domain: _domain())));
 
       // Open animation editor
       await tester.tap(find.text('Add').first);
@@ -273,7 +297,7 @@ void main() {
 
     testWidgets('Blink ID type shows its fields', (tester) async {
       final profile = PixelProfile(id: 'b1', name: 'B', animations: [], rules: []);
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile)));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile, domain: _domain())));
 
       await tester.tap(find.text('Add').first);
       await tester.pumpAndSettle();
@@ -286,7 +310,7 @@ void main() {
     });
 
     testWidgets('rule editor offers battery/idle/crooked/connection conditions', (tester) async {
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile())));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: _simpleProfile(), domain: _domain())));
 
       await tester.tap(find.text('Add').last); // rules section add
       await tester.pumpAndSettle();
@@ -318,7 +342,7 @@ void main() {
           ),
         ],
       );
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile)));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile, domain: _domain())));
 
       // With no animations there's only the rule's edit icon; opening it used to
       // throw (clamp(0, -1)).
@@ -338,7 +362,7 @@ void main() {
         animations: [],
         rules: [],
       );
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile)));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile, domain: _domain())));
 
       await tester.tap(find.text('Add').first);
       await tester.pumpAndSettle();
@@ -366,7 +390,7 @@ void main() {
         ],
         rules: [],
       );
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile)));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile, domain: _domain())));
       await tester.pumpAndSettle();
 
       expect(find.text('Animation 1: Keyframed'), findsOneWidget);
@@ -385,7 +409,7 @@ void main() {
         ],
         rules: [],
       );
-      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile)));
+      await tester.pumpWidget(_wrap(PixelsProfileEditorScreen(profile: profile, domain: _domain())));
       await tester.pumpAndSettle();
 
       expect(find.text('Animation 1: Gradient Pattern'), findsOneWidget);
@@ -397,20 +421,21 @@ void main() {
 
   group('PixelsProfilesScreen', () {
     late PixelsDieSimulator sim;
-    late PixelProfileStore store;
+    late _FakeProfileRepo store;
+    late PixelProfileDomain domain;
 
     setUp(() async {
-      SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty();
       sim = PixelsDieSimulator(name: 'TestDie');
-      store = PixelProfileStore();
+      store = _FakeProfileRepo();
+      domain = PixelProfileDomain(store);
     });
 
     tearDown(() => sim.dispose());
 
     Widget _buildScreen() => _wrap(PixelsProfilesScreen(
-      die: sim,
+      domain: domain,
+      dieService: PixelDieService(sim),
       dieName: 'TestDie',
-      store: store,
     ));
 
     testWidgets('shows empty state when no profiles', (tester) async {
@@ -704,57 +729,6 @@ void main() {
           .controller
           ?.offset;
       expect(scrollAfter, equals(scrollBefore));
-    });
-  });
-
-  // ─── PixelProfileStore ────────────────────────────────────────────────────
-
-  group('PixelProfileStore', () {
-    late PixelProfileStore store;
-
-    setUp(() {
-      SharedPreferencesAsyncPlatform.instance = InMemorySharedPreferencesAsync.empty();
-      store = PixelProfileStore();
-    });
-
-    test('loadAll returns empty list initially', () async {
-      expect(await store.loadAll(), isEmpty);
-    });
-
-    test('upsert inserts new profile', () async {
-      await store.upsert(_simpleProfile());
-      final all = await store.loadAll();
-      expect(all.length, 1);
-      expect(all.first.name, 'Test');
-    });
-
-    test('upsert updates existing profile by id', () async {
-      await store.upsert(_simpleProfile(name: 'Original'));
-      final updated = PixelProfile(
-        id: 'p1',
-        name: 'Updated',
-        animations: [],
-        rules: [],
-      );
-      await store.upsert(updated);
-      final all = await store.loadAll();
-      expect(all.length, 1);
-      expect(all.first.name, 'Updated');
-    });
-
-    test('delete removes profile by id', () async {
-      await store.upsert(_simpleProfile());
-      await store.delete('p1');
-      expect(await store.loadAll(), isEmpty);
-    });
-
-    test('saveAll round-trips multiple profiles', () async {
-      final p1 = _simpleProfile(id: 'a', name: 'Alpha');
-      final p2 = _simpleProfile(id: 'b', name: 'Beta');
-      await store.saveAll([p1, p2]);
-      final all = await store.loadAll();
-      expect(all.length, 2);
-      expect(all.map((p) => p.name), containsAll(['Alpha', 'Beta']));
     });
   });
 }

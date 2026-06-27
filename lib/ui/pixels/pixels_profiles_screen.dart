@@ -1,25 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:uuid/uuid.dart';
 
 import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
 import 'package:roll_feathers/dice_sdks/pixels_builtin_profiles.dart';
-import 'package:roll_feathers/dice_sdks/pixels_profile_transfer.dart';
-import 'package:roll_feathers/services/pixels/pixel_profile_store.dart';
+import 'package:roll_feathers/domains/pixel_profile_domain.dart';
+import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
 import 'package:roll_feathers/ui/pixels/pixels_profile_editor_screen.dart';
-
-int _profileHash(PixelProfile p) => PixelDataSet(p).computeHash();
 
 class PixelsProfilesScreen extends StatefulWidget {
   const PixelsProfilesScreen({
     super.key,
-    required this.die,
+    required this.domain,
+    required this.dieService,
     required this.dieName,
-    required this.store,
   });
 
-  final PixelsDieInterface die;
+  /// The only layer this screen talks to (UI → domain).
+  final PixelProfileDomain domain;
+
+  /// The active die's service, for die-bound operations (preview/flash/on-die).
+  final PixelDieService dieService;
   final String dieName;
-  final PixelProfileStore store;
 
   @override
   State<PixelsProfilesScreen> createState() => _PixelsProfilesScreenState();
@@ -43,9 +43,9 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
     super.initState();
     _builtinHashes = {
       for (final p in kBuiltinProfiles)
-        p.name: _profileHash(p.build()).toUnsigned(32),
+        p.name: widget.domain.profileHash(p.build()),
     };
-    _dieHash = widget.die.currentDataSetHash;
+    _dieHash = widget.dieService.currentDataSetHash;
     _load();
   }
 
@@ -56,9 +56,9 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
   }
 
   Future<void> _load() async {
-    final profiles = await widget.store.loadAll();
+    final profiles = await widget.domain.loadProfiles();
     if (!mounted) return;
-    final hashes = {for (final p in profiles) p.id: _profileHash(p)};
+    final hashes = {for (final p in profiles) p.id: widget.domain.profileHash(p)};
     setState(() {
       _profiles = profiles;
       _hashes = hashes;
@@ -71,8 +71,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
   Future<void> _flashBuiltin(BuiltinProfile preset) async {
     setState(() { _transferring = preset.name; _statusMessage = null; });
     try {
-      final transfer = PixelsProfileTransfer(widget.die);
-      await transfer.transferProfile(preset.build());
+      await widget.domain.flash(widget.dieService, preset.build());
       if (mounted) {
         setState(() {
           _transferring = null;
@@ -95,16 +94,9 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
     );
     if (chosen == null) return;
 
-    final withId = PixelProfile(
-      id: const Uuid().v4(),
-      name: chosen.name,
-      brightness: chosen.brightness,
-      animations: chosen.animations,
-      rules: chosen.rules,
-    );
-    final saved = await _openEditor(withId);
+    final saved = await _openEditor(widget.domain.newFromTemplate(chosen));
     if (saved != null) {
-      await widget.store.upsert(saved);
+      await widget.domain.save(saved);
       await _load();
     }
   }
@@ -112,7 +104,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
   Future<void> _editProfile(PixelProfile profile) async {
     final saved = await _openEditor(profile);
     if (saved != null) {
-      await widget.store.upsert(saved);
+      await widget.domain.save(saved);
       await _load();
     }
   }
@@ -121,14 +113,9 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
   /// editor so it can be tweaked before saving — works for both user profiles
   /// and built-ins.
   Future<void> _duplicateProfile(PixelProfile profile) async {
-    final clone = PixelProfile.fromJson({
-      ...profile.toJson(),
-      'id': const Uuid().v4(),
-      'name': '${profile.name} (copy)',
-    });
-    final saved = await _openEditor(clone);
+    final saved = await _openEditor(widget.domain.duplicate(profile));
     if (saved != null) {
-      await widget.store.upsert(saved);
+      await widget.domain.save(saved);
       await _load();
     }
   }
@@ -136,7 +123,11 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
   Future<PixelProfile?> _openEditor(PixelProfile profile) {
     return Navigator.of(context).push<PixelProfile>(
       MaterialPageRoute(
-        builder: (_) => PixelsProfileEditorScreen(profile: profile, die: widget.die),
+        builder: (_) => PixelsProfileEditorScreen(
+          profile: profile,
+          domain: widget.domain,
+          dieService: widget.dieService,
+        ),
       ),
     );
   }
@@ -154,7 +145,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
       ),
     );
     if (confirmed == true) {
-      await widget.store.delete(profile.id);
+      await widget.domain.delete(profile.id);
       await _load();
     }
   }
@@ -162,8 +153,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
   Future<void> _flashProfile(PixelProfile profile) async {
     setState(() { _transferring = profile.id; _statusMessage = null; });
     try {
-      final transfer = PixelsProfileTransfer(widget.die);
-      await transfer.transferProfile(profile);
+      await widget.domain.flash(widget.dieService, profile);
       if (mounted) {
         setState(() {
           _transferring = null;
@@ -185,7 +175,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
   ) async {
     setState(() { _transferring = transferId; _statusMessage = null; });
     try {
-      await PixelsProfileTransfer(widget.die).previewProfileAnimation(profile, animIndex);
+      await widget.domain.preview(widget.dieService, profile, animIndex);
       if (mounted) setState(() { _transferring = null; _statusMessage = 'Preview sent'; });
     } catch (e) {
       if (mounted) setState(() { _transferring = null; _statusMessage = 'Preview failed: $e'; });

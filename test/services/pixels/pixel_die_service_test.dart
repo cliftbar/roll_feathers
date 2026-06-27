@@ -1,10 +1,8 @@
-import 'dart:typed_data';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roll_feathers/dice_sdks/message_sdk.dart';
 import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
 import 'package:roll_feathers/dice_sdks/pixels_animation.dart';
-import 'package:roll_feathers/dice_sdks/pixels_profile_transfer.dart';
+import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
 import 'package:roll_feathers/testing/pixels_die_simulator.dart';
 
 PixelProfile _testProfile({
@@ -84,13 +82,13 @@ void main() {
     });
   });
 
-  group('PixelsProfileTransfer', () {
+  group('PixelDieService', () {
     late PixelsDieSimulator sim;
-    late PixelsProfileTransfer transfer;
+    late PixelDieService transfer;
 
     setUp(() {
       sim = PixelsDieSimulator();
-      transfer = PixelsProfileTransfer(sim);
+      transfer = PixelDieService(sim);
     });
 
     tearDown(() => sim.dispose());
@@ -292,7 +290,7 @@ void main() {
     test('iAmADie after transferProfile reflects updated hash', () async {
       final sim = PixelsDieSimulator();
       addTearDown(sim.dispose);
-      final transfer = PixelsProfileTransfer(sim);
+      final transfer = PixelDieService(sim);
       final profile = _testProfile();
 
       await transfer.transferProfile(profile);

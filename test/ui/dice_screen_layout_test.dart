@@ -29,6 +29,7 @@ void main() {
     when(() => mockDiceVm.rollHistory).thenReturn([]);
     
     when(() => mockSettingsVm.bleIsEnabled()).thenReturn(true);
+    when(() => mockSettingsVm.isWeb).thenReturn(false);
     when(() => mockSettingsVm.isScanning).thenReturn(false);
     when(() => mockSettingsVm.themeMode).thenReturn(ThemeMode.light);
     when(() => mockSettingsVm.getHaConfig()).thenReturn(const HaConfig(enabled: false, url: '', token: '', entity: ''));

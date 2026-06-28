@@ -49,6 +49,10 @@ class DiWrapper {
   final DddiceDomain dddiceDomain;
   final PixelProfileDomain pixelProfileDomain;
 
+  /// Host platform facts, resolved once at composition time. The single source
+  /// of truth for platform branching; UI reads it via VM getters.
+  final PlatformInfo platformInfo;
+
   static Future<DiWrapper> initDi() async {
     // Resolve the host platform once here (the composition root) and inject it,
     // rather than scattering Platform.isX / kIsWeb checks across components.
@@ -61,10 +65,10 @@ class DiWrapper {
     haService = await HaApiService.create(httpClient);
     if (platform.isWeb) {
       HaConfig conf = await haConfigService.getConfig();
-      haRepository = HaRepositoryImpl(haConfigService, haService, conf.enabled);
+      haRepository = HaRepositoryImpl(haConfigService, haService, conf.enabled, platform);
     } else {
       HaConfig conf = await haConfigService.getConfig();
-      haRepository = HaRepositoryImpl(haConfigService, haService, conf.enabled);
+      haRepository = HaRepositoryImpl(haConfigService, haService, conf.enabled, platform);
     }
 
     String appVersion = 'unknown';
@@ -130,6 +134,7 @@ class DiWrapper {
       apiDomain,
       dddiceDomain,
       pixelProfileDomain,
+      platform,
     );
   }
 
@@ -148,6 +153,7 @@ class DiWrapper {
     this.apiDomain,
     this.dddiceDomain,
     this.pixelProfileDomain,
+    this.platformInfo,
   );
 
   @visibleForTesting
@@ -159,6 +165,7 @@ class DiWrapper {
     BleRepository? bleRepository,
     DddiceConfigService? dddiceConfigService,
     DddiceRepository? dddiceRepository,
+    PlatformInfo? platformInfo,
   }) async {
     final ble = bleRepository ?? NoopBleRepository();
     final ha = HaRepositoryEmpty();
@@ -181,6 +188,7 @@ class DiWrapper {
       EmptyApiDomain(),
       DddiceDomain(dddiceRepo, dddiceCs),
       PixelProfileDomain(SharedPrefsPixelProfileRepository()),
+      platformInfo ?? PlatformInfo.host(),
     );
   }
 }

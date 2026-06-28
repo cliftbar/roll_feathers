@@ -20,6 +20,7 @@ import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/services/dddice/dddice_config_service.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/util/command.dart';
+import 'package:roll_feathers/util/platform_info.dart';
 
 class AppSettingsScreenViewModel extends ChangeNotifier {
   final AppRepository _appRepository;
@@ -29,6 +30,10 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
   final DieDomain _dieDomain;
   final ApiDomain _apiDomain;
   final RuleEvaluator _ruleParser;
+  final PlatformInfo _platform;
+
+  /// Whether the app is running on the web, for view-layer presentation.
+  bool get isWeb => _platform.isWeb;
 
   // init
   late Command0 load;
@@ -78,7 +83,8 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
         _dddiceDomain = di.dddiceDomain,
         _dieDomain = di.dieDomain,
         _apiDomain = di.apiDomain,
-        _ruleParser = di.ruleParser {
+        _ruleParser = di.ruleParser,
+        _platform = di.platformInfo {
     // init
     load = Command0(_load)..execute();
 
@@ -219,7 +225,7 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       await _bleRepository.scan(services: [pixelsService], namePrefix: ['GoDice_']);
-      if (kIsWeb) {
+      if (_platform.isWeb) {
         _scanInProgress = false;
         notifyListeners();
       } else {

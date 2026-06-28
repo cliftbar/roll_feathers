@@ -1,6 +1,6 @@
 import 'dart:io' show Platform;
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWasm, kIsWeb;
 
 /// Host platform facts, resolved once (via [PlatformInfo.host]) at composition
 /// time and injected where behavior depends on the platform. Centralizing the
@@ -8,7 +8,11 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 /// tests construct a [PlatformInfo] with explicit flags instead of branching on
 /// the real host.
 class PlatformInfo {
+  /// Running on the web (true for both JS and WebAssembly compilation targets).
   final bool isWeb;
+
+  /// Running on a WebAssembly web build specifically. Implies [isWeb].
+  final bool isWasm;
   final bool isWindows;
   final bool isMacOS;
   final bool isLinux;
@@ -17,6 +21,7 @@ class PlatformInfo {
 
   const PlatformInfo({
     this.isWeb = false,
+    this.isWasm = false,
     this.isWindows = false,
     this.isMacOS = false,
     this.isLinux = false,
@@ -28,6 +33,7 @@ class PlatformInfo {
   /// web, so every native check is guarded by [kIsWeb] first.
   factory PlatformInfo.host() => PlatformInfo(
         isWeb: kIsWeb,
+        isWasm: kIsWasm,
         isWindows: !kIsWeb && Platform.isWindows,
         isMacOS: !kIsWeb && Platform.isMacOS,
         isLinux: !kIsWeb && Platform.isLinux,

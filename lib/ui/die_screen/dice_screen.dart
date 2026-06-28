@@ -206,7 +206,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                         widget.settingsVm.startBleScan.execute();
                       }
                       : null,
-              label: bleOn ? Text(kIsWeb ? "Pair Die" : "Scan") : const Text("BLE Disabled"),
+              label: bleOn ? Text(widget.settingsVm.isWeb ? "Pair Die" : "Scan") : const Text("BLE Disabled"),
               icon:
                   scanning
                       ? const SizedBox(

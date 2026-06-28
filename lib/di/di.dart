@@ -61,7 +61,7 @@ class DiWrapper {
     late HaRepository haRepository;
     late HaService haService;
     HaConfigService haConfigService = HaConfigService();
-    Client httpClient = http_factory.provideHttpClient();
+    Client httpClient = http_factory.provideHttpClient(platform);
     haService = await HaApiService.create(httpClient);
     if (platform.isWeb) {
       HaConfig conf = await haConfigService.getConfig();
@@ -167,10 +167,11 @@ class DiWrapper {
     DddiceRepository? dddiceRepository,
     PlatformInfo? platformInfo,
   }) async {
+    final platform = platformInfo ?? PlatformInfo.host();
     final ble = bleRepository ?? NoopBleRepository();
     final ha = HaRepositoryEmpty();
     final dddiceCs = dddiceConfigService ?? DddiceConfigService();
-    final dddiceRepo = dddiceRepository ?? DddiceRepository(http_factory.provideHttpClient());
+    final dddiceRepo = dddiceRepository ?? DddiceRepository(http_factory.provideHttpClient(platform));
     final rollDomain = await RollDomain.create(dieDomain, appService,
         ruleParser: ruleParser);
     return DiWrapper._(
@@ -188,7 +189,7 @@ class DiWrapper {
       EmptyApiDomain(),
       DddiceDomain(dddiceRepo, dddiceCs),
       PixelProfileDomain(SharedPrefsPixelProfileRepository()),
-      platformInfo ?? PlatformInfo.host(),
+      platform,
     );
   }
 }

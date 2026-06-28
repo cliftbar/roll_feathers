@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart';
@@ -22,6 +21,7 @@ import 'package:roll_feathers/services/dddice/dddice_config_service.dart';
 import 'package:roll_feathers/repositories/ble/ble_noop_repository.dart';
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 import 'package:roll_feathers/repositories/ble/ble_universal_repository.dart';
+import 'package:roll_feathers/util/platform_info.dart';
 import 'package:roll_feathers/repositories/home_assistant_repository.dart';
 import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
@@ -50,12 +50,16 @@ class DiWrapper {
   final PixelProfileDomain pixelProfileDomain;
 
   static Future<DiWrapper> initDi() async {
+    // Resolve the host platform once here (the composition root) and inject it,
+    // rather than scattering Platform.isX / kIsWeb checks across components.
+    final platform = PlatformInfo.host();
+
     late HaRepository haRepository;
     late HaService haService;
     HaConfigService haConfigService = HaConfigService();
     Client httpClient = http_factory.provideHttpClient();
     haService = await HaApiService.create(httpClient);
-    if (kIsWeb) {
+    if (platform.isWeb) {
       HaConfig conf = await haConfigService.getConfig();
       haRepository = HaRepositoryImpl(haConfigService, haService, conf.enabled);
     } else {
@@ -75,11 +79,11 @@ class DiWrapper {
     AppRepository appRepo = AppRepository(appService);
 
     const bool integrationTest = bool.fromEnvironment('INTEGRATION_TEST');
-    BleRepository bleRepo = integrationTest ? NoopBleRepository() : BleUniversalRepository();
+    BleRepository bleRepo = integrationTest ? NoopBleRepository() : BleUniversalRepository(platform: platform);
     await bleRepo.init();
-    if (!kIsWeb && !integrationTest) {
+    if (!platform.isWeb && !integrationTest) {
       // Windows: no service filter — improves discovery reliability on WinRT
-      final services = Platform.isWindows ? const <String>[] : [pixelsService, godiceServiceGuid];
+      final services = platform.isWindows ? const <String>[] : [pixelsService, godiceServiceGuid];
       bleRepo.scan(services: services, namePrefix: ['GoDice_']);
     }
 
@@ -105,7 +109,7 @@ class DiWrapper {
     RollDomain rollDomain = await RollDomain.create(dieDomain, appService,
         ruleParser: ruleParser, observers: [dddiceDomain]);
     late ApiDomain apiDomain;
-    if (kIsWeb) {
+    if (platform.isWeb) {
       apiDomain = EmptyApiDomain();
     } else {
       apiDomain = await ApiDomainServer.create(rollDomain: rollDomain);

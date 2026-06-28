@@ -1,18 +1,54 @@
+import 'package:roll_feathers/dice_sdks/pixels/pixel_faces.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 
-// d20 face bitmasks (bit N = face N+1, i.e. face 1 = bit 0)
-const int _kAllFaces = 0xFFFFF; // faces 1–20 (bits 0–19)
-const int _kTopFace = 0x80000; // face 20 (bit 19)
-const int _kNonTopFaces = 0x7FFFF; // faces 1–19 (bits 0–18)
-const int _kHighFaces = 0xFFC00; // faces 11–20 (bits 10–19)
-const int _kLowFaces = 0x3FF; // faces 1–10 (bits 0–9)
-const int _kLowFaceOnly = 0x1; // face 1 only (bit 0)
-const int _kMiddleFaces = 0x7FFFE; // faces 2–19 (bits 1–18)
-
-// Worm profile face tiers (thirds of d20 by index 0–19)
-const int _kWormLowFaces = 0x7F; // indices 0–6  → faces 1–7
-const int _kWormMidFaces = 0x3F80; // indices 7–13 → faces 8–14
-const int _kWormHighNonTop = 0x7C000; // indices 14–18 → faces 15–19
+// Face selections per die type, mirroring the official createLibraryProfile
+// logic (mask = OR of 1<<indexFromFace(face)). The d20 results equal the former
+// hardcoded constants (0xFFFFF/0x80000/…), so d20 stays byte-identical.
+int _kAllFaces(PixelDieType dt) => PixelFaces.faceMask(PixelFaces.dieFaces(dt), dt);
+int _kTopFace(PixelDieType dt) => PixelFaces.faceMask([PixelFaces.highestFace(dt)], dt);
+// Bit index of the top face, for "play on the top face" actions.
+int _kTopFaceIdx(PixelDieType dt) => PixelFaces.indexFromFace(PixelFaces.highestFace(dt), dt);
+int _kNonTopFaces(PixelDieType dt) {
+  final h = PixelFaces.highestFace(dt);
+  return PixelFaces.faceMask(PixelFaces.dieFaces(dt).where((f) => f != h), dt);
+}
+int _kMiddleFaces(PixelDieType dt) {
+  final h = PixelFaces.highestFace(dt);
+  final l = PixelFaces.lowestFace(dt);
+  return PixelFaces.faceMask(PixelFaces.dieFaces(dt).where((f) => f != h && f != l), dt);
+}
+int _kLowFaceOnly(PixelDieType dt) => PixelFaces.faceMask([PixelFaces.lowestFace(dt)], dt);
+// "High Low": faces with index below / at-or-above the midpoint.
+int _kLowFaces(PixelDieType dt) {
+  final n = PixelFaces.faceCount(dt);
+  return PixelFaces.faceMask(
+      PixelFaces.dieFaces(dt).where((f) => PixelFaces.indexFromFace(f, dt) < n / 2), dt);
+}
+int _kHighFaces(PixelDieType dt) {
+  final n = PixelFaces.faceCount(dt);
+  return PixelFaces.faceMask(
+      PixelFaces.dieFaces(dt).where((f) => PixelFaces.indexFromFace(f, dt) >= n / 2), dt);
+}
+// Worm tiers: thirds of the die by index, plus a non-top high tier.
+int _kWormLowFaces(PixelDieType dt) {
+  final n = PixelFaces.faceCount(dt);
+  return PixelFaces.faceMask(
+      PixelFaces.dieFaces(dt).where((f) => PixelFaces.indexFromFace(f, dt) < n / 3), dt);
+}
+int _kWormMidFaces(PixelDieType dt) {
+  final n = PixelFaces.faceCount(dt);
+  return PixelFaces.faceMask(PixelFaces.dieFaces(dt).where((f) {
+    final i = PixelFaces.indexFromFace(f, dt);
+    return i >= n / 3 && i < 2 * n / 3;
+  }), dt);
+}
+int _kWormHighNonTop(PixelDieType dt) {
+  final n = PixelFaces.faceCount(dt);
+  final h = PixelFaces.highestFace(dt);
+  return PixelFaces.faceMask(
+      PixelFaces.dieFaces(dt).where((f) => PixelFaces.indexFromFace(f, dt) >= 2 * n / 3 && f != h), dt);
+}
 
 // Battery-state condition flags (official SDK: bit 0 is reserved)
 const int _kBattLow = PixelBatteryFlags.low;
@@ -26,7 +62,7 @@ const int _kBattError = PixelBatteryFlags.error;
 class BuiltinProfile {
   final String name;
   final String description;
-  final PixelProfile Function() build;
+  final PixelProfile Function(PixelDieType dieType) build;
 
   const BuiltinProfile({
     required this.name,
@@ -138,7 +174,7 @@ final List<BuiltinProfile> kBuiltinProfiles = [
 //   Color.yellow = (0.7, 0.6, 0.01) → r=179, g=153, b=3
 // AnimationBits.addColor applies gamma-3.0 correction before storing in palette.
 
-List<PixelAnimation> _advancedAnims() => [
+List<PixelAnimation> _advancedAnims(PixelDieType dt) => [
   // [0] hello: rolling rainbow, 2 s, 2× count, fade=200/255, intensity=128, cycles=1
   PixelAnimationRainbow(
     animFlags: 3, // traveling | useLedIndices
@@ -168,7 +204,7 @@ List<PixelAnimation> _advancedAnims() => [
   // [3] charging: red flash ×1, top face, 3 s
   PixelAnimationSimple(
     durationMs: 3000,
-    faceMask: _kTopFace,
+    faceMask: _kTopFace(dt),
     color: const PixelColor(179, 0, 0),
     count: 1,
     fade: 127,
@@ -176,7 +212,7 @@ List<PixelAnimation> _advancedAnims() => [
   // [4] charged: green flash ×1, top face, 3 s
   PixelAnimationSimple(
     durationMs: 3000,
-    faceMask: _kTopFace,
+    faceMask: _kTopFace(dt),
     color: const PixelColor(0, 179, 0),
     count: 1,
     fade: 127,
@@ -192,7 +228,7 @@ List<PixelAnimation> _advancedAnims() => [
   // [6] chargingError: yellow flash ×1, top face, 1 s
   PixelAnimationSimple(
     durationMs: 1000,
-    faceMask: _kTopFace,
+    faceMask: _kTopFace(dt),
     color: const PixelColor(179, 153, 3),
     count: 1,
     fade: 127,
@@ -200,7 +236,7 @@ List<PixelAnimation> _advancedAnims() => [
 ];
 
 // Advanced rules reference animation indices 0–6 (always the same positions).
-List<PixelRule> _advancedRules() => [
+List<PixelRule> _advancedRules(PixelDieType dt) => [
   // [0] hello/goodbye → hello rainbow (anim 0)
   PixelRule(
     condition: PixelConditionHelloGoodbye(flags: PixelHelloFlags.hello),
@@ -219,22 +255,22 @@ List<PixelRule> _advancedRules() => [
   // [3] charging, recheck 5 s → charging flash (anim 3, top face)
   PixelRule(
     condition: PixelConditionBatteryState(flags: _kBattCharging, repeatPeriodMs: 5000),
-    actions: [PixelActionPlayAnimation(animIndex: 3, faceIndex: 19)],
+    actions: [PixelActionPlayAnimation(animIndex: 3, faceIndex: _kTopFaceIdx(dt))],
   ),
   // [4] fully charged, recheck 5 s → charged flash (anim 4, top face)
   PixelRule(
     condition: PixelConditionBatteryState(flags: _kBattDone, repeatPeriodMs: 5000),
-    actions: [PixelActionPlayAnimation(animIndex: 4, faceIndex: 19)],
+    actions: [PixelActionPlayAnimation(animIndex: 4, faceIndex: _kTopFaceIdx(dt))],
   ),
   // [5] bad charging, recheck 1 s → badCharging flash (anim 5, top face)
   PixelRule(
     condition: PixelConditionBatteryState(flags: _kBattBadCharging, repeatPeriodMs: 1000),
-    actions: [PixelActionPlayAnimation(animIndex: 5, faceIndex: 19)],
+    actions: [PixelActionPlayAnimation(animIndex: 5, faceIndex: _kTopFaceIdx(dt))],
   ),
   // [6] charging error, recheck 1.5 s → chargingError flash (anim 6, top face)
   PixelRule(
     condition: PixelConditionBatteryState(flags: _kBattError, repeatPeriodMs: 1500),
-    actions: [PixelActionPlayAnimation(animIndex: 6, faceIndex: 19)],
+    actions: [PixelActionPlayAnimation(animIndex: 6, faceIndex: _kTopFaceIdx(dt))],
   ),
 ];
 
@@ -244,12 +280,12 @@ List<PixelRule> _advancedRules() => [
 // Middle (faces 2–19): waterfall
 // Low (face 1): quickRed
 
-PixelProfile _buildDefault() => PixelProfile(
+PixelProfile _buildDefault(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Default Profile',
   brightness: 255,
   animations: [
-    ..._advancedAnims(),
+    ..._advancedAnims(dt),
     // [7] coloredFlash: face-color blink, 500 ms
     PixelAnimationSimple(
       durationMs: 500,
@@ -299,7 +335,7 @@ PixelProfile _buildDefault() => PixelProfile(
     ),
   ],
   rules: [
-    ..._advancedRules(),
+    ..._advancedRules(dt),
     // [7] rolling (recheck 500 ms) → coloredFlash
     PixelRule(
       condition: PixelConditionRolling(repeatPeriodMs: 500),
@@ -307,17 +343,17 @@ PixelProfile _buildDefault() => PixelProfile(
     ),
     // [8] rolled top (face 20) → hello rainbow (reuses anim 0)
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kTopFace),
+      condition: PixelConditionRolled(faceMask: _kTopFace(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 0)],
     ),
     // [9] rolled middle (faces 2–19) → waterfall
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kMiddleFaces),
+      condition: PixelConditionRolled(faceMask: _kMiddleFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 8)],
     ),
     // [10] rolled low (face 1) → quickRed
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kLowFaceOnly),
+      condition: PixelConditionRolled(faceMask: _kLowFaceOnly(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 9)],
     ),
   ],
@@ -328,12 +364,12 @@ PixelProfile _buildDefault() => PixelProfile(
 // Low (1–10): overlappingQuickReds (Sequence)
 // High (11–20): overlappingQuickGreens (Sequence)
 
-PixelProfile _buildHighLow() => PixelProfile(
+PixelProfile _buildHighLow(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'High Low',
   brightness: 255,
   animations: [
-    ..._advancedAnims(),
+    ..._advancedAnims(dt),
     // [7] blueFlash
     PixelAnimationSimple(
       durationMs: 1000,
@@ -412,7 +448,7 @@ PixelProfile _buildHighLow() => PixelProfile(
     ),
   ],
   rules: [
-    ..._advancedRules(),
+    ..._advancedRules(dt),
     // [7] rolling → blueFlash
     PixelRule(
       condition: PixelConditionRolling(repeatPeriodMs: 200),
@@ -420,12 +456,12 @@ PixelProfile _buildHighLow() => PixelProfile(
     ),
     // [8] low faces (1–10) → overlappingQuickReds
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kLowFaces),
+      condition: PixelConditionRolled(faceMask: _kLowFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 8)],
     ),
     // [9] high faces (11–20) → overlappingQuickGreens
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kHighFaces),
+      condition: PixelConditionRolled(faceMask: _kHighFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 11)],
     ),
   ],
@@ -436,12 +472,12 @@ PixelProfile _buildHighLow() => PixelProfile(
 // Non-top: coloredFlash × 5 loops
 // Top (nat-20): rainbowAllFacesFast × 2 loops
 
-PixelProfile _buildFlashy() => PixelProfile(
+PixelProfile _buildFlashy(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Flashy',
   brightness: 255,
   animations: [
-    ..._advancedAnims(),
+    ..._advancedAnims(dt),
     // [7] coloredFlash (face color)
     PixelAnimationSimple(
       durationMs: 500,
@@ -460,7 +496,7 @@ PixelProfile _buildFlashy() => PixelProfile(
     ),
   ],
   rules: [
-    ..._advancedRules(),
+    ..._advancedRules(dt),
     // [7] rolling → coloredFlash
     PixelRule(
       condition: PixelConditionRolling(repeatPeriodMs: 200),
@@ -468,12 +504,12 @@ PixelProfile _buildFlashy() => PixelProfile(
     ),
     // [8] non-top rolled → coloredFlash × 5
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kNonTopFaces),
+      condition: PixelConditionRolled(faceMask: _kNonTopFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 7, loopCount: 5)],
     ),
     // [9] top rolled → rainbowAllFacesFast × 2
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kTopFace),
+      condition: PixelConditionRolled(faceMask: _kTopFace(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 8, loopCount: 2)],
     ),
   ],
@@ -481,7 +517,7 @@ PixelProfile _buildFlashy() => PixelProfile(
 
 // ─── Rainbow (bonus, no advanced rules) ──────────────────────────────────────
 
-PixelProfile _buildRainbow() => PixelProfile(
+PixelProfile _buildRainbow(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Rainbow',
   brightness: 255,
@@ -500,7 +536,7 @@ PixelProfile _buildRainbow() => PixelProfile(
       actions: [PixelActionPlayAnimation(animIndex: 1)],
     ),
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kAllFaces),
+      condition: PixelConditionRolled(faceMask: _kAllFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 2)],
     ),
   ],
@@ -508,14 +544,14 @@ PixelProfile _buildRainbow() => PixelProfile(
 
 // ─── Color Cycle (bonus, no advanced rules) ───────────────────────────────────
 
-PixelProfile _buildColorCycle() => PixelProfile(
+PixelProfile _buildColorCycle(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Color Cycle',
   brightness: 255,
   animations: [
     PixelAnimationCycle(
       durationMs: 3000,
-      faceMask: _kAllFaces,
+      faceMask: _kAllFaces(dt),
       intensity: 200,
       cyclesTimes10: 10,
       fade: 0,
@@ -523,7 +559,7 @@ PixelProfile _buildColorCycle() => PixelProfile(
     ),
     PixelAnimationCycle(
       durationMs: 800,
-      faceMask: _kAllFaces,
+      faceMask: _kAllFaces(dt),
       intensity: 255,
       cyclesTimes10: 20,
       fade: 64,
@@ -531,7 +567,7 @@ PixelProfile _buildColorCycle() => PixelProfile(
     ),
     PixelAnimationCycle(
       durationMs: 2000,
-      faceMask: _kAllFaces,
+      faceMask: _kAllFaces(dt),
       intensity: 230,
       cyclesTimes10: 15,
       fade: 0,
@@ -548,7 +584,7 @@ PixelProfile _buildColorCycle() => PixelProfile(
       actions: [PixelActionPlayAnimation(animIndex: 1)],
     ),
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kAllFaces),
+      condition: PixelConditionRolled(faceMask: _kAllFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 2)],
     ),
   ],
@@ -557,23 +593,23 @@ PixelProfile _buildColorCycle() => PixelProfile(
 // ─── Empty ────────────────────────────────────────────────────────────────────
 // Official: only 7 advanced rules, no profile-specific rules or animations.
 
-PixelProfile _buildEmpty() => PixelProfile(
+PixelProfile _buildEmpty(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Empty',
   brightness: 255,
-  animations: _advancedAnims(),
-  rules: _advancedRules(),
+  animations: _advancedAnims(dt),
+  rules: _advancedRules(dt),
 );
 
 // ─── Speak Numbers ────────────────────────────────────────────────────────────
 // Non-top: noise · Top: noiseRainbow · 20 SpeakText rules (one per face)
 
-PixelProfile _buildSpeak() => PixelProfile(
+PixelProfile _buildSpeak(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Speak Numbers',
   brightness: 255,
   animations: [
-    ..._advancedAnims(),
+    ..._advancedAnims(dt),
     // [7] noise — dense multi-color sparkle, 2 s
     PixelAnimationNoise(
       durationMs: 2000,
@@ -618,21 +654,23 @@ PixelProfile _buildSpeak() => PixelProfile(
     ),
   ],
   rules: [
-    ..._advancedRules(),
+    ..._advancedRules(dt),
     // [7] non-top rolled → noise
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kNonTopFaces),
+      condition: PixelConditionRolled(faceMask: _kNonTopFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 7)],
     ),
     // [8] top rolled → noiseRainbow
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kTopFace),
+      condition: PixelConditionRolled(faceMask: _kTopFace(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 8)],
     ),
-    // [9–28] speak face 1–20 (SpeakText; actionIds assigned at serialize time)
-    for (var f = 1; f <= 20; f++)
+    // One SpeakText rule per face. Faces use raw values (not index-mapped),
+    // matching the official; the mask is 1<<(f-1) with JS shift-mod-32 semantics
+    // (so d10 face 0 → bit 31), and the spoken text is the face value.
+    for (final f in PixelFaces.dieFaces(dt))
       PixelRule(
-        condition: PixelConditionRolled(faceMask: 1 << (f - 1)),
+        condition: PixelConditionRolled(faceMask: 1 << ((f - 1) & 31)),
         actions: [PixelActionSpeakText(text: '$f')],
       ),
   ],
@@ -640,12 +678,12 @@ PixelProfile _buildSpeak() => PixelProfile(
 
 // ─── Waterfall ────────────────────────────────────────────────────────────────
 
-PixelProfile _buildWaterfall() => PixelProfile(
+PixelProfile _buildWaterfall(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Waterfall',
   brightness: 255,
   animations: [
-    ..._advancedAnims(),
+    ..._advancedAnims(dt),
     // [7] waterfallTopHalf — brief top-half preview while rolling
     PixelAnimationNormals(
       durationMs: 500,
@@ -706,7 +744,7 @@ PixelProfile _buildWaterfall() => PixelProfile(
     ),
   ],
   rules: [
-    ..._advancedRules(),
+    ..._advancedRules(dt),
     // [7] rolling → waterfallTopHalf
     PixelRule(
       condition: PixelConditionRolling(repeatPeriodMs: 200),
@@ -714,12 +752,12 @@ PixelProfile _buildWaterfall() => PixelProfile(
     ),
     // [8] non-top rolled → waterfall
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kNonTopFaces),
+      condition: PixelConditionRolled(faceMask: _kNonTopFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 8)],
     ),
     // [9] top rolled → waterfallRainbow × 3
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kTopFace),
+      condition: PixelConditionRolled(faceMask: _kTopFace(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 9, loopCount: 3)],
     ),
   ],
@@ -727,12 +765,12 @@ PixelProfile _buildWaterfall() => PixelProfile(
 
 // ─── Fountain ─────────────────────────────────────────────────────────────────
 
-PixelProfile _buildFountain() => PixelProfile(
+PixelProfile _buildFountain(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Fountain',
   brightness: 255,
   animations: [
-    ..._advancedAnims(),
+    ..._advancedAnims(dt),
     // [7] waterfallTopHalf (rolling)
     PixelAnimationNormals(
       durationMs: 500,
@@ -815,7 +853,7 @@ PixelProfile _buildFountain() => PixelProfile(
     ),
   ],
   rules: [
-    ..._advancedRules(),
+    ..._advancedRules(dt),
     // [7] rolling → waterfallTopHalf
     PixelRule(
       condition: PixelConditionRolling(repeatPeriodMs: 200),
@@ -823,12 +861,12 @@ PixelProfile _buildFountain() => PixelProfile(
     ),
     // [8] non-top rolled → fountain
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kNonTopFaces),
+      condition: PixelConditionRolled(faceMask: _kNonTopFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 8)],
     ),
     // [9] top rolled → rainbowFountainX3
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kTopFace),
+      condition: PixelConditionRolled(faceMask: _kTopFace(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 9)],
     ),
   ],
@@ -836,12 +874,12 @@ PixelProfile _buildFountain() => PixelProfile(
 
 // ─── Spinning ─────────────────────────────────────────────────────────────────
 
-PixelProfile _buildSpinning() => PixelProfile(
+PixelProfile _buildSpinning(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Spinning',
   brightness: 255,
   animations: [
-    ..._advancedAnims(),
+    ..._advancedAnims(dt),
     // [7] waterfallTopHalf (rolling)
     PixelAnimationNormals(
       durationMs: 500,
@@ -903,7 +941,7 @@ PixelProfile _buildSpinning() => PixelProfile(
     ),
   ],
   rules: [
-    ..._advancedRules(),
+    ..._advancedRules(dt),
     // [7] rolling → waterfallTopHalf
     PixelRule(
       condition: PixelConditionRolling(repeatPeriodMs: 200),
@@ -911,12 +949,12 @@ PixelProfile _buildSpinning() => PixelProfile(
     ),
     // [8] non-top rolled → spinning
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kNonTopFaces),
+      condition: PixelConditionRolled(faceMask: _kNonTopFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 8)],
     ),
     // [9] top rolled → spinningRainbow
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kTopFace),
+      condition: PixelConditionRolled(faceMask: _kTopFace(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 9)],
     ),
   ],
@@ -924,12 +962,12 @@ PixelProfile _buildSpinning() => PixelProfile(
 
 // ─── Spiral ───────────────────────────────────────────────────────────────────
 
-PixelProfile _buildSpiral() => PixelProfile(
+PixelProfile _buildSpiral(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Spiral',
   brightness: 255,
   animations: [
-    ..._advancedAnims(),
+    ..._advancedAnims(dt),
     // [7] waterfallTopHalf (rolling)
     PixelAnimationNormals(
       durationMs: 500,
@@ -1054,7 +1092,7 @@ PixelProfile _buildSpiral() => PixelProfile(
     ),
   ],
   rules: [
-    ..._advancedRules(),
+    ..._advancedRules(dt),
     // [7] rolling → waterfallTopHalf
     PixelRule(
       condition: PixelConditionRolling(repeatPeriodMs: 200),
@@ -1062,12 +1100,12 @@ PixelProfile _buildSpiral() => PixelProfile(
     ),
     // [8] non-top rolled → spiralUpDown
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kNonTopFaces),
+      condition: PixelConditionRolled(faceMask: _kNonTopFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 8)],
     ),
     // [9] top rolled → spiralUpDownRainbow
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kTopFace),
+      condition: PixelConditionRolled(faceMask: _kTopFace(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 11)],
     ),
   ],
@@ -1075,12 +1113,12 @@ PixelProfile _buildSpiral() => PixelProfile(
 
 // ─── Noise ────────────────────────────────────────────────────────────────────
 
-PixelProfile _buildNoise() => PixelProfile(
+PixelProfile _buildNoise(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Noise',
   brightness: 255,
   animations: [
-    ..._advancedAnims(),
+    ..._advancedAnims(dt),
     // [7] shortNoise — quick sparkle 1 s (rolling)
     PixelAnimationNoise(
       durationMs: 1000,
@@ -1159,7 +1197,7 @@ PixelProfile _buildNoise() => PixelProfile(
     ),
   ],
   rules: [
-    ..._advancedRules(),
+    ..._advancedRules(dt),
     // [7] rolling → shortNoise
     PixelRule(
       condition: PixelConditionRolling(repeatPeriodMs: 200),
@@ -1167,12 +1205,12 @@ PixelProfile _buildNoise() => PixelProfile(
     ),
     // [8] non-top rolled → noise
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kNonTopFaces),
+      condition: PixelConditionRolled(faceMask: _kNonTopFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 8)],
     ),
     // [9] top rolled → noiseRainbowX2
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kTopFace),
+      condition: PixelConditionRolled(faceMask: _kTopFace(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 9)],
     ),
   ],
@@ -1182,112 +1220,137 @@ PixelProfile _buildNoise() => PixelProfile(
 // Low tier (faces 1–7): redBlueWorm · Mid (8–14): pinkWorm
 // High non-top (15–19): greenBlueWorm · Top (20): rainbowFast
 
-PixelProfile _buildWorm() => PixelProfile(
-  id: '',
-  name: 'Worm',
-  brightness: 255,
-  animations: [
-    ..._advancedAnims(),
-    // [7] blueFlash (rolling)
-    PixelAnimationSimple(
-      durationMs: 1000,
-      color: const PixelColor(0, 0, 179),
-      count: 1,
-      fade: 127,
-    ),
-    // [8] redBlueWorm — low tier
-    PixelAnimationCycle(
-      animFlags: 2,
-      durationMs: 5000,
-      count: 6,
-      fade: 127,
-      intensity: 255,
-      cyclesTimes10: 8,
-      gradient: PixelGradient(const [
-        (0, PixelColor(0, 0, 0)),
-        (50, PixelColor(255, 0, 0)),
-        (100, PixelColor(77, 77, 255)),
-        (800, PixelColor(0, 0, 0)),
-      ]),
-    ),
-    // [9] pinkWorm — mid tier
-    PixelAnimationCycle(
-      animFlags: 2,
-      durationMs: 5000,
-      count: 6,
-      fade: 127,
-      intensity: 255,
-      cyclesTimes10: 8,
-      gradient: PixelGradient(const [
-        (0, PixelColor(0, 0, 0)),
-        (50, PixelColor(255, 255, 255)),
-        (150, PixelColor(255, 128, 128)),
-        (800, PixelColor(0, 0, 0)),
-      ]),
-    ),
-    // [10] greenBlueWorm — high non-top tier
-    PixelAnimationCycle(
-      animFlags: 2,
-      durationMs: 5000,
-      count: 6,
-      fade: 127,
-      intensity: 255,
-      cyclesTimes10: 8,
-      gradient: PixelGradient(const [
-        (0, PixelColor(0, 0, 0)),
-        (50, PixelColor(0, 255, 0)),
-        (100, PixelColor(77, 77, 255)),
-        (800, PixelColor(0, 0, 0)),
-      ]),
-    ),
-    // [11] rainbowFast — top
-    PixelAnimationRainbow(
-      durationMs: 3000,
-      animFlags: 3,
-      count: 9,
-      cyclesTimes10: 30,
-      fade: 25,
-      intensity: 255,
-    ),
-  ],
-  rules: [
-    ..._advancedRules(),
-    // [7] rolling → blueFlash
-    PixelRule(
-      condition: PixelConditionRolling(repeatPeriodMs: 200),
-      actions: [PixelActionPlayAnimation(animIndex: 7)],
-    ),
-    // [8] low tier → redBlueWorm
-    PixelRule(
-      condition: PixelConditionRolled(faceMask: _kWormLowFaces),
-      actions: [PixelActionPlayAnimation(animIndex: 8)],
-    ),
-    // [9] mid tier → pinkWorm
-    PixelRule(
-      condition: PixelConditionRolled(faceMask: _kWormMidFaces),
-      actions: [PixelActionPlayAnimation(animIndex: 9)],
-    ),
-    // [10] high non-top → greenBlueWorm
-    PixelRule(
-      condition: PixelConditionRolled(faceMask: _kWormHighNonTop),
-      actions: [PixelActionPlayAnimation(animIndex: 10)],
-    ),
-    // [11] top → rainbowFast
-    PixelRule(
-      condition: PixelConditionRolled(faceMask: _kTopFace),
-      actions: [PixelActionPlayAnimation(animIndex: 11)],
-    ),
-  ],
-);
+PixelProfile _buildWorm(PixelDieType dt) {
+  // The official generator only emits the high-non-top tier when at least one
+  // such face exists (`if (otherHighFaces.length)`). On small dice (e.g. d4) the
+  // top third is just the top face, so greenBlueWorm and its rule are omitted —
+  // and the top-face rule's animation index shifts down accordingly.
+  final highNonTop = _kWormHighNonTop(dt);
+  final hasHigh = highNonTop != 0;
+
+  final advAnims = _advancedAnims(dt);
+  final base = advAnims.length; // first non-advanced animation index (7)
+
+  // [base+0] blueFlash (rolling)
+  final blueFlash = PixelAnimationSimple(
+    durationMs: 1000,
+    color: const PixelColor(0, 0, 179),
+    count: 1,
+    fade: 127,
+  );
+  // redBlueWorm — low tier
+  final redBlueWorm = PixelAnimationCycle(
+    animFlags: 2,
+    durationMs: 5000,
+    count: 6,
+    fade: 127,
+    intensity: 255,
+    cyclesTimes10: 8,
+    gradient: PixelGradient(const [
+      (0, PixelColor(0, 0, 0)),
+      (50, PixelColor(255, 0, 0)),
+      (100, PixelColor(77, 77, 255)),
+      (800, PixelColor(0, 0, 0)),
+    ]),
+  );
+  // pinkWorm — mid tier
+  final pinkWorm = PixelAnimationCycle(
+    animFlags: 2,
+    durationMs: 5000,
+    count: 6,
+    fade: 127,
+    intensity: 255,
+    cyclesTimes10: 8,
+    gradient: PixelGradient(const [
+      (0, PixelColor(0, 0, 0)),
+      (50, PixelColor(255, 255, 255)),
+      (150, PixelColor(255, 128, 128)),
+      (800, PixelColor(0, 0, 0)),
+    ]),
+  );
+  // greenBlueWorm — high non-top tier (omitted when empty)
+  final greenBlueWorm = PixelAnimationCycle(
+    animFlags: 2,
+    durationMs: 5000,
+    count: 6,
+    fade: 127,
+    intensity: 255,
+    cyclesTimes10: 8,
+    gradient: PixelGradient(const [
+      (0, PixelColor(0, 0, 0)),
+      (50, PixelColor(0, 255, 0)),
+      (100, PixelColor(77, 77, 255)),
+      (800, PixelColor(0, 0, 0)),
+    ]),
+  );
+  // rainbowFast — top
+  final rainbowFast = PixelAnimationRainbow(
+    durationMs: 3000,
+    animFlags: 3,
+    count: 9,
+    cyclesTimes10: 30,
+    fade: 25,
+    intensity: 255,
+  );
+
+  final iBlueFlash = base; // 7
+  final iRedBlue = base + 1; // 8
+  final iPink = base + 2; // 9
+  final iGreen = base + 3; // 10 (only when hasHigh)
+  final iRainbow = hasHigh ? base + 4 : base + 3;
+
+  return PixelProfile(
+    id: '',
+    name: 'Worm',
+    brightness: 255,
+    animations: [
+      ...advAnims,
+      blueFlash,
+      redBlueWorm,
+      pinkWorm,
+      if (hasHigh) greenBlueWorm,
+      rainbowFast,
+    ],
+    rules: [
+      ..._advancedRules(dt),
+      // rolling → blueFlash
+      PixelRule(
+        condition: PixelConditionRolling(repeatPeriodMs: 200),
+        actions: [PixelActionPlayAnimation(animIndex: iBlueFlash)],
+      ),
+      // low tier → redBlueWorm
+      PixelRule(
+        condition: PixelConditionRolled(faceMask: _kWormLowFaces(dt)),
+        actions: [PixelActionPlayAnimation(animIndex: iRedBlue)],
+      ),
+      // mid tier → pinkWorm
+      PixelRule(
+        condition: PixelConditionRolled(faceMask: _kWormMidFaces(dt)),
+        actions: [PixelActionPlayAnimation(animIndex: iPink)],
+      ),
+      // high non-top → greenBlueWorm (omitted on small dice)
+      if (hasHigh)
+        PixelRule(
+          condition: PixelConditionRolled(faceMask: highNonTop),
+          actions: [PixelActionPlayAnimation(animIndex: iGreen)],
+        ),
+      // top → rainbowFast
+      PixelRule(
+        condition: PixelConditionRolled(faceMask: _kTopFace(dt)),
+        actions: [PixelActionPlayAnimation(animIndex: iRainbow)],
+      ),
+    ],
+  );
+}
 
 // ─── Rose ─────────────────────────────────────────────────────────────────────
 
-PixelProfile _buildRose() => PixelProfile(
+PixelProfile _buildRose(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Rose',
   brightness: 255,
   animations: [
-    ..._advancedAnims(),
+    ..._advancedAnims(dt),
     // [7] whiteRose — pink→white axis normals, plays on top face while rolling
     PixelAnimationNormals(
       durationMs: 5000,
@@ -1325,20 +1388,20 @@ PixelProfile _buildRose() => PixelProfile(
     ),
   ],
   rules: [
-    ..._advancedRules(),
+    ..._advancedRules(dt),
     // [7] rolling (1 s recheck) → whiteRose on top face
     PixelRule(
       condition: PixelConditionRolling(repeatPeriodMs: 1000),
-      actions: [PixelActionPlayAnimation(animIndex: 7, faceIndex: 19, loopCount: 1)],
+      actions: [PixelActionPlayAnimation(animIndex: 7, faceIndex: _kTopFaceIdx(dt), loopCount: 1)],
     ),
     // [8] non-top rolled → roseToCurrentFace
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kNonTopFaces),
+      condition: PixelConditionRolled(faceMask: _kNonTopFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 8)],
     ),
     // [9] top rolled → roseToCurrentFace
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kTopFace),
+      condition: PixelConditionRolled(faceMask: _kTopFace(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 8)],
     ),
   ],
@@ -1346,12 +1409,12 @@ PixelProfile _buildRose() => PixelProfile(
 
 // ─── Fire ─────────────────────────────────────────────────────────────────────
 
-PixelProfile _buildFire() => PixelProfile(
+PixelProfile _buildFire(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Fire',
   brightness: 255,
   animations: [
-    ..._advancedAnims(),
+    ..._advancedAnims(dt),
     // [7] fire — sequence: fireBaseLayer@0 + fireNoiseLayer@0
     PixelAnimationSequence(
       durationMs: 7000,
@@ -1406,7 +1469,7 @@ PixelProfile _buildFire() => PixelProfile(
     ),
   ],
   rules: [
-    ..._advancedRules(),
+    ..._advancedRules(dt),
     // [7] rolling (1 s recheck) → fire
     PixelRule(
       condition: PixelConditionRolling(repeatPeriodMs: 1000),
@@ -1414,12 +1477,12 @@ PixelProfile _buildFire() => PixelProfile(
     ),
     // [8] non-top rolled → fire
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kNonTopFaces),
+      condition: PixelConditionRolled(faceMask: _kNonTopFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 7)],
     ),
     // [9] top rolled → fire
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kTopFace),
+      condition: PixelConditionRolled(faceMask: _kTopFace(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 7)],
     ),
   ],
@@ -1427,12 +1490,12 @@ PixelProfile _buildFire() => PixelProfile(
 
 // ─── Magic ────────────────────────────────────────────────────────────────────
 
-PixelProfile _buildMagic() => PixelProfile(
+PixelProfile _buildMagic(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Magic',
   brightness: 255,
   animations: [
-    ..._advancedAnims(),
+    ..._advancedAnims(dt),
     // [7] doubleSpinningMagic — sequence: spinningMagic only
     PixelAnimationSequence(
       durationMs: 2500,
@@ -1483,7 +1546,7 @@ PixelProfile _buildMagic() => PixelProfile(
     ),
   ],
   rules: [
-    ..._advancedRules(),
+    ..._advancedRules(dt),
     // [7] rolling (1 s recheck) → doubleSpinningMagic
     PixelRule(
       condition: PixelConditionRolling(repeatPeriodMs: 1000),
@@ -1491,12 +1554,12 @@ PixelProfile _buildMagic() => PixelProfile(
     ),
     // [8] non-top rolled → cycleMagic
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kNonTopFaces),
+      condition: PixelConditionRolled(faceMask: _kNonTopFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 9)],
     ),
     // [9] top rolled → cycleMagic
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kTopFace),
+      condition: PixelConditionRolled(faceMask: _kTopFace(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 9)],
     ),
   ],
@@ -1504,12 +1567,12 @@ PixelProfile _buildMagic() => PixelProfile(
 
 // ─── Water ────────────────────────────────────────────────────────────────────
 
-PixelProfile _buildWater() => PixelProfile(
+PixelProfile _buildWater(PixelDieType dt) => PixelProfile(
   id: '',
   name: 'Water',
   brightness: 255,
   animations: [
-    ..._advancedAnims(),
+    ..._advancedAnims(dt),
     // [7] waterBaseLayer — plays on top face while rolling
     PixelAnimationNormals(
       durationMs: 4500,
@@ -1576,20 +1639,20 @@ PixelProfile _buildWater() => PixelProfile(
     ),
   ],
   rules: [
-    ..._advancedRules(),
+    ..._advancedRules(dt),
     // [7] rolling (1 s recheck) → waterBaseLayer on top face
     PixelRule(
       condition: PixelConditionRolling(repeatPeriodMs: 1000),
-      actions: [PixelActionPlayAnimation(animIndex: 7, faceIndex: 19, loopCount: 1)],
+      actions: [PixelActionPlayAnimation(animIndex: 7, faceIndex: _kTopFaceIdx(dt), loopCount: 1)],
     ),
     // [8] non-top rolled → waterSplash
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kNonTopFaces),
+      condition: PixelConditionRolled(faceMask: _kNonTopFaces(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 8)],
     ),
     // [9] top rolled → waterSplash
     PixelRule(
-      condition: PixelConditionRolled(faceMask: _kTopFace),
+      condition: PixelConditionRolled(faceMask: _kTopFace(dt)),
       actions: [PixelActionPlayAnimation(animIndex: 8)],
     ),
   ],

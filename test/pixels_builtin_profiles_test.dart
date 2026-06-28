@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 
@@ -8,7 +9,7 @@ import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 const int kAdvanced = 7;
 
 PixelProfile _build(String name) =>
-    kBuiltinProfiles.firstWhere((p) => p.name == name).build();
+    kBuiltinProfiles.firstWhere((p) => p.name == name).build(PixelDieType.d20);
 
 void main() {
   group('kBuiltinProfiles', () {
@@ -25,7 +26,7 @@ void main() {
       group(preset.name, () {
         late PixelProfile profile;
 
-        setUp(() => profile = preset.build());
+        setUp(() => profile = preset.build(PixelDieType.d20));
 
         test('id is blank (caller assigns UUID)', () {
           expect(profile.id, isEmpty);

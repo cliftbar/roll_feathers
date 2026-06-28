@@ -35,6 +35,9 @@ class PixelDieService {
   /// or null if unknown. Used to tell which profile is currently flashed.
   int? get currentDataSetHash => die.currentDataSetHash;
 
+  /// The connected die's type, for building die-type-correct built-in profiles.
+  pix.PixelDieType get dieType => die.dieType;
+
   /// Upload [profile] to the die's flash memory (survives sleep/reboot).
   Future<void> transferProfile(PixelProfile profile) async {
     final ds = PixelDataSet(profile);
@@ -262,6 +265,9 @@ class PixelDieService {
 abstract class PixelsDieInterface {
   String get dieId;
 
+  /// The die's type (from `IAmADie`), used to build die-type-correct profiles.
+  pix.PixelDieType get dieType;
+
   /// Hash of the animation set currently stored on the die, as reported by the
   /// last `IAmADie` message. Returns `null` if not yet known.
   int? get currentDataSetHash;
@@ -288,6 +294,9 @@ class PixelBleAdapter implements PixelsDieInterface {
 
   @override
   String get dieId => _die.dieId;
+
+  @override
+  pix.PixelDieType get dieType => _die.info?.pixelDieTypeFaces ?? pix.PixelDieType.unknown;
 
   @override
   int? get currentDataSetHash => _die.info?.dataSetHash;

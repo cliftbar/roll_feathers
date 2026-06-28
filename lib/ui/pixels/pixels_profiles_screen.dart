@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/domains/pixel_profile_domain.dart';
@@ -46,7 +47,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
     final chosen = await showModalBottomSheet<PixelProfile>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _PresetPickerSheet(presets: _vm.builtins),
+      builder: (_) => _PresetPickerSheet(presets: _vm.builtins, dieType: _vm.dieType),
     );
     if (chosen == null || !mounted) return;
     final saved = await _openEditor(_vm.newFromTemplate(chosen));
@@ -291,7 +292,7 @@ class _PixelsProfilesScreenState extends State<PixelsProfilesScreen> {
                               final preset = _vm.builtins[i];
                               final isTransferring = _vm.transferringId == preset.name;
                               final isOnDie = _vm.isBuiltinOnDie(preset);
-                              final profile = preset.build();
+                              final profile = preset.build(_vm.dieType);
                               return Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                                 child: Card(
@@ -473,8 +474,9 @@ enum _Action { edit, duplicate, delete }
 // ─── Preset picker (for creating a custom profile from a starting point) ──────
 
 class _PresetPickerSheet extends StatelessWidget {
-  const _PresetPickerSheet({required this.presets});
+  const _PresetPickerSheet({required this.presets, required this.dieType});
   final List<BuiltinProfile> presets;
+  final PixelDieType dieType;
 
   @override
   Widget build(BuildContext context) {
@@ -503,7 +505,7 @@ class _PresetPickerSheet extends StatelessWidget {
                     leading: _presetIcon(p.name),
                     title: Text(p.name),
                     subtitle: Text(p.description, maxLines: 2, overflow: TextOverflow.ellipsis),
-                    onTap: () => Navigator.pop(context, p.build()),
+                    onTap: () => Navigator.pop(context, p.build(dieType)),
                   )),
                   const Divider(),
                   ListTile(

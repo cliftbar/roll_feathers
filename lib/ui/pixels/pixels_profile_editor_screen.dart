@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_patterns.dart';
@@ -79,7 +80,7 @@ class _PixelsProfileEditorScreenState extends State<PixelsProfileEditorScreen> {
     final chosen = await showModalBottomSheet<_ImportSelection>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _ImportAnimationSheet(profiles: _vm.builtins),
+      builder: (_) => _ImportAnimationSheet(profiles: _vm.builtins, dieType: _vm.dieType),
     );
     if (chosen == null || !mounted) return;
     final count = _vm.importAnimation(chosen.source, chosen.index);
@@ -292,8 +293,9 @@ String _animSubtitle(PixelAnimation anim) => switch (anim) {
 /// Bottom sheet listing every built-in profile's animations; tapping one pops
 /// it back to the caller to be imported as a base for a custom animation.
 class _ImportAnimationSheet extends StatelessWidget {
-  const _ImportAnimationSheet({required this.profiles});
+  const _ImportAnimationSheet({required this.profiles, required this.dieType});
   final List<BuiltinProfile> profiles;
+  final PixelDieType dieType;
 
   @override
   Widget build(BuildContext context) {
@@ -312,7 +314,7 @@ class _ImportAnimationSheet extends StatelessWidget {
               shrinkWrap: true,
               children: [
                 for (final preset in profiles)
-                  _ImportProfileTile(preset: preset),
+                  _ImportProfileTile(preset: preset, dieType: dieType),
               ],
             ),
           ),
@@ -323,12 +325,13 @@ class _ImportAnimationSheet extends StatelessWidget {
 }
 
 class _ImportProfileTile extends StatelessWidget {
-  const _ImportProfileTile({required this.preset});
+  const _ImportProfileTile({required this.preset, required this.dieType});
   final BuiltinProfile preset;
+  final PixelDieType dieType;
 
   @override
   Widget build(BuildContext context) {
-    final anims = preset.build().animations;
+    final anims = preset.build(dieType).animations;
     return ExpansionTile(
       title: Text(preset.name),
       subtitle: Text('${anims.length} animation${anims.length == 1 ? '' : 's'}'),

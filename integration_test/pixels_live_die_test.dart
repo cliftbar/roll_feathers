@@ -206,7 +206,7 @@ void main() {
       );
 
       final preset = kBuiltinProfiles.firstWhere((p) => p.name == profileName);
-      final profile = preset.build();
+      final profile = preset.build(adapter.dieType);
       final expectedHash = PixelDataSet(profile).computeHash().toUnsigned(32);
 
       debugPrint(
@@ -255,7 +255,7 @@ void main() {
     die = await _connectDie(device);
     final adapter = PixelBleAdapter(die!);
 
-    final profile = kBuiltinProfiles.firstWhere((p) => p.name == 'Rainbow').build();
+    final profile = kBuiltinProfiles.firstWhere((p) => p.name == 'Rainbow').build(adapter.dieType);
     final transfer = PixelDieService(adapter);
 
     // Should upload the set and play index 0 without throwing.

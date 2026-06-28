@@ -1,6 +1,7 @@
 import 'package:async/async.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/domains/pixel_profile_domain.dart';
@@ -35,6 +36,10 @@ class PixelsProfileEditorViewModel extends ChangeNotifier {
 
   /// The built-in profile catalog (via the domain), for the import picker.
   List<BuiltinProfile> get builtins => domain.builtins();
+
+  /// The active die's type (d20 fallback when no die); built-ins are
+  /// die-agnostic in their *animations*, so this only affects rule conditions.
+  PixelDieType get dieType => dieService?.dieType ?? PixelDieType.d20;
 
   final List<PixelAnimation> animations;
   final List<PixelRule> rules;

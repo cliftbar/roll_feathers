@@ -7,6 +7,7 @@
 /// Run:  flutter test test/pixels_manual_profile_test.dart
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 
@@ -35,7 +36,7 @@ const int _battError       = 32;
 
 int _officialHash(String name) {
   final preset = kBuiltinProfiles.firstWhere((p) => p.name == name);
-  return PixelDataSet(preset.build()).computeHash().toUnsigned(32);
+  return PixelDataSet(preset.build(PixelDieType.d20)).computeHash().toUnsigned(32);
 }
 
 int _manualHash(PixelProfile p) =>

@@ -1,6 +1,7 @@
 import 'package:async/async.dart';
 import 'package:flutter/foundation.dart';
 
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 import 'package:roll_feathers/domains/pixel_profile_domain.dart';
@@ -16,7 +17,7 @@ class PixelsProfilesScreenViewModel extends ChangeNotifier {
   PixelsProfilesScreenViewModel(this.domain, this.dieService, this.dieName) {
     builtins = domain.builtins();
     _builtinHashes = {
-      for (final p in builtins) p.name: domain.profileHash(p.build()),
+      for (final p in builtins) p.name: domain.profileHash(p.build(dieType)),
     };
     _dieHash = dieService.currentDataSetHash;
     load = Command0(_load)..execute();
@@ -30,6 +31,9 @@ class PixelsProfilesScreenViewModel extends ChangeNotifier {
   final PixelProfileDomain domain;
   final PixelDieService dieService;
   final String dieName;
+
+  /// The connected die's type, for building die-type-correct built-ins.
+  PixelDieType get dieType => dieService.dieType;
 
   /// The built-in profile catalog (via the domain, not imported directly).
   late final List<BuiltinProfile> builtins;
@@ -93,7 +97,7 @@ class PixelsProfilesScreenViewModel extends ChangeNotifier {
     _statusMessage = null;
     notifyListeners();
     try {
-      await domain.flash(dieService, preset.build());
+      await domain.flash(dieService, preset.build(dieType));
       _dieHash = _builtinHashes[preset.name];
       _statusMessage = '✓ "${preset.name}" flashed to die';
       return Result.value(null);

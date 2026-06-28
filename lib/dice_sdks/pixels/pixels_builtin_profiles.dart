@@ -1,6 +1,7 @@
 import 'package:roll_feathers/dice_sdks/pixels/pixel_faces.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_constants.dart';
 
 // Face selections per die type, mirroring the official createLibraryProfile
 // logic (mask = OR of 1<<indexFromFace(face)). The d20 results equal the former
@@ -177,7 +178,7 @@ final List<BuiltinProfile> kBuiltinProfiles = [
 List<PixelAnimation> _advancedAnims(PixelDieType dt) => [
   // [0] hello: rolling rainbow, 2 s, 2× count, fade=200/255, intensity=128, cycles=1
   PixelAnimationRainbow(
-    animFlags: 3, // traveling | useLedIndices
+    animFlags: PixelAnimFlags.travelingWithLedIndices,
     durationMs: 2000,
     faceMask: kFaceMaskAll,
     count: 2,
@@ -1240,7 +1241,7 @@ PixelProfile _buildWorm(PixelDieType dt) {
   );
   // redBlueWorm — low tier
   final redBlueWorm = PixelAnimationCycle(
-    animFlags: 2,
+    animFlags: PixelAnimFlags.useLedIndices,
     durationMs: 5000,
     count: 6,
     fade: 127,
@@ -1255,7 +1256,7 @@ PixelProfile _buildWorm(PixelDieType dt) {
   );
   // pinkWorm — mid tier
   final pinkWorm = PixelAnimationCycle(
-    animFlags: 2,
+    animFlags: PixelAnimFlags.useLedIndices,
     durationMs: 5000,
     count: 6,
     fade: 127,
@@ -1270,7 +1271,7 @@ PixelProfile _buildWorm(PixelDieType dt) {
   );
   // greenBlueWorm — high non-top tier (omitted when empty)
   final greenBlueWorm = PixelAnimationCycle(
-    animFlags: 2,
+    animFlags: PixelAnimFlags.useLedIndices,
     durationMs: 5000,
     count: 6,
     fade: 127,
@@ -1286,7 +1287,7 @@ PixelProfile _buildWorm(PixelDieType dt) {
   // rainbowFast — top
   final rainbowFast = PixelAnimationRainbow(
     durationMs: 3000,
-    animFlags: 3,
+    animFlags: PixelAnimFlags.travelingWithLedIndices,
     count: 9,
     cyclesTimes10: 30,
     fade: 25,
@@ -1530,7 +1531,7 @@ PixelProfile _buildMagic(PixelDieType dt) => PixelProfile(
     ),
     // [9] cycleMagic — LED-indexed color cycle with purple gradient
     PixelAnimationCycle(
-      animFlags: 2,
+      animFlags: PixelAnimFlags.useLedIndices,
       durationMs: 3000,
       count: 5,
       fade: 127,
@@ -1616,7 +1617,7 @@ PixelProfile _buildWater(PixelDieType dt) => PixelProfile(
     ),
     // [9] waterWorm — Cycle with useLedIndices
     PixelAnimationCycle(
-      animFlags: 2,
+      animFlags: PixelAnimFlags.useLedIndices,
       durationMs: 2000,
       count: 2,
       fade: 127,

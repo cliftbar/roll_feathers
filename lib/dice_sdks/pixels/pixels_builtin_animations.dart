@@ -1,3 +1,4 @@
+import 'package:roll_feathers/dice_sdks/pixels/pixels_constants.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 
 /// A pre-built animation preset. [build] takes the absolute insertion index
@@ -34,19 +35,12 @@ const _faintWhite = PixelColor(26, 26, 26);
 const _orange = PixelColor(179, 89, 0);
 const _cyan = PixelColor(0, 179, 179);
 
-// animFlags
-const int _traveling = 3; // travelingWithLedIndices
-const int _ledIndices = 2; // useLedIndices
+// animFlags + color-override modes live in pixels_constants.dart
+// (PixelAnimFlags / PixelNormalsColorType / PixelNoiseColorType).
 
-// NormalsColorOverrideTypeValues
-const int _normFaceToGradient = 1;
-const int _normFaceToRainbow = 2;
-
-// NoiseColorOverrideTypeValues
-const int _noiseRandomFromGradient = 1;
-const int _noiseFaceToRainbow = 3;
-
-// d20 face masks used by alternatingWhite animations
+// d20 face masks used by the alternatingWhite animations below — these are a
+// specific artistic face grouping (not an algorithmic half-split), so they stay
+// here with the animations that use them.
 const int _d20Half1 = 91543; // faces [1,2,3,5,8,9,11,14,15,17]
 const int _d20Half2 = 957032; // faces [4,6,7,10,12,13,16,18,19,20]
 
@@ -276,7 +270,7 @@ PixelAnimationNormals _buildWaterfall() => _mkWaterfall(
       gradient: _g(const [(0, _black)]),
       axisGradient: _gAxisBump(),
       angleGradient: _gSolid(_brightWhite),
-      mainGradientColorType: _normFaceToRainbow,
+      mainGradientColorType: PixelNormalsColorType.faceToRainbow,
       mainGradientColorVar: 100,
     );
 
@@ -292,7 +286,7 @@ PixelAnimationNormals _buildWaterfallGradient() => _mkWaterfall(
       ]),
       axisGradient: _gAxisBump(),
       angleGradient: _gSolid(_brightWhite),
-      mainGradientColorType: _normFaceToGradient,
+      mainGradientColorType: PixelNormalsColorType.faceToGradient,
       mainGradientColorVar: 100,
     );
 
@@ -305,7 +299,7 @@ PixelAnimationNormals _buildWaterfallTopHalf() => _mkWaterfall(
       axisScrollSpeedTimes1000: 0,
       angleGradient: _gSolid(_brightWhite),
       fade: 128,
-      mainGradientColorType: _normFaceToRainbow,
+      mainGradientColorType: PixelNormalsColorType.faceToRainbow,
       mainGradientColorVar: 100,
     );
 
@@ -320,7 +314,7 @@ PixelAnimationNormals _buildWaterfallRedGreen() => _mkWaterfall(
       ]),
       axisGradient: _gAxisBump(),
       angleGradient: _gSolid(_brightWhite),
-      mainGradientColorType: _normFaceToGradient,
+      mainGradientColorType: PixelNormalsColorType.faceToGradient,
       mainGradientColorVar: 200,
     );
 
@@ -350,7 +344,7 @@ PixelAnimationNormals _buildSpinning() => _mkNormals(
       ]),
       angleScrollSpeedTimes1000: 8000,
       fade: 128,
-      mainGradientColorType: _normFaceToRainbow,
+      mainGradientColorType: PixelNormalsColorType.faceToRainbow,
       mainGradientColorVar: 100,
     );
 
@@ -508,7 +502,7 @@ PixelAnimationNormals _buildRedGreenAlarm() => _mkNormals(
       ]),
       angleScrollSpeedTimes1000: 5000,
       fade: 51,
-      mainGradientColorType: _normFaceToGradient,
+      mainGradientColorType: PixelNormalsColorType.faceToGradient,
     );
 
 PixelAnimationNormals _buildRainbowAlarm() => _mkNormals(
@@ -533,7 +527,7 @@ PixelAnimationNormals _buildSpiralUp() => _mkNormals(
       angleGradient: _gSpiralAngle(),
       angleScrollSpeedTimes1000: 6000,
       fade: 51,
-      mainGradientColorType: _normFaceToRainbow,
+      mainGradientColorType: PixelNormalsColorType.faceToRainbow,
       mainGradientColorVar: 200,
     );
 
@@ -547,7 +541,7 @@ PixelAnimationNormals _buildSpiralDown() => _mkNormals(
       angleGradient: _gSpiralAngle(),
       angleScrollSpeedTimes1000: 6000,
       fade: 51,
-      mainGradientColorType: _normFaceToRainbow,
+      mainGradientColorType: PixelNormalsColorType.faceToRainbow,
       mainGradientColorVar: 200,
     );
 
@@ -585,7 +579,7 @@ PixelAnimationNormals _buildFountain() => _mkNormals(
       angleGradient: _g(const [(100, _brightWhite), (900, _brightWhite)]),
       angleScrollSpeedTimes1000: 0,
       fade: 128,
-      mainGradientColorType: _normFaceToRainbow,
+      mainGradientColorType: PixelNormalsColorType.faceToRainbow,
       mainGradientColorVar: 100,
     );
 
@@ -599,7 +593,7 @@ PixelAnimationNormals _buildRainbowFountain() => _mkNormals(
       angleGradient: _g(const [(100, _brightWhite), (900, _brightWhite)]),
       angleScrollSpeedTimes1000: 0,
       fade: 128,
-      mainGradientColorType: _normFaceToRainbow,
+      mainGradientColorType: PixelNormalsColorType.faceToRainbow,
       mainGradientColorVar: 500,
     );
 
@@ -722,7 +716,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
     name: 'Rainbow',
     category: 'colorful',
     build: (_) => [
-      _mkRainbow(animFlags: _traveling, durationMs: 5000, count: 4,
+      _mkRainbow(animFlags: PixelAnimFlags.travelingWithLedIndices, durationMs: 5000, count: 4,
           intensity: 255, cyclesTimes10: 10),
     ],
   ),
@@ -730,7 +724,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
     name: 'Rainbow Aurora',
     category: 'colorful',
     build: (_) => [
-      _mkRainbow(animFlags: _traveling, durationMs: 5000, count: 4,
+      _mkRainbow(animFlags: PixelAnimFlags.travelingWithLedIndices, durationMs: 5000, count: 4,
           intensity: 51, cyclesTimes10: 10),
     ],
   ),
@@ -738,7 +732,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
     name: 'Rainbow Fast',
     category: 'flashy',
     build: (_) => [
-      _mkRainbow(animFlags: _traveling, durationMs: 3000, count: 9,
+      _mkRainbow(animFlags: PixelAnimFlags.travelingWithLedIndices, durationMs: 3000, count: 9,
           intensity: 255, cyclesTimes10: 30),
     ],
   ),
@@ -767,7 +761,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
     name: 'Fixed Rainbow',
     category: 'colorful',
     build: (_) => [
-      _mkRainbow(animFlags: _traveling, durationMs: 5000, count: 0,
+      _mkRainbow(animFlags: PixelAnimFlags.travelingWithLedIndices, durationMs: 5000, count: 0,
           intensity: 255, cyclesTimes10: 20),
     ],
   ),
@@ -778,7 +772,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
     category: 'flashy',
     build: (_) => [
       PixelAnimationCycle(
-        animFlags: _ledIndices,
+        animFlags: PixelAnimFlags.useLedIndices,
         durationMs: 3000,
         count: 5,
         fade: 128,
@@ -800,7 +794,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
     category: 'flashy',
     build: (_) => [
       PixelAnimationCycle(
-        animFlags: _ledIndices,
+        animFlags: PixelAnimFlags.useLedIndices,
         durationMs: 3000,
         count: 6,
         fade: 128,
@@ -821,7 +815,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
     category: 'flashy',
     build: (_) => [
       PixelAnimationCycle(
-        animFlags: _ledIndices,
+        animFlags: PixelAnimFlags.useLedIndices,
         durationMs: 3000,
         count: 5,
         fade: 128,
@@ -842,7 +836,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
     category: 'animated',
     build: (_) => [
       PixelAnimationCycle(
-        animFlags: _ledIndices,
+        animFlags: PixelAnimFlags.useLedIndices,
         durationMs: 5000,
         count: 6,
         fade: 128,
@@ -862,7 +856,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
     category: 'animated',
     build: (_) => [
       PixelAnimationCycle(
-        animFlags: _ledIndices,
+        animFlags: PixelAnimFlags.useLedIndices,
         durationMs: 5000,
         count: 6,
         fade: 128,
@@ -882,7 +876,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
     category: 'animated',
     build: (_) => [
       PixelAnimationCycle(
-        animFlags: _ledIndices,
+        animFlags: PixelAnimFlags.useLedIndices,
         durationMs: 5000,
         count: 6,
         fade: 128,
@@ -902,7 +896,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
     category: 'animated',
     build: (_) => [
       PixelAnimationCycle(
-        animFlags: _ledIndices,
+        animFlags: PixelAnimFlags.useLedIndices,
         durationMs: 2000,
         count: 2,
         fade: 128,
@@ -936,7 +930,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
         blinkFrequencyTimes1000: 50000,
         blinkDuration: 510,
         fade: 128,
-        gradientColorType: _noiseFaceToRainbow,
+        gradientColorType: PixelNoiseColorType.faceToRainbow,
         gradientColorVar: 20,
       ),
     ],
@@ -976,7 +970,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
         blinkFrequencyTimes1000: 50000,
         blinkDuration: 510,
         fade: 26,
-        gradientColorType: _noiseRandomFromGradient,
+        gradientColorType: PixelNoiseColorType.randomFromGradient,
         gradientColorVar: 0,
       ),
     ],
@@ -997,7 +991,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
         blinkFrequencyTimes1000: 20000,
         blinkDuration: 255,
         fade: 26,
-        gradientColorType: _noiseFaceToRainbow,
+        gradientColorType: PixelNoiseColorType.faceToRainbow,
         gradientColorVar: 100,
       ),
     ],
@@ -1385,7 +1379,7 @@ final List<BuiltinAnimationPreset> kBuiltinAnimations = [
           fade: 128);
       return [
         PixelAnimationCycle(
-          animFlags: _ledIndices,
+          animFlags: PixelAnimFlags.useLedIndices,
           durationMs: 2000,
           count: 2,
           fade: 128,

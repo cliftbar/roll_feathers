@@ -2,6 +2,7 @@ import 'dart:math' show pow;
 import 'dart:typed_data';
 import 'dart:ui' show Color;
 
+import 'package:roll_feathers/dice_sdks/pixels/pixels_constants.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_patterns.dart';
 
 part 'pixels_conditions.dart';
@@ -228,9 +229,6 @@ class AnimationBits {
 // ─────────────────────────────────────────────────────────────
 
 enum PixelAnimationType { none, simple, rainbow, keyframed, gradientPattern, gradient, noise, cycle, blinkId, normals, sequence }
-
-/// faceMaskAll = all faces.
-const int kFaceMaskAll = 0xFFFFFFFF;
 
 abstract class PixelAnimation {
   PixelAnimationType get type;

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_constants.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_patterns.dart';
 import 'package:roll_feathers/domains/pixel_profile_domain.dart';
 import 'package:roll_feathers/services/pixels/pixel_die_service.dart';

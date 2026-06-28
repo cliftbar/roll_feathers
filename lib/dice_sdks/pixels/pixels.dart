@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 
 import 'package:roll_feathers/dice_sdks/message_sdk.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_constants.dart';
 import 'package:roll_feathers/util/color.dart';
 
 const Color green = Color.fromARGB(255, 0, 255, 0);
@@ -368,7 +369,7 @@ class MessageBlink extends TxMessage with Color255 implements Blinker {
     this.count = 1,
     this.duration = 500,
     this.blinkColor = Colors.white,
-    this.faceMask = 0xFFFFFFFF,
+    this.faceMask = kFaceMaskAll,
     this.fade = 0,
     this.loopCount = 2,
   }) : super(id: PixelMessageType.blink.index);

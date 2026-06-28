@@ -6,11 +6,9 @@ import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/dice_sdks/message_sdk.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels.dart' as pix;
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_constants.dart';
 
 final _log = Logger('PixelDieService');
-
-const int _kMaxChunkSize = 100;
-const int _kAckTimeoutMs = 5000;
 
 class PixelsTransferException implements Exception {
   final String message;
@@ -73,7 +71,7 @@ class PixelDieService {
     final headerAck = await die.sendAndWaitFor<pix.MessageTransferAnimationSetAck>(
       headerMsg,
       pix.PixelMessageType.transferAnimationSetAck,
-      timeout: const Duration(milliseconds: _kAckTimeoutMs),
+      timeout: const Duration(milliseconds: PixelTransfer.ackTimeoutMs),
     );
 
     if (!headerAck.canDownload) {
@@ -84,7 +82,7 @@ class PixelDieService {
     // Register listener for finished BEFORE upload so we don't miss the event.
     final finishedFuture = die.waitFor<pix.MessageTransferAnimationSetFinished>(
       pix.PixelMessageType.transferAnimationSetFinished,
-      timeout: const Duration(milliseconds: _kAckTimeoutMs),
+      timeout: const Duration(milliseconds: PixelTransfer.ackTimeoutMs),
     );
 
     await _uploadBulkData(bytes);
@@ -112,7 +110,7 @@ class PixelDieService {
     try {
       final iAmADieFuture = die.waitFor<pix.MessageIAmADie>(
         pix.PixelMessageType.iAmADie,
-        timeout: const Duration(milliseconds: _kAckTimeoutMs),
+        timeout: const Duration(milliseconds: PixelTransfer.ackTimeoutMs),
       );
       await die.sendMessage(pix.MessageWhoAreYou());
       final fresh = await iAmADieFuture;
@@ -168,7 +166,7 @@ class PixelDieService {
     final ack = await die.sendAndWaitFor<pix.MessageTransferInstantAnimationSetAck>(
       headerMsg,
       pix.PixelMessageType.transferInstantAnimationSetAck,
-      timeout: const Duration(milliseconds: _kAckTimeoutMs),
+      timeout: const Duration(milliseconds: PixelTransfer.ackTimeoutMs),
     );
 
     switch (ack.ackType) {
@@ -183,7 +181,7 @@ class PixelDieService {
 
     final finishedFuture = die.waitFor<pix.MessageTransferInstantAnimationSetFinished>(
       pix.PixelMessageType.transferInstantAnimationSetFinished,
-      timeout: const Duration(milliseconds: _kAckTimeoutMs),
+      timeout: const Duration(milliseconds: PixelTransfer.ackTimeoutMs),
     );
 
     await _uploadBulkData(bytes);
@@ -229,20 +227,20 @@ class PixelDieService {
     await die.sendAndWaitFor<pix.MessageBulkSetupAck>(
       pix.MessageBulkSetup(size: data.length),
       pix.PixelMessageType.bulkSetupAck,
-      timeout: const Duration(milliseconds: _kAckTimeoutMs),
+      timeout: const Duration(milliseconds: PixelTransfer.ackTimeoutMs),
     );
 
     // BulkData chunks
     var offset = 0;
     var remaining = data.length;
     while (remaining > 0) {
-      final chunkSize = remaining < _kMaxChunkSize ? remaining : _kMaxChunkSize;
+      final chunkSize = remaining < PixelTransfer.maxChunkSize ? remaining : PixelTransfer.maxChunkSize;
       final chunk = data.sublist(offset, offset + chunkSize).toList();
 
       final ack = await die.sendAndWaitFor<pix.MessageBulkDataAck>(
         pix.MessageBulkData(size: chunkSize, offset: offset, data: chunk),
         pix.PixelMessageType.bulkDataAck,
-        timeout: const Duration(milliseconds: _kAckTimeoutMs),
+        timeout: const Duration(milliseconds: PixelTransfer.ackTimeoutMs),
       );
 
       _log.finer('Chunk ack offset=${ack.offset}, expected=$offset');

@@ -9,6 +9,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_animation.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_constants.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels_builtin_profiles.dart';
 
 // ─── Face mask constants (mirror of private consts in pixels_builtin_profiles) ──

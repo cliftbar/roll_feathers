@@ -105,4 +105,9 @@ Deferred work and known limitations from the Pixels profile/animation effort
   each viewport, not the absence of overflow.
 - **dddice live `@integration` Playwright tests** (4) are skipped without `DDDICE_TOKEN` /
   `DDDICE_ROOM` env vars.
+- **More realistic battery handling in `PixelsBleDeviceSimulator`** (PR #49 review) — today
+  `setBattery` just stamps a percent + `BatteryState`. Plan a more lifelike model: gradual
+  drain over time, charging ramp-up, low/critical thresholds that drive `BatteryState`
+  transitions automatically, and maybe a `done`/`error` charging path. Needs a short design
+  pass before implementing.
 

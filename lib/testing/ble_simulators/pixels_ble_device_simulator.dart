@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:logging/logging.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixel_faces.dart' as pix;
 import 'package:roll_feathers/dice_sdks/pixels/pixels.dart' as pix;
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 
@@ -173,7 +174,7 @@ class PixelsBleDeviceSimulator implements BleDeviceWrapper {
 
   List<int> _buildIAmADie() => [
     pix.PixelMessageType.iAmADie.index,
-    20, // ledCount
+    pix.PixelFaces.faceCount(dieType), // ledCount (matches face count per die type)
     pix.PixelDesignAndColor.onyxBlack.index,
     dieType.index,
     1, 0, 0, 0, // dataSetHash (little-endian, fixed stub)

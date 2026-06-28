@@ -495,25 +495,20 @@ class MessageTransferAnimationSet extends TxMessage {
   List<int> toBuffer() {
     final buf = List<int>.filled(26, 0);
     buf[0] = PixelMessageType.transferAnimationSet.index;
-    _setU16(buf, 1, paletteSize);
-    _setU16(buf, 3, rgbKeyFrameCount);
-    _setU16(buf, 5, rgbTrackCount);
-    _setU16(buf, 7, keyFrameCount);
-    _setU16(buf, 9, trackCount);
-    _setU16(buf, 11, animationCount);
-    _setU16(buf, 13, animationSize);
-    _setU16(buf, 15, conditionCount);
-    _setU16(buf, 17, conditionSize);
-    _setU16(buf, 19, actionCount);
-    _setU16(buf, 21, actionSize);
-    _setU16(buf, 23, ruleCount);
+    TxMessage.setU16(buf, 1, paletteSize);
+    TxMessage.setU16(buf, 3, rgbKeyFrameCount);
+    TxMessage.setU16(buf, 5, rgbTrackCount);
+    TxMessage.setU16(buf, 7, keyFrameCount);
+    TxMessage.setU16(buf, 9, trackCount);
+    TxMessage.setU16(buf, 11, animationCount);
+    TxMessage.setU16(buf, 13, animationSize);
+    TxMessage.setU16(buf, 15, conditionCount);
+    TxMessage.setU16(buf, 17, conditionSize);
+    TxMessage.setU16(buf, 19, actionCount);
+    TxMessage.setU16(buf, 21, actionSize);
+    TxMessage.setU16(buf, 23, ruleCount);
     buf[25] = brightness;
     return buf;
-  }
-
-  static void _setU16(List<int> buf, int offset, int value) {
-    buf[offset] = value & 0xFF;
-    buf[offset + 1] = (value >> 8) & 0xFF;
   }
 }
 
@@ -628,27 +623,15 @@ class MessageTransferInstantAnimationSet extends TxMessage {
   List<int> toBuffer() {
     final buf = List<int>.filled(22, 0);
     buf[0] = PixelMessageType.transferInstantAnimationSet.index;
-    _setU16(buf, 1, paletteSize);
-    _setU16(buf, 3, rgbKeyFrameCount);
-    _setU16(buf, 5, rgbTrackCount);
-    _setU16(buf, 7, keyFrameCount);
-    _setU16(buf, 9, trackCount);
-    _setU16(buf, 11, animationCount);
-    _setU16(buf, 13, animationSize);
-    _setU32(buf, 15, hash);
+    TxMessage.setU16(buf, 1, paletteSize);
+    TxMessage.setU16(buf, 3, rgbKeyFrameCount);
+    TxMessage.setU16(buf, 5, rgbTrackCount);
+    TxMessage.setU16(buf, 7, keyFrameCount);
+    TxMessage.setU16(buf, 9, trackCount);
+    TxMessage.setU16(buf, 11, animationCount);
+    TxMessage.setU16(buf, 13, animationSize);
+    TxMessage.setU32(buf, 15, hash);
     return buf;
-  }
-
-  static void _setU16(List<int> buf, int offset, int value) {
-    buf[offset] = value & 0xFF;
-    buf[offset + 1] = (value >> 8) & 0xFF;
-  }
-
-  static void _setU32(List<int> buf, int offset, int value) {
-    buf[offset] = value & 0xFF;
-    buf[offset + 1] = (value >> 8) & 0xFF;
-    buf[offset + 2] = (value >> 16) & 0xFF;
-    buf[offset + 3] = (value >> 24) & 0xFF;
   }
 }
 

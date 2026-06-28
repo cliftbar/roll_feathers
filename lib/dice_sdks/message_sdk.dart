@@ -27,6 +27,20 @@ abstract class TxMessage extends Message {
   TxMessage({required super.id});
 
   List<int> toBuffer();
+
+  /// Writes [value] as a little-endian uint16 into [buf] at [offset].
+  static void setU16(List<int> buf, int offset, int value) {
+    buf[offset] = value & 0xFF;
+    buf[offset + 1] = (value >> 8) & 0xFF;
+  }
+
+  /// Writes [value] as a little-endian uint32 into [buf] at [offset].
+  static void setU32(List<int> buf, int offset, int value) {
+    buf[offset] = value & 0xFF;
+    buf[offset + 1] = (value >> 8) & 0xFF;
+    buf[offset + 2] = (value >> 16) & 0xFF;
+    buf[offset + 3] = (value >> 24) & 0xFF;
+  }
 }
 
 abstract class Blinker with Color255 {

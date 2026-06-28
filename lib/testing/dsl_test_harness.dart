@@ -195,8 +195,10 @@ class RecordingDieDomain extends DieDomain {
       animationsStopped.add(die.dieId);
 
   @override
-  Future<void> setDieName(GenericDie die, String name) async =>
-      renamed.add('${die.dieId}:$name');
+  Future<void> setDieName(GenericDie die, String name) async {
+    // Record only firmware renames (Pixels); app-named dice don't push to a die.
+    if (die.type == GenericDieType.pixel) renamed.add('${die.dieId}:$name');
+  }
 }
 
 /// Minimal AppService that stores rules and die settings in-memory.

@@ -57,6 +57,9 @@ Future<PixelDie> _makePixelDie(MockBleDeviceWrapper device) async {
     final data = invocation.positionalArguments[0] as List<int>;
     if (data.isNotEmpty && data[0] == pix.PixelMessageType.whoAreYou.index) {
       ctrl.add(_buildTestIAmADie());
+    } else if (data.isNotEmpty && data[0] == pix.PixelMessageType.setName.index) {
+      // Real firmware acks a rename; emit it so the ack-gated rename completes.
+      ctrl.add([pix.PixelMessageType.setNameAck.index]);
     }
   });
   return PixelDie.create(device: device);
@@ -111,9 +114,10 @@ void main() {
       expect(buf.length, equals(1 + pix.MessageSetName.maxNameBytes + 1));
     });
 
-    test('no-op for VirtualDie', () async {
+    test('sets the name locally for VirtualDie (no firmware write)', () async {
       final vDie = VirtualDie(dType: GenericDTypeFactory.getKnownChecked('d6'));
       await domain.setDieName(vDie, 'Sparkle');
+      expect(vDie.friendlyName, 'Sparkle');
       verifyNever(() => mockDevice.writeMessage(any()));
     });
   });

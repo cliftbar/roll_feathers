@@ -59,9 +59,8 @@ class DieDomain {
         if (_appService != null) {
           final saved = await _appService.getDieSettings(pd.dieId);
           if (saved != null) {
-            // Pixels are firmware-authoritative for their name (true BLE rename
-            // writes it to the die), so the advertised name wins on reconnect.
-            // Only restore a saved name for die types with no on-die name.
+            // Pixels are firmware-authoritative for their name (the advertised
+            // name wins on reconnect), so only restore an app-owned saved name.
             if (saved.friendlyName != null && pd.type != GenericDieType.pixel) {
               pd.friendlyName = saved.friendlyName!;
             }
@@ -180,14 +179,44 @@ class DieDomain {
     }
   }
 
-  /// Renames [die] at the firmware level (Pixels only). The new name is stored on
-  /// the die itself, survives reboots, and is visible to other apps. The firmware
-  /// truncates names longer than [MessageSetName.maxNameBytes] (31) bytes.
-  /// No-op for non-Pixels dice.
+  /// Sets [die]'s name, owning the firmware-vs-app decision and persistence.
+  ///
+  /// Pixels (firmware-authoritative): sends a true BLE rename and **waits for the
+  /// firmware's SetNameAck before updating the displayed name** — accuracy over
+  /// speed, so the UI never shows an unconfirmed name. Throws on timeout (the
+  /// caller surfaces the error and the name is left unchanged); the authoritative
+  /// name otherwise re-derives from the advertised name on the next reconnect.
+  /// Not persisted app-side. Names over [MessageSetName.maxNameBytes] (31) bytes
+  /// are truncated by the firmware.
+  ///
+  /// Other dice (virtual/GoDice): the name is app-owned — set it and persist it
+  /// via the settings store.
+  ///
+  /// Either way, re-emits the dice stream so name displays refresh.
   Future<void> setDieName(GenericDie die, String name) async {
     if (die is PixelDie) {
-      await die.sendMessage(MessageSetName(name));
+      final ack = Completer<void>();
+      const ackKey = 'setName.ack';
+      die.addMessageCallback(PixelMessageType.setNameAck.index, ackKey, (_) {
+        if (!ack.isCompleted) ack.complete();
+      });
+      try {
+        await die.sendMessage(MessageSetName(name));
+        await ack.future.timeout(const Duration(seconds: 5));
+      } finally {
+        die.messageRxCallbacks[PixelMessageType.setNameAck.index]?.remove(ackKey);
+      }
+      die.friendlyName = name; // confirmed by the die → safe to display
+    } else {
+      die.friendlyName = name;
+      final service = _appService;
+      if (service != null) {
+        final settings = await service.getDieSettings(die.dieId) ?? DieSettings();
+        settings.friendlyName = name;
+        await service.saveDieSettings(die.dieId, settings);
+      }
     }
+    _diceSubscription.add(_foundDie);
   }
 
   static ({int onMs, int offMs, int fade}) _presetTiming(RollingFlashPreset preset) =>

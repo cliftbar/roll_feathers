@@ -12,6 +12,7 @@ import 'package:uuid/uuid.dart';
 import 'package:roll_feathers/dice_sdks/godice.dart' as godice;
 import 'package:roll_feathers/dice_sdks/message_sdk.dart';
 import 'package:roll_feathers/dice_sdks/pixels/pixels.dart' as pix;
+import 'package:roll_feathers/dice_sdks/pixels/pixel_faces.dart';
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 
 class MessageParseError extends IOException {
@@ -614,7 +615,9 @@ class PixelDie extends GenericBleDie {
 
     state.rollState = msg.rollState;
     state.currentFaceIndex = msg.currentFaceIndex;
-    state.currentFaceValue = msg.currentFaceValue;
+    // Convert the firmware's face index to a value per die type (d10→0-9,
+    // d00→0/10/…/90, else index+1) rather than the naïve index+1.
+    state.currentFaceValue = PixelFaces.faceFromIndex(msg.currentFaceIndex, msg.pixelDieTypeFaces);
     state.batteryLevel = msg.batteryLevel;
     state.batteryState = BatteryState.values[msg.batteryState];
   }
@@ -627,7 +630,9 @@ class PixelDie extends GenericBleDie {
   void _updateStateRoll(pix.MessageRollState msg) {
     state.rollState = msg.rollState;
     state.currentFaceIndex = msg.currentFaceIndex;
-    state.currentFaceValue = msg.currentFaceValue;
+    // Per-die-type value from the index (uses the die type learned from IAmADie).
+    final dieType = info?.pixelDieTypeFaces ?? pix.PixelDieType.unknown;
+    state.currentFaceValue = PixelFaces.faceFromIndex(msg.currentFaceIndex, dieType);
     state.lastRolled = DateTime.now();
   }
 

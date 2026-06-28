@@ -295,4 +295,43 @@ void main() {
 
     expect(callbackCalled, isTrue);
   });
+
+  // Per-die-type rolled face value conversion (facematch). The value is derived
+  // from the face *index* via the die type, not a naïve index+1.
+  List<int> _iAmADie(pix.PixelDieType dieType, int faceIndex) => [
+    pix.PixelMessageType.iAmADie.index,
+    20, 0, dieType.index,
+    0, 0, 0, 0, // dataSetHash
+    1, 0, 0, 0, // pixelId
+    0, 0, // availableFlash
+    0, 0, 0, 0, // buildTimestamp
+    DiceRollState.rolled.index, faceIndex, 100, 0,
+  ];
+  List<int> _rollState(int faceIndex) =>
+      [pix.PixelMessageType.rollState.index, DiceRollState.rolled.index, faceIndex];
+
+  test('d10 reports face value == index (0-9)', () async {
+    final die = await PixelDie.create(device: mockDevice);
+    notifyStreamController.add(_iAmADie(pix.PixelDieType.d10, 0)); // learn die type
+    notifyStreamController.add(_rollState(5));
+    await Future.delayed(Duration(milliseconds: 10));
+    expect(die.state.currentFaceIndex, equals(5));
+    expect(die.state.currentFaceValue, equals(5)); // not 6
+  });
+
+  test('d00 reports face value == index*10 (0/10/.../90)', () async {
+    final die = await PixelDie.create(device: mockDevice);
+    notifyStreamController.add(_iAmADie(pix.PixelDieType.d00, 0));
+    notifyStreamController.add(_rollState(5));
+    await Future.delayed(Duration(milliseconds: 10));
+    expect(die.state.currentFaceValue, equals(50));
+  });
+
+  test('d6 still reports index+1', () async {
+    final die = await PixelDie.create(device: mockDevice);
+    notifyStreamController.add(_iAmADie(pix.PixelDieType.d6, 0));
+    notifyStreamController.add(_rollState(3));
+    await Future.delayed(Duration(milliseconds: 10));
+    expect(die.state.currentFaceValue, equals(4));
+  });
 }

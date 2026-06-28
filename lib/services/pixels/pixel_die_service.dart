@@ -295,51 +295,20 @@ class PixelBleAdapter implements PixelsDieInterface {
   @override
   Future<void> sendMessage(TxMessage msg) => _die.sendMessage(msg);
 
+  // Message correlation lives on the die (GenericBleDie); the adapter just maps
+  // the port's PixelMessageType to the die's int-keyed API.
   @override
   Future<T> sendAndWaitFor<T extends RxMessage>(
     TxMessage msg,
     pix.PixelMessageType waitFor, {
     required Duration timeout,
-  }) async {
-    final completer = Completer<T>();
-    final callbackKey = 'transfer_${DateTime.now().microsecondsSinceEpoch}';
-
-    void onMsg(RxMessage m) {
-      if (!completer.isCompleted) {
-        completer.complete(m as T);
-      }
-    }
-
-    _die.addMessageCallback(waitFor.index, callbackKey, onMsg);
-
-    try {
-      await _die.sendMessage(msg);
-      return await completer.future.timeout(timeout);
-    } finally {
-      _die.messageRxCallbacks[waitFor.index]?.remove(callbackKey);
-    }
-  }
+  }) =>
+      _die.sendAndWaitFor<T>(msg, waitFor.index, timeout: timeout);
 
   @override
   Future<T> waitFor<T extends RxMessage>(
     pix.PixelMessageType type, {
     required Duration timeout,
-  }) async {
-    final completer = Completer<T>();
-    final callbackKey = 'wait_${DateTime.now().microsecondsSinceEpoch}';
-
-    void onMsg(RxMessage m) {
-      if (!completer.isCompleted) {
-        completer.complete(m as T);
-      }
-    }
-
-    _die.addMessageCallback(type.index, callbackKey, onMsg);
-
-    try {
-      return await completer.future.timeout(timeout);
-    } finally {
-      _die.messageRxCallbacks[type.index]?.remove(callbackKey);
-    }
-  }
+  }) =>
+      _die.waitForMessage<T>(type.index, timeout: timeout);
 }

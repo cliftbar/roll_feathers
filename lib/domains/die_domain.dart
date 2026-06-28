@@ -195,17 +195,11 @@ class DieDomain {
   /// Either way, re-emits the dice stream so name displays refresh.
   Future<void> setDieName(GenericDie die, String name) async {
     if (die is PixelDie) {
-      final ack = Completer<void>();
-      const ackKey = 'setName.ack';
-      die.addMessageCallback(PixelMessageType.setNameAck.index, ackKey, (_) {
-        if (!ack.isCompleted) ack.complete();
-      });
-      try {
-        await die.sendMessage(MessageSetName(name));
-        await ack.future.timeout(const Duration(seconds: 5));
-      } finally {
-        die.messageRxCallbacks[PixelMessageType.setNameAck.index]?.remove(ackKey);
-      }
+      // Wait for the firmware's ack before trusting the new name.
+      await die.sendAndWaitFor<MessageNone>(
+        MessageSetName(name),
+        PixelMessageType.setNameAck.index,
+      );
       die.friendlyName = name; // confirmed by the die → safe to display
     } else {
       die.friendlyName = name;

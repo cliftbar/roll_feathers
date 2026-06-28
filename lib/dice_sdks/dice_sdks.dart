@@ -239,6 +239,50 @@ abstract class GenericBleDie extends GenericDie {
     messageRxCallbacks.putIfAbsent(messageType, () => {})[callbackKey] = callback;
   }
 
+  int _waitKeyCounter = 0;
+
+  /// Registers a one-shot listener for the next [messageType] reply and returns
+  /// a future that completes with it. Bridges the callback-based notify stream to
+  /// async/await: tolerates duplicate replies, times out, and removes its own
+  /// callback when done. Use [sendAndWaitFor] when you also need to send the
+  /// request (it registers before sending so a fast reply isn't missed).
+  Future<T> waitForMessage<T extends RxMessage>(
+    int messageType, {
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    final completer = Completer<T>();
+    final key = 'wait.${_waitKeyCounter++}';
+    addMessageCallback(messageType, key, (m) {
+      if (!completer.isCompleted) completer.complete(m as T);
+    });
+    try {
+      return await completer.future.timeout(timeout);
+    } finally {
+      messageRxCallbacks[messageType]?.remove(key);
+    }
+  }
+
+  /// Sends [msg] and waits for the next [messageType] reply, correlating the two
+  /// over the otherwise-uncorrelated notify stream. The listener is registered
+  /// before the send.
+  Future<T> sendAndWaitFor<T extends RxMessage>(
+    TxMessage msg,
+    int messageType, {
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    final completer = Completer<T>();
+    final key = 'wait.${_waitKeyCounter++}';
+    addMessageCallback(messageType, key, (m) {
+      if (!completer.isCompleted) completer.complete(m as T);
+    });
+    try {
+      await sendMessage(msg);
+      return await completer.future.timeout(timeout);
+    } finally {
+      messageRxCallbacks[messageType]?.remove(key);
+    }
+  }
+
   @override
   String get dieId => device.deviceId;
 
@@ -599,20 +643,14 @@ class PixelDie extends GenericBleDie {
       onError: (e) => _log.severe('notify stream error: $e'),
     );
 
-    final completer = Completer<void>();
-    addMessageCallback(pix.PixelMessageType.iAmADie.index, '_init', (_) {
-      if (!completer.isCompleted) completer.complete();
-    });
-
     await Future.delayed(Duration(milliseconds: 100)); // sleep needed on web??
-    await _sendMessageBuffer(pix.MessageWhoAreYou().toBuffer());
-
     try {
-      await completer.future.timeout(const Duration(seconds: 5));
+      await sendAndWaitFor<pix.MessageIAmADie>(
+        pix.MessageWhoAreYou(),
+        pix.PixelMessageType.iAmADie.index,
+      );
     } on TimeoutException {
       _log.warning('IAmADie not received within 5s during init');
-    } finally {
-      messageRxCallbacks[pix.PixelMessageType.iAmADie.index]?.remove('_init');
     }
   }
 

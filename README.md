@@ -36,6 +36,7 @@ or requests.
   - Custom blink colors per die
   - **Rolling flash animations (Pixels only)** — configure color and animation style (Strobe, Pulse, Breathe)
   - **Preview animations** directly from settings
+- **Pixels LED animation profiles** — browse and flash built-in profiles (hash-identical to the official app), see which profile is on the die, and create/edit/import/preview your own. Works across all Pixels die types (d4–d20).
 - Home Assistant integration for smart light control
 - Webhook and Discord rule actions — fire HTTP requests or Discord embeds on roll result
 - dddice integration — mirror physical dice rolls to a virtual tabletop room

@@ -49,6 +49,28 @@ Deferred work and known limitations from the Pixels profile/animation effort
   are selectable for Keyframed / GradientPattern.
 - **Worm animation type** (`Animation_Worm` = 11) — the dedicated firmware effect we
   currently approximate with Cycle. Low priority (Cycle already matches the official look).
+- **Die-aware rule editor (Part D)** — built-in *profiles* are now die-type-correct
+  (`build(PixelDieType)` via `PixelFaces`, hash-matched per type), but the rolled-condition
+  *editor* still hardcodes d20: the dialog defaults `_faceMask` to `0xFFFFF` and renders face
+  chips 1–20. For user-authored profiles on non-d20 dice it should pull the connected die's
+  faces from the domain (`dieFaces` / `facesToMask` / `maskToFaces`, delegating to
+  `PixelFaces`) and render chips for that die's faces, defaulting to all-faces — logic in the
+  domain (UI → domain), dialog keeping local form state. This makes *authoring* die-correct;
+  it does **not** make one saved profile auto-adapt across face counts (that needs a logical
+  selector instead of a concrete mask + rebuild-per-die, and is beyond the official app's
+  per-die-type model).
+
+### Code review follow-ups (PR #49)
+
+- **Abstract `PixelProfileRepository` — does it earn its keep?** Confirm the interface is
+  justified by a real fake/noop seam in tests, or collapse it onto the concrete
+  `SharedPrefsPixelProfileRepository`.
+- **Realistic simulator battery handling** — tracked under *Testing / infra* below.
+- **Split official animations into their own file** — `pixels_builtin_animations.dart` is
+  already the dedicated animation library (stray protocol constants moved to
+  `pixels_constants.dart`); the hash-locked content actually lives in
+  `pixels_builtin_profiles.dart` (guarded by the parity + round-trip tests). An explicit
+  hash-compat-labeled split of the animation library is optional polish, not yet done.
 
 ### Editor gaps (smaller)
 

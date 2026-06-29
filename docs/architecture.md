@@ -138,11 +138,25 @@ end-to-end and is the worked example to copy:
 - Repository: `repositories/pixels/pixel_profile_repository.dart` (interface +
   `SharedPrefs…` impl). Service: `services/pixels/pixel_die_service.dart`.
 - Pure logic: `core/pixels/animation_import.dart`.
+- SDK (`dice_sdks/pixels/`, external dependency we authored): the protocol +
+  curated content — `pixel_faces.dart` (per-die face↔index↔mask semantics, a
+  port of the official `DiceUtils`), `pixels_constants.dart` (shared protocol
+  constants), and the built-in profiles/animations. Built-ins are die-type
+  parameterized (`build(PixelDieType)`) and stay hash-matched to the official app
+  for every die type.
 - App-scoped domain (in `DiWrapper`) + a per-die `PixelDieService` passed into
   die-bound methods.
 - UI: `PixelsProfilesScreen` / `PixelsProfileEditorScreen` follow MVVM + Command
   (`*_vm.dart` ViewModels), taking their specific deps (domain + per-die service)
   rather than `DiWrapper`.
+
+**Cross-cutting seam — platform detection.** `util/platform_info.dart`
+(`PlatformInfo`) is resolved once at the composition root (`DiWrapper.initDi`,
+via `PlatformInfo.host()`) and injected wherever behavior branches on the host
+(BLE/HA repositories, HTTP client providers, UI via VM getters). Tests inject a
+`PlatformInfo` with explicit flags instead of touching the real host. This is the
+pattern to follow for any "check the environment once, pass it down" concern —
+no scattered `Platform.is*` / `kIsWeb` checks.
 
 ## Known divergences (to migrate toward the rules)
 

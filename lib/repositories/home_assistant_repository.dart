@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:roll_feathers/services/home_assistant/ha_config_service.dart';
 import 'package:roll_feathers/services/home_assistant/ha_service.dart';
+import 'package:roll_feathers/util/platform_info.dart';
 import 'package:roll_feathers/util/strings.dart';
 
 import 'package:roll_feathers/dice_sdks/message_sdk.dart';
@@ -49,10 +49,11 @@ class HaRepositoryImpl extends HaRepository {
   final HaConfigService _haConfigService;
   final HaService _haService;
   late bool isEnabled;
+  final PlatformInfo _platform;
 
   final _settingsStream = StreamController<HaConfig>.broadcast();
 
-  HaRepositoryImpl(this._haConfigService, this._haService, this.isEnabled);
+  HaRepositoryImpl(this._haConfigService, this._haService, this.isEnabled, this._platform);
 
   @override
   Stream<HaConfig> subscribeHaSettings() => _settingsStream.stream;
@@ -87,7 +88,7 @@ class HaRepositoryImpl extends HaRepository {
 
   @override
   bool get available {
-    if (kIsWeb || kIsWasm) {
+    if (_platform.isWeb) {
       return false;
     }
 

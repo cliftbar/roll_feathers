@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/dice_sdks/godice.dart';
 import 'package:roll_feathers/dice_sdks/message_sdk.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart';
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 import 'package:roll_feathers/repositories/home_assistant_repository.dart';
 import 'package:roll_feathers/services/app_service.dart';
@@ -59,7 +59,11 @@ class DieDomain {
         if (_appService != null) {
           final saved = await _appService.getDieSettings(pd.dieId);
           if (saved != null) {
-            pd.friendlyName = saved.friendlyName ?? pd.friendlyName;
+            // Pixels are firmware-authoritative for their name (the advertised
+            // name wins on reconnect), so only restore an app-owned saved name.
+            if (saved.friendlyName != null && pd.type != GenericDieType.pixel) {
+              pd.friendlyName = saved.friendlyName!;
+            }
             pd.blinkColor = saved.blinkColor;
             pd.haEntityTargets = saved.haEntityTargets;
             pd.rollingFlashEnabled = saved.rollingFlashEnabled;
@@ -173,6 +177,40 @@ class DieDomain {
     if (die is PixelDie) {
       await die.sendMessage(MessageStopAllAnimations());
     }
+  }
+
+  /// Sets [die]'s name, owning the firmware-vs-app decision and persistence.
+  ///
+  /// Pixels (firmware-authoritative): sends a true BLE rename and **waits for the
+  /// firmware's SetNameAck before updating the displayed name** — accuracy over
+  /// speed, so the UI never shows an unconfirmed name. Throws on timeout (the
+  /// caller surfaces the error and the name is left unchanged); the authoritative
+  /// name otherwise re-derives from the advertised name on the next reconnect.
+  /// Not persisted app-side. Names over [MessageSetName.maxNameBytes] (31) bytes
+  /// are truncated by the firmware.
+  ///
+  /// Other dice (virtual/GoDice): the name is app-owned — set it and persist it
+  /// via the settings store.
+  ///
+  /// Either way, re-emits the dice stream so name displays refresh.
+  Future<void> setDieName(GenericDie die, String name) async {
+    if (die is PixelDie) {
+      // Wait for the firmware's ack before trusting the new name.
+      await die.sendAndWaitFor<MessageNone>(
+        MessageSetName(name),
+        PixelMessageType.setNameAck.index,
+      );
+      die.friendlyName = name; // confirmed by the die → safe to display
+    } else {
+      die.friendlyName = name;
+      final service = _appService;
+      if (service != null) {
+        final settings = await service.getDieSettings(die.dieId) ?? DieSettings();
+        settings.friendlyName = name;
+        await service.saveDieSettings(die.dieId, settings);
+      }
+    }
+    _diceSubscription.add(_foundDie);
   }
 
   static ({int onMs, int offMs, int fade}) _presetTiming(RollingFlashPreset preset) =>

@@ -5,7 +5,12 @@ import 'package:flutter/widget_previews.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 import 'package:roll_feathers/dice_sdks/godice.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart' as pix;
 import 'package:roll_feathers/services/app_service.dart';
+import 'package:roll_feathers/domains/pixel_profile_domain.dart';
+import 'package:roll_feathers/repositories/pixels/pixel_profile_repository.dart';
+import 'package:roll_feathers/services/pixels/pixel_die_service.dart';
+import 'package:roll_feathers/ui/pixels/pixels_profiles_screen.dart';
 
 enum _ColorMode {
   hexWheel('Hex / Wheel'),
@@ -24,6 +29,7 @@ class SingleDieSettingsDialog extends StatefulWidget {
     super.key,
     required this.die,
     required this.haEnabled,
+    required this.pixelProfileDomain,
     required this.onBlink,
     required this.onPreviewRolling,
     required this.onDisconnect,
@@ -32,6 +38,7 @@ class SingleDieSettingsDialog extends StatefulWidget {
 
   final GenericDie die;
   final bool haEnabled;
+  final PixelProfileDomain pixelProfileDomain;
   final Future<void> Function(Color, GenericDie, String?) onBlink;
   final Future<void> Function(Color, RollingFlashPreset, GenericDie) onPreviewRolling;
   final Future<void> Function(String) onDisconnect;
@@ -541,9 +548,11 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (widget.die.type == GenericDieType.virtual) ...[
+                      if (widget.die.type == GenericDieType.virtual ||
+                          widget.die.type == GenericDieType.pixel) ...[
                         TextField(
                           controller: _nameController,
+                          maxLength: pix.MessageSetName.maxNameBytes,
                           decoration: const InputDecoration(
                             labelText: 'Die Name',
                             hintText: 'Enter a name for the die',
@@ -638,8 +647,25 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                           onChanged: (t) => setState(() => _currentFaceType = t),
                         ),
                       ],
-                      // Rolling flash: Pixels only.
+                      // Animation management + Rolling flash: Pixels only.
                       if (widget.die.type == GenericDieType.pixel) ...[
+                        const Divider(),
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Animations'),
+                          subtitle: const Text('Manage LED profiles for this die'),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => _PixelsProfilesRoute(
+                                  die: widget.die as PixelDie,
+                                  domain: widget.pixelProfileDomain,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                         const Divider(),
                         Row(
                           children: [
@@ -696,7 +722,8 @@ class _SingleDieSettingsDialogState extends State<SingleDieSettingsDialog> {
                       widget.onSave(
                         widget.die,
                         DieSettings(
-                          friendlyName: widget.die.type == GenericDieType.virtual
+                          friendlyName: widget.die.type == GenericDieType.virtual ||
+                                  widget.die.type == GenericDieType.pixel
                               ? _nameController.text
                               : null,
                           blinkColor: _currentColor.toColor().withValues(alpha: _brightness),
@@ -838,6 +865,21 @@ class _GradientTrackShape extends SliderTrackShape with BaseSliderTrackShape {
   }
 }
 
+/// Thin wrapper that binds a per-die [PixelDieService] to the (app-scoped)
+/// [PixelProfileDomain] for [PixelsProfilesScreen].
+class _PixelsProfilesRoute extends StatelessWidget {
+  const _PixelsProfilesRoute({required this.die, required this.domain});
+  final PixelDie die;
+  final PixelProfileDomain domain;
+
+  @override
+  Widget build(BuildContext context) => PixelsProfilesScreen.create(
+    domain,
+    PixelDieService(PixelBleAdapter(die)),
+    die.friendlyName,
+  );
+}
+
 @Preview(name: 'SingleDieSettingsDialog - virtual die')
 Widget singleDieSettingsVirtual() {
   final die = VirtualDie(dType: GenericDTypeFactory.getKnownChecked('d6'), name: 'Red D6');
@@ -847,6 +889,7 @@ Widget singleDieSettingsVirtual() {
       body: SingleDieSettingsDialog(
         die: die,
         haEnabled: true,
+        pixelProfileDomain: PixelProfileDomain(SharedPrefsPixelProfileRepository()),
         onBlink: (_, __, ___) async {},
         onPreviewRolling: (_, __, ___) async {},
         onDisconnect: (_) async {},
@@ -864,6 +907,7 @@ Widget singleDieSettingsNoHa() {
       body: SingleDieSettingsDialog(
         die: die,
         haEnabled: false,
+        pixelProfileDomain: PixelProfileDomain(SharedPrefsPixelProfileRepository()),
         onBlink: (_, __, ___) async {},
         onPreviewRolling: (_, __, ___) async {},
         onDisconnect: (_) async {},

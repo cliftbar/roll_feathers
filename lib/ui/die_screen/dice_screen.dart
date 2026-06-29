@@ -206,7 +206,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
                         widget.settingsVm.startBleScan.execute();
                       }
                       : null,
-              label: bleOn ? Text(kIsWeb ? "Pair Die" : "Scan") : const Text("BLE Disabled"),
+              label: bleOn ? Text(widget.settingsVm.isWeb ? "Pair Die" : "Scan") : const Text("BLE Disabled"),
               icon:
                   scanning
                       ? const SizedBox(
@@ -363,6 +363,7 @@ class _DiceScreenWidgetState extends State<DiceScreenWidget> {
           builder: (context, _) => SingleDieSettingsDialog(
             die: die,
             haEnabled: widget.settingsVm.getHaConfig().enabled,
+            pixelProfileDomain: widget.viewModel.pixelProfileDomain,
             onBlink: widget.viewModel.blink.execute,
             onPreviewRolling: widget.viewModel.previewRollingFlash.execute,
             onDisconnect: widget.viewModel.disconnectDie.execute,

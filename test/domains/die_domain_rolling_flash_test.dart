@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart' as pix;
 import 'package:roll_feathers/domains/die_domain.dart';
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 import 'package:roll_feathers/repositories/home_assistant_repository.dart';
@@ -15,6 +15,16 @@ import 'package:roll_feathers/testing/dsl_test_harness.dart';
 import '../test_util.dart';
 
 class MockBleDeviceWrapper extends Mock implements BleDeviceWrapper {}
+
+List<int> _buildTestIAmADie() => [
+  pix.PixelMessageType.iAmADie.index,
+  20, 0, pix.PixelDieType.d20.index,
+  0, 0, 0, 0, // dataSetHash
+  1, 0, 0, 0, // pixelId
+  0, 0, // availableFlash
+  0, 0, 0, 0, // buildTimestamp
+  DiceRollState.onFace.index, 0, 100, 0,
+];
 
 // Minimal DieDomain subclass for direct method testing.
 class _TestDieDomain extends DieDomain {
@@ -43,7 +53,15 @@ Future<PixelDie> _makePixelDie(MockBleDeviceWrapper device) async {
         notifyUuid: any(named: 'notifyUuid'),
         writeUuid: any(named: 'writeUuid'),
       )).thenAnswer((_) async {});
-  when(() => device.writeMessage(any())).thenAnswer((_) async {});
+  when(() => device.writeMessage(any())).thenAnswer((invocation) async {
+    final data = invocation.positionalArguments[0] as List<int>;
+    if (data.isNotEmpty && data[0] == pix.PixelMessageType.whoAreYou.index) {
+      ctrl.add(_buildTestIAmADie());
+    } else if (data.isNotEmpty && data[0] == pix.PixelMessageType.setName.index) {
+      // Real firmware acks a rename; emit it so the ack-gated rename completes.
+      ctrl.add([pix.PixelMessageType.setNameAck.index]);
+    }
+  });
   return PixelDie.create(device: device);
 }
 
@@ -78,6 +96,42 @@ void main() {
       final vDie = VirtualDie(dType: GenericDTypeFactory.getKnownChecked('d6'));
       await domain.stopAnimations(vDie);
       verifyNever(() => mockDevice.writeMessage(any()));
+    });
+  });
+
+  // ── setDieName (true BLE rename) ─────────────────────────────────────────────
+
+  group('setDieName', () {
+    test('sends MessageSetName with the encoded name to Pixels die', () async {
+      await domain.setDieName(pixelDie, 'Sparkle');
+
+      final captured = verify(() => mockDevice.writeMessage(captureAny())).captured;
+      expect(captured, hasLength(1));
+      final buf = captured.first as List<int>;
+      expect(buf[0], equals(pix.PixelMessageType.setName.index));
+      // Name bytes follow the type byte; buffer is padded to maxNameBytes + 1.
+      expect(buf.sublist(1, 1 + 'Sparkle'.length), equals('Sparkle'.codeUnits));
+      expect(buf.length, equals(1 + pix.MessageSetName.maxNameBytes + 1));
+    });
+
+    test('sets the name locally for VirtualDie (no firmware write)', () async {
+      final vDie = VirtualDie(dType: GenericDTypeFactory.getKnownChecked('d6'));
+      await domain.setDieName(vDie, 'Sparkle');
+      expect(vDie.friendlyName, 'Sparkle');
+      verifyNever(() => mockDevice.writeMessage(any()));
+    });
+  });
+
+  // ── friendlyName override (rename reflects locally) ──────────────────────────
+
+  group('friendlyName override', () {
+    test('defaults to the BLE-advertised name', () {
+      expect(pixelDie.friendlyName, equals('Test Pixel'));
+    });
+
+    test('setter overrides the advertised name', () {
+      pixelDie.friendlyName = 'Sparkle';
+      expect(pixelDie.friendlyName, equals('Sparkle'));
     });
   });
 
@@ -237,6 +291,19 @@ void main() {
       expect(die!.rollingFlashEnabled, isFalse);
       expect(die.rollingFlashColor, isNull);
       expect(die.rollingFlashPreset, equals(RollingFlashPreset.strobe));
+    });
+
+    test('Pixels die ignores a saved friendlyName on connect (firmware-authoritative)', () async {
+      await service.saveDieSettings('pixel-test-id', DieSettings(
+        friendlyName: 'Sparkle',
+      ));
+
+      await domainWithService.asyncConvertToDie({'pixel-test-id': mockDevice});
+
+      final die = domainWithService.getDieById('pixel-test-id');
+      // A true BLE rename writes the name to the die, so the advertised name
+      // ('Test Pixel') is authoritative on reconnect — the saved name is ignored.
+      expect(die!.friendlyName, equals('Test Pixel'));
     });
   });
 }

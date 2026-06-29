@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
 
 import 'package:roll_feathers/dice_sdks/message_sdk.dart';
+import 'package:roll_feathers/dice_sdks/pixels/pixels_constants.dart';
 import 'package:roll_feathers/util/color.dart';
 
 const Color green = Color.fromARGB(255, 0, 255, 0);
@@ -368,7 +369,7 @@ class MessageBlink extends TxMessage with Color255 implements Blinker {
     this.count = 1,
     this.duration = 500,
     this.blinkColor = Colors.white,
-    this.faceMask = 0xFFFFFFFF,
+    this.faceMask = kFaceMaskAll,
     this.fade = 0,
     this.loopCount = 2,
   }) : super(id: PixelMessageType.blink.index);
@@ -420,4 +421,319 @@ class MessageStopAllAnimations extends TxMessage {
 
   @override
   List<int> toBuffer() => [PixelMessageType.stopAllAnimations.index];
+}
+
+/// Rename the die (max 31 chars + null terminator = 32 bytes payload).
+class MessageSetName extends TxMessage {
+  static const int maxNameBytes = 31;
+  final String name;
+
+  MessageSetName(this.name) : super(id: PixelMessageType.setName.index);
+
+  @override
+  List<int> toBuffer() {
+    final encoded = name.codeUnits.take(maxNameBytes).toList();
+    final buf = List<int>.filled(1 + maxNameBytes + 1, 0);
+    buf[0] = PixelMessageType.setName.index;
+    for (var i = 0; i < encoded.length; i++) {
+      buf[1 + i] = encoded[i];
+    }
+    return buf;
+  }
+}
+
+/// Request the die to identify itself (re-send iAmADie).
+class MessageRequestRollState extends TxMessage {
+  MessageRequestRollState() : super(id: PixelMessageType.requestRollState.index);
+
+  @override
+  List<int> toBuffer() => [PixelMessageType.requestRollState.index];
+}
+
+/// Request the die to send back its animation set.
+class MessageRequestAnimationSet extends TxMessage {
+  MessageRequestAnimationSet() : super(id: PixelMessageType.requestAnimationSet.index);
+
+  @override
+  List<int> toBuffer() => [PixelMessageType.requestAnimationSet.index];
+}
+
+// ─── Bulk transfer messages ───────────────────────────────────────────────────
+
+/// Step 1 of a profile upload: tell the die the total byte size.
+class MessageTransferAnimationSet extends TxMessage {
+  final int paletteSize;
+  final int rgbKeyFrameCount;
+  final int rgbTrackCount;
+  final int keyFrameCount;
+  final int trackCount;
+  final int animationCount;
+  final int animationSize;
+  final int conditionCount;
+  final int conditionSize;
+  final int actionCount;
+  final int actionSize;
+  final int ruleCount;
+  final int brightness;
+
+  MessageTransferAnimationSet({
+    required this.paletteSize,
+    required this.rgbKeyFrameCount,
+    required this.rgbTrackCount,
+    required this.keyFrameCount,
+    required this.trackCount,
+    required this.animationCount,
+    required this.animationSize,
+    required this.conditionCount,
+    required this.conditionSize,
+    required this.actionCount,
+    required this.actionSize,
+    required this.ruleCount,
+    required this.brightness,
+  }) : super(id: PixelMessageType.transferAnimationSet.index);
+
+  @override
+  List<int> toBuffer() {
+    final buf = List<int>.filled(26, 0);
+    buf[0] = PixelMessageType.transferAnimationSet.index;
+    TxMessage.setU16(buf, 1, paletteSize);
+    TxMessage.setU16(buf, 3, rgbKeyFrameCount);
+    TxMessage.setU16(buf, 5, rgbTrackCount);
+    TxMessage.setU16(buf, 7, keyFrameCount);
+    TxMessage.setU16(buf, 9, trackCount);
+    TxMessage.setU16(buf, 11, animationCount);
+    TxMessage.setU16(buf, 13, animationSize);
+    TxMessage.setU16(buf, 15, conditionCount);
+    TxMessage.setU16(buf, 17, conditionSize);
+    TxMessage.setU16(buf, 19, actionCount);
+    TxMessage.setU16(buf, 21, actionSize);
+    TxMessage.setU16(buf, 23, ruleCount);
+    buf[25] = brightness;
+    return buf;
+  }
+}
+
+/// Die response to TransferAnimationSet: result != 0 → proceed with download; result == 0 → refused (not enough memory).
+class MessageTransferAnimationSetAck extends RxMessage {
+  final int result;
+
+  MessageTransferAnimationSetAck({required super.buffer, required this.result})
+      : super(id: PixelMessageType.transferAnimationSetAck.index);
+
+  static MessageTransferAnimationSetAck parse(List<int> data) =>
+      MessageTransferAnimationSetAck(buffer: data, result: data.length > 1 ? data[1] : 0);
+
+  bool get canDownload => result != 0;
+}
+
+/// Die signals profile was written to flash.
+class MessageTransferAnimationSetFinished extends RxMessage {
+  MessageTransferAnimationSetFinished({required super.buffer})
+      : super(id: PixelMessageType.transferAnimationSetFinished.index);
+
+  static MessageTransferAnimationSetFinished parse(List<int> data) =>
+      MessageTransferAnimationSetFinished(buffer: data);
+}
+
+/// Step 1 of a bulk data transfer: tell the die the total byte size.
+class MessageBulkSetup extends TxMessage {
+  final int size;
+
+  MessageBulkSetup({required this.size}) : super(id: PixelMessageType.bulkSetup.index);
+
+  @override
+  List<int> toBuffer() {
+    final buf = List<int>.filled(3, 0);
+    buf[0] = PixelMessageType.bulkSetup.index;
+    buf[1] = size & 0xFF;
+    buf[2] = (size >> 8) & 0xFF;
+    return buf;
+  }
+}
+
+/// Die acknowledges BulkSetup — ready for data.
+class MessageBulkSetupAck extends RxMessage {
+  MessageBulkSetupAck({required super.buffer})
+      : super(id: PixelMessageType.bulkSetupAck.index);
+
+  static MessageBulkSetupAck parse(List<int> data) =>
+      MessageBulkSetupAck(buffer: data);
+}
+
+/// Bulk data chunk (up to 100 bytes payload).
+class MessageBulkData extends TxMessage {
+  final int size;
+  final int offset;
+  final List<int> data;
+
+  MessageBulkData({required this.size, required this.offset, required this.data})
+      : super(id: PixelMessageType.bulkData.index);
+
+  @override
+  List<int> toBuffer() {
+    final buf = List<int>.filled(4 + data.length, 0);
+    buf[0] = PixelMessageType.bulkData.index;
+    buf[1] = size;
+    buf[2] = offset & 0xFF;
+    buf[3] = (offset >> 8) & 0xFF;
+    for (var i = 0; i < data.length; i++) {
+      buf[4 + i] = data[i];
+    }
+    return buf;
+  }
+}
+
+/// Die acknowledges a BulkData chunk — contains the next expected offset.
+class MessageBulkDataAck extends RxMessage {
+  final int offset;
+
+  MessageBulkDataAck({required super.buffer, required this.offset})
+      : super(id: PixelMessageType.bulkDataAck.index);
+
+  static MessageBulkDataAck parse(List<int> data) => MessageBulkDataAck(
+    buffer: data,
+    offset: data.length >= 3 ? (data[1] | (data[2] << 8)) : 0,
+  );
+}
+
+// ─── Instant animation transfer ──────────────────────────────────────────────
+
+/// Upload animation set to RAM (temporary; lost on sleep/reboot).
+class MessageTransferInstantAnimationSet extends TxMessage {
+  final int paletteSize;
+  final int rgbKeyFrameCount;
+  final int rgbTrackCount;
+  final int keyFrameCount;
+  final int trackCount;
+  final int animationCount;
+  final int animationSize;
+  final int hash;
+
+  MessageTransferInstantAnimationSet({
+    required this.paletteSize,
+    required this.rgbKeyFrameCount,
+    required this.rgbTrackCount,
+    required this.keyFrameCount,
+    required this.trackCount,
+    required this.animationCount,
+    required this.animationSize,
+    required this.hash,
+  }) : super(id: PixelMessageType.transferInstantAnimationSet.index);
+
+  @override
+  List<int> toBuffer() {
+    final buf = List<int>.filled(22, 0);
+    buf[0] = PixelMessageType.transferInstantAnimationSet.index;
+    TxMessage.setU16(buf, 1, paletteSize);
+    TxMessage.setU16(buf, 3, rgbKeyFrameCount);
+    TxMessage.setU16(buf, 5, rgbTrackCount);
+    TxMessage.setU16(buf, 7, keyFrameCount);
+    TxMessage.setU16(buf, 9, trackCount);
+    TxMessage.setU16(buf, 11, animationCount);
+    TxMessage.setU16(buf, 13, animationSize);
+    TxMessage.setU32(buf, 15, hash);
+    return buf;
+  }
+}
+
+/// Ack values for TransferInstantAnimationSet.
+enum TransferInstantAckType { download, upToDate, noMemory }
+
+/// Die response to TransferInstantAnimationSet.
+class MessageTransferInstantAnimationSetAck extends RxMessage {
+  final TransferInstantAckType ackType;
+
+  MessageTransferInstantAnimationSetAck({required super.buffer, required this.ackType})
+      : super(id: PixelMessageType.transferInstantAnimationSetAck.index);
+
+  static MessageTransferInstantAnimationSetAck parse(List<int> data) {
+    final raw = data.length > 1 ? data[1] : 0;
+    final ackType = raw < TransferInstantAckType.values.length
+        ? TransferInstantAckType.values[raw]
+        : TransferInstantAckType.noMemory;
+    return MessageTransferInstantAnimationSetAck(buffer: data, ackType: ackType);
+  }
+}
+
+/// Die signals instant animations are loaded.
+class MessageTransferInstantAnimationSetFinished extends RxMessage {
+  MessageTransferInstantAnimationSetFinished({required super.buffer})
+      : super(id: PixelMessageType.transferInstantAnimationSetFinished.index);
+
+  static MessageTransferInstantAnimationSetFinished parse(List<int> data) =>
+      MessageTransferInstantAnimationSetFinished(buffer: data);
+}
+
+/// Play a previously uploaded instant animation.
+class MessagePlayInstantAnimation extends TxMessage {
+  final int animIndex;
+  final int faceIndex;
+  final int loopCount;
+
+  MessagePlayInstantAnimation({
+    this.animIndex = 0,
+    this.faceIndex = 0,
+    this.loopCount = 1,
+  }) : super(id: PixelMessageType.playInstantAnimation.index);
+
+  @override
+  List<int> toBuffer() => [
+    PixelMessageType.playInstantAnimation.index,
+    animIndex,
+    faceIndex,
+    loopCount,
+  ];
+}
+
+/// Die sends this when a behavior rule with Action_RunOnDevice fires.
+class MessageRemoteAction extends RxMessage {
+  final int actionId;
+
+  MessageRemoteAction({required super.buffer, required this.actionId})
+      : super(id: PixelMessageType.remoteAction.index);
+
+  static MessageRemoteAction parse(List<int> data) => MessageRemoteAction(
+    buffer: data,
+    actionId: data.length >= 3 ? (data[1] | (data[2] << 8)) : 0,
+  );
+}
+
+/// Die sends this for user notifications (toast/dialog on app).
+class MessageNotifyUser extends RxMessage {
+  final int timeoutSec;
+  final bool ok;
+  final bool cancel;
+  final String message;
+
+  MessageNotifyUser({
+    required super.buffer,
+    required this.timeoutSec,
+    required this.ok,
+    required this.cancel,
+    required this.message,
+  }) : super(id: PixelMessageType.notifyUser.index);
+
+  static MessageNotifyUser parse(List<int> data) {
+    final msgBytes = data.length > 4 ? data.sublist(4) : <int>[];
+    final nullIdx = msgBytes.indexOf(0);
+    final msg = String.fromCharCodes(nullIdx >= 0 ? msgBytes.sublist(0, nullIdx) : msgBytes);
+    return MessageNotifyUser(
+      buffer: data,
+      timeoutSec: data.length > 1 ? data[1] : 0,
+      ok: data.length > 2 && data[2] != 0,
+      cancel: data.length > 3 && data[3] != 0,
+      message: msg,
+    );
+  }
+}
+
+/// App sends this to acknowledge a NotifyUser message.
+class MessageNotifyUserAck extends TxMessage {
+  final bool okCancel;
+
+  MessageNotifyUserAck({required this.okCancel})
+      : super(id: PixelMessageType.notifyUserAck.index);
+
+  @override
+  List<int> toBuffer() => [PixelMessageType.notifyUserAck.index, okCancel ? 1 : 0];
 }

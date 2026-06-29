@@ -5,13 +5,23 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart' as pix;
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 
 import 'test_util.dart';
 
 // Mock classes
 class MockBleDeviceWrapper extends Mock implements BleDeviceWrapper {}
+
+List<int> _buildTestIAmADie() => [
+  pix.PixelMessageType.iAmADie.index,
+  20, 0, pix.PixelDieType.d20.index,
+  0, 0, 0, 0, // dataSetHash
+  1, 0, 0, 0, // pixelId
+  0, 0, // availableFlash
+  0, 0, 0, 0, // buildTimestamp
+  DiceRollState.onFace.index, 0, 100, 0,
+];
 
 void main() {
   setupLogger(Level.FINE);
@@ -38,7 +48,12 @@ void main() {
       notifyUuid: any(named: 'notifyUuid'),
       writeUuid: any(named: 'writeUuid')
     )).thenAnswer((_) async {});
-    when(() => mockDevice.writeMessage(any())).thenAnswer((_) async {});
+    when(() => mockDevice.writeMessage(any())).thenAnswer((invocation) async {
+      final data = invocation.positionalArguments[0] as List<int>;
+      if (data.isNotEmpty && data[0] == pix.PixelMessageType.whoAreYou.index) {
+        notifyStreamController.add(_buildTestIAmADie());
+      }
+    });
   });
 
   tearDown(() {
@@ -177,10 +192,11 @@ void main() {
   test('dType getter returns correct value', () async {
     final PixelDie die = await PixelDie.create(device: mockDevice);
 
-    // Initially, without info, it should return unknown
-    expect(die.dType.name, equals('unknown'));
+    // init sends WhoAreYou and awaits IAmADie, so info is already set
+    expect(die.dType.name, equals('d20'));
+    expect(die.dType.faces, equals(20));
 
-    // Create a mock iAmADie message with d20 type
+    // A subsequent IAmADie (e.g. post-flash) updates dType too
     final mockIAmADieData = [
       pix.PixelMessageType.iAmADie.index, // message type
       20, // ledCount
@@ -198,10 +214,8 @@ void main() {
 
     notifyStreamController.add(mockIAmADieData);
 
-    // Wait for the message to be processed
     await Future.delayed(Duration(milliseconds: 10));
 
-    // Now it should return d20
     expect(die.dType.name, equals('d20'));
     expect(die.dType.faces, equals(20));
   });
@@ -280,5 +294,44 @@ void main() {
     await Future.delayed(Duration(milliseconds: 10));
 
     expect(callbackCalled, isTrue);
+  });
+
+  // Per-die-type rolled face value conversion (facematch). The value is derived
+  // from the face *index* via the die type, not a naïve index+1.
+  List<int> _iAmADie(pix.PixelDieType dieType, int faceIndex) => [
+    pix.PixelMessageType.iAmADie.index,
+    20, 0, dieType.index,
+    0, 0, 0, 0, // dataSetHash
+    1, 0, 0, 0, // pixelId
+    0, 0, // availableFlash
+    0, 0, 0, 0, // buildTimestamp
+    DiceRollState.rolled.index, faceIndex, 100, 0,
+  ];
+  List<int> _rollState(int faceIndex) =>
+      [pix.PixelMessageType.rollState.index, DiceRollState.rolled.index, faceIndex];
+
+  test('d10 reports face value == index (0-9)', () async {
+    final die = await PixelDie.create(device: mockDevice);
+    notifyStreamController.add(_iAmADie(pix.PixelDieType.d10, 0)); // learn die type
+    notifyStreamController.add(_rollState(5));
+    await Future.delayed(Duration(milliseconds: 10));
+    expect(die.state.currentFaceIndex, equals(5));
+    expect(die.state.currentFaceValue, equals(5)); // not 6
+  });
+
+  test('d00 reports face value == index*10 (0/10/.../90)', () async {
+    final die = await PixelDie.create(device: mockDevice);
+    notifyStreamController.add(_iAmADie(pix.PixelDieType.d00, 0));
+    notifyStreamController.add(_rollState(5));
+    await Future.delayed(Duration(milliseconds: 10));
+    expect(die.state.currentFaceValue, equals(50));
+  });
+
+  test('d6 still reports index+1', () async {
+    final die = await PixelDie.create(device: mockDevice);
+    notifyStreamController.add(_iAmADie(pix.PixelDieType.d6, 0));
+    notifyStreamController.add(_rollState(3));
+    await Future.delayed(Duration(milliseconds: 10));
+    expect(die.state.currentFaceValue, equals(4));
   });
 }

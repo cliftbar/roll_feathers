@@ -4,6 +4,7 @@ import 'package:async/async.dart';
 import 'package:flutter/material.dart';
 import 'package:roll_feathers/di/di.dart';
 import 'package:roll_feathers/dice_sdks/dice_sdks.dart';
+import 'package:roll_feathers/domains/pixel_profile_domain.dart';
 import 'package:roll_feathers/domains/roll_domain.dart';
 import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/util/command.dart';
@@ -12,6 +13,9 @@ class DiceScreenViewModel extends ChangeNotifier {
   // init
   final DiWrapper _diWrapper;
   late Command0 load;
+
+  /// The profile domain the Pixels profiles screen talks to (UI → domain only).
+  PixelProfileDomain get pixelProfileDomain => _diWrapper.pixelProfileDomain;
 
   // rolling
   late Command0 clearRollResultHistory;
@@ -118,14 +122,18 @@ class DiceScreenViewModel extends ChangeNotifier {
     die.rollingFlashEnabled = settings.rollingFlashEnabled;
     die.rollingFlashColor = settings.rollingFlashColor;
     die.rollingFlashPreset = settings.rollingFlashPreset;
-    if (settings.friendlyName != null) {
-      die.friendlyName = settings.friendlyName!;
-    }
     if (die.type != GenericDieType.pixel && settings.faceTypeName != null) {
       final dt = GenericDTypeFactory.getKnown(settings.faceTypeName!);
       if (dt != null) die.dType = dt;
     }
+    // Naming is owned by the domain (firmware rename for Pixels, app-persisted
+    // otherwise), so keep it out of the bulk settings blob and delegate.
+    final name = settings.friendlyName;
+    settings.friendlyName = null;
     await _diWrapper.appService.saveDieSettings(die.dieId, settings);
+    if (name != null && name.isNotEmpty) {
+      await _diWrapper.dieDomain.setDieName(die, name);
+    }
     notifyListeners();
     return Result.value(null);
   }

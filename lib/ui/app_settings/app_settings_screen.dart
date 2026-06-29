@@ -1,5 +1,4 @@
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:url_launcher/url_launcher.dart';
@@ -499,7 +498,7 @@ class AppSettingsWidget extends StatelessWidget {
           builder: (context, setState) {
             return AlertDialog(
               title: Text(
-                'Home Assistant Settings${kIsWeb ? "\nEnsure HA accepts rollfeathers.ungawatkt.com in CORs " : ""}',
+                'Home Assistant Settings${vm.isWeb ? "\nEnsure HA accepts rollfeathers.ungawatkt.com in CORs " : ""}',
               ),
               content: SingleChildScrollView(
                 child: Column(
@@ -592,14 +591,14 @@ class AppSettingsWidget extends StatelessWidget {
     return ListenableBuilder(
       listenable: vm,
       builder: (context, _) {
-        final bool enableScan = kIsWeb || vm.bleIsEnabled();
+        final bool enableScan = vm.isWeb || vm.bleIsEnabled();
         return ListTile(
           onTap: enableScan
               ? () {
                   vm.startBleScan.execute();
                 }
               : null,
-          title: enableScan ? Text(kIsWeb ? "Pair Die" : "Scan") : const Text("BLE Disabled"),
+          title: enableScan ? Text(vm.isWeb ? "Pair Die" : "Scan") : const Text("BLE Disabled"),
           leading: enableScan ? const Icon(Icons.bluetooth_searching) : const Icon(Icons.bluetooth_disabled),
         );
       },
@@ -681,10 +680,10 @@ class AppSettingsWidget extends StatelessWidget {
                 return ListTile(
                   title: Text(
                     'Bluetooth: ${vm.bleIsEnabled()
-                        ? kIsWeb
+                        ? vm.isWeb
                             ? "supported"
                             : "enabled"
-                        : "disabled${kIsWeb ? "\nBLE only supported in Chrome" : ""}"}',
+                        : "disabled${vm.isWeb ? "\nBLE only supported in Chrome" : ""}"}',
                   ),
                   leading: vm.bleIsEnabled() ? const Icon(Icons.bluetooth) : const Icon(Icons.bluetooth_disabled),
                   enabled: vm.bleIsEnabled(),
@@ -775,7 +774,7 @@ class AppSettingsWidget extends StatelessWidget {
                   title: Row(
                     children: [
                       const Flexible(child: Text('Webhooks')),
-                      if (kIsWeb) ...[
+                      if (vm.isWeb) ...[
                         const SizedBox(width: 4),
                         Tooltip(
                           message: 'CORS preflight (OPTIONS) must be supported by the target server for JSON payloads.',

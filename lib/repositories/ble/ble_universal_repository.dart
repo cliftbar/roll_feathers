@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:io';
+import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 import 'package:universal_ble/universal_ble.dart';
 
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
+import 'package:roll_feathers/util/platform_info.dart';
 
 class UniversalBleDevice implements BleDeviceWrapper {
   @override
@@ -98,6 +98,12 @@ class UniversalBleDevice implements BleDeviceWrapper {
 class BleUniversalRepository implements BleRepository {
   final _log = Logger("BleUniversalRepository");
 
+  /// Platform facts injected by the composition root (see [DiWrapper.initDi]),
+  /// so all platform branching here goes through one resolved-once source.
+  final PlatformInfo _platform;
+
+  BleUniversalRepository({PlatformInfo? platform}) : _platform = platform ?? PlatformInfo.host();
+
   final Map<String, UniversalBleDevice> _discoveredBleDevices = {};
   final Map<String, StreamSubscription<bool>> _connectionSubscriptions = {};
   // Cache device names across scans. Android BLE sometimes returns a null name
@@ -129,9 +135,19 @@ class BleUniversalRepository implements BleRepository {
 
   late StreamSubscription<AvailabilityState> _adapterStateSubscription;
 
+  List<String>? _pendingScanServices;
+  List<String>? _pendingScanNamePrefix;
+
   @override
   Future<void> init() async {
-    if (kIsWeb) {
+    // Set operation timeout before any connections.
+    if (_platform.isDesktop) {
+      UniversalBle.timeout = const Duration(seconds: 25);
+    } else if (!_platform.isWeb) {
+      UniversalBle.timeout = const Duration(seconds: 10);
+    }
+
+    if (_platform.isWeb) {
       // On web, BLE is user-gesture gated. Don't block; listen for state changes.
       _adapterStateSubscription = UniversalBle.availabilityStream.listen((state) {
         _updateAvailability(state);
@@ -140,53 +156,43 @@ class BleUniversalRepository implements BleRepository {
       supported = true;
       enabled = true;
       permissioned = true;
+      _bleEnabledSubscription.add(true);
     } else {
-      await _waitForAdapter();
+      // Non-blocking: return immediately so the app can render.
+      // Permissions check and queued scan are triggered when the adapter fires.
+      _adapterStateSubscription = UniversalBle.availabilityStream.listen((state) async {
+        final wasReady = enabled && supported;
+        _updateAvailability(state);
+        if (state == AvailabilityState.poweredOn && !wasReady) {
+          if (!await UniversalBle.hasPermissions()) {
+            await UniversalBle.requestPermissions();
+          }
+          permissioned = await UniversalBle.hasPermissions();
+          _log.info('ble_repo BLE ready (supported=$supported, enabled=$enabled, permissioned=$permissioned)');
+          _bleEnabledSubscription.add(enabled && supported && permissioned);
+          _triggerPendingScan();
+        } else {
+          _bleEnabledSubscription.add(enabled && supported && permissioned);
+        }
+      });
+      _bleEnabledSubscription.add(false);
+      _log.info('ble_repo init returned (BLE adapter initializing asynchronously)');
     }
+  }
 
-    // Longer timeout on desktop for stability
-    if (!kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
-      UniversalBle.timeout = const Duration(seconds: 25);
-    } else {
-      UniversalBle.timeout = const Duration(seconds: 10);
+  void _triggerPendingScan() {
+    final services = _pendingScanServices;
+    final namePrefix = _pendingScanNamePrefix;
+    _pendingScanServices = null;
+    _pendingScanNamePrefix = null;
+    if (services != null || namePrefix != null) {
+      unawaited(scan(services: services, namePrefix: namePrefix));
     }
-
-    supported = await isSupported();
-    if (!supported) {
-      _log.severe("Bluetooth is not supported");
-    }
-
-    // Permissions — use universal_ble 1.x built-in API
-    if (kIsWeb) {
-      permissioned = true;
-    } else if (supported) {
-      if (!await UniversalBle.hasPermissions()) {
-        await UniversalBle.requestPermissions();
-      }
-      permissioned = await UniversalBle.hasPermissions();
-    }
-
-    _bleEnabledSubscription.add(enabled && supported && permissioned);
-    _log.info("ble_repo initialized (supported=$supported, enabled=$enabled, permissioned=$permissioned)");
   }
 
   @override
   Future<bool> isSupported() async {
     return supported;
-  }
-
-  Future<void> _waitForAdapter({Duration timeout = const Duration(seconds: 3)}) async {
-    _adapterStateSubscription = UniversalBle.availabilityStream.listen((state) {
-      _updateAvailability(state);
-      _bleEnabledSubscription.add(enabled && supported && permissioned);
-    });
-    try {
-      await UniversalBle.availabilityStream
-          .firstWhere((state) => state == AvailabilityState.poweredOn)
-          .timeout(timeout);
-    } on TimeoutException {
-      _log.warning('BLE adapter did not power on within timeout; continuing without BLE');
-    }
   }
 
   void _updateAvailability(AvailabilityState state) {
@@ -207,8 +213,10 @@ class BleUniversalRepository implements BleRepository {
 
   @override
   Future<void> scan({List<String>? services, List<String>? namePrefix, Duration? timeout = const Duration(seconds: 5)}) async {
-    if (!kIsWeb && (!supported || !enabled)) {
-      _log.fine("scan() skipped: BLE not ready");
+    if (!_platform.isWeb && (!supported || !enabled)) {
+      _log.fine("scan() queued: BLE adapter not ready");
+      _pendingScanServices = services;
+      _pendingScanNamePrefix = namePrefix;
       return;
     }
     if (await UniversalBle.isScanning()) {
@@ -237,7 +245,7 @@ class BleUniversalRepository implements BleRepository {
         // On non-Windows native, connect immediately while scan continues.
         // iOS/macOS CoreBluetooth and Android BLE support connecting during scan.
         // Windows WinRT is less tolerant — it uses the batch path in _stopScanAndConnect.
-        if (!kIsWeb && !Platform.isWindows) {
+        if (!_platform.isWeb && !_platform.isWindows) {
           unawaited(_connectDevice(bleDevice));
         }
       }
@@ -252,13 +260,13 @@ class BleUniversalRepository implements BleRepository {
       _log.severe("startScan error: $e", e, st);
       _scanSubscription?.cancel();
       _scanSubscription = null;
-      if (!kIsWeb) rethrow;
+      if (!_platform.isWeb) rethrow;
       return;
     }
 
     // On web, startScan() awaits requestDevice() — by the time it returns the
     // device is already in _pendingConnect. Connect immediately, no timer needed.
-    if (kIsWeb) {
+    if (_platform.isWeb) {
       await _stopScanAndConnect();
       return;
     }
@@ -292,7 +300,7 @@ class BleUniversalRepository implements BleRepository {
     _log.info("scan finished; connecting ${pending.length} device(s)");
 
     for (final bleDevice in pending) {
-      if (!kIsWeb && Platform.isWindows) {
+      if (!_platform.isWeb && _platform.isWindows) {
         await Future.delayed(const Duration(milliseconds: 200));
       }
       try {

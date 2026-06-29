@@ -11,7 +11,8 @@ import 'package:uuid/uuid.dart';
 
 import 'package:roll_feathers/dice_sdks/godice.dart' as godice;
 import 'package:roll_feathers/dice_sdks/message_sdk.dart';
-import 'package:roll_feathers/dice_sdks/pixels.dart' as pix;
+import 'package:roll_feathers/dice_sdks/pixels/pixels.dart' as pix;
+import 'package:roll_feathers/dice_sdks/pixels/pixel_faces.dart';
 import 'package:roll_feathers/repositories/ble/ble_repository.dart';
 
 class MessageParseError extends IOException {
@@ -162,8 +163,13 @@ abstract class GenericBleDie extends GenericDie {
   BleDeviceWrapper device;
   VoidCallback? onStateChanged;
   StreamSubscription<List<int>>? _notifySubscription;
+
+  /// App-side name override. Takes precedence over the BLE-advertised name so a
+  /// rename reflects immediately (before the die re-advertises) and a persisted
+  /// name restores on reconnect.
+  String? _friendlyNameOverride;
   @override
-  set friendlyName(String name) {}
+  set friendlyName(String name) => _friendlyNameOverride = name;
 
   void dispose() {
     _notifySubscription?.cancel();
@@ -234,11 +240,55 @@ abstract class GenericBleDie extends GenericDie {
     messageRxCallbacks.putIfAbsent(messageType, () => {})[callbackKey] = callback;
   }
 
+  int _waitKeyCounter = 0;
+
+  /// Registers a one-shot listener for the next [messageType] reply and returns
+  /// a future that completes with it. Bridges the callback-based notify stream to
+  /// async/await: tolerates duplicate replies, times out, and removes its own
+  /// callback when done. Use [sendAndWaitFor] when you also need to send the
+  /// request (it registers before sending so a fast reply isn't missed).
+  Future<T> waitForMessage<T extends RxMessage>(
+    int messageType, {
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    final completer = Completer<T>();
+    final key = 'wait.${_waitKeyCounter++}';
+    addMessageCallback(messageType, key, (m) {
+      if (!completer.isCompleted) completer.complete(m as T);
+    });
+    try {
+      return await completer.future.timeout(timeout);
+    } finally {
+      messageRxCallbacks[messageType]?.remove(key);
+    }
+  }
+
+  /// Sends [msg] and waits for the next [messageType] reply, correlating the two
+  /// over the otherwise-uncorrelated notify stream. The listener is registered
+  /// before the send.
+  Future<T> sendAndWaitFor<T extends RxMessage>(
+    TxMessage msg,
+    int messageType, {
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    final completer = Completer<T>();
+    final key = 'wait.${_waitKeyCounter++}';
+    addMessageCallback(messageType, key, (m) {
+      if (!completer.isCompleted) completer.complete(m as T);
+    });
+    try {
+      await sendMessage(msg);
+      return await completer.future.timeout(timeout);
+    } finally {
+      messageRxCallbacks[messageType]?.remove(key);
+    }
+  }
+
   @override
   String get dieId => device.deviceId;
 
   @override
-  String get friendlyName => device.friendlyName;
+  String get friendlyName => _friendlyNameOverride ?? device.friendlyName;
 }
 
 class GoDiceBle extends GenericBleDie {
@@ -491,11 +541,41 @@ class PixelDie extends GenericBleDie {
       case pix.PixelMessageType.rollState:
         var msg = pix.MessageRollState.parse(data);
         _updateStateRoll(msg);
-        _log.fine('Received msg ${msgType.name}: ${DiceRollState.values[msg.rollState]} ${json.encode(msg)}');
+        _log.fine('RollState telemetry: ${DiceRollState.values[msg.rollState]} face=${msg.currentFaceValue}');
         _runMessageCallbacks(msg, msgType);
         DiceRollState rollState =
             state.rollState != null ? DiceRollState.values[state.rollState!] : DiceRollState.unknown;
         _runRollCallbacks(rollState);
+        break;
+      case pix.PixelMessageType.transferAnimationSetAck:
+        final msg = pix.MessageTransferAnimationSetAck.parse(data);
+        _log.fine('Received msg ${msgType.name}: result=${msg.result}');
+        _runMessageCallbacks(msg, msgType);
+        break;
+      case pix.PixelMessageType.transferAnimationSetFinished:
+        final msg = pix.MessageTransferAnimationSetFinished.parse(data);
+        _log.fine('Received msg ${msgType.name}');
+        _runMessageCallbacks(msg, msgType);
+        break;
+      case pix.PixelMessageType.bulkSetupAck:
+        final msg = pix.MessageBulkSetupAck.parse(data);
+        _log.fine('Received msg ${msgType.name}');
+        _runMessageCallbacks(msg, msgType);
+        break;
+      case pix.PixelMessageType.bulkDataAck:
+        final msg = pix.MessageBulkDataAck.parse(data);
+        _log.fine('Received msg ${msgType.name}: offset=${msg.offset}');
+        _runMessageCallbacks(msg, msgType);
+        break;
+      case pix.PixelMessageType.transferInstantAnimationSetAck:
+        final msg = pix.MessageTransferInstantAnimationSetAck.parse(data);
+        _log.fine('Received msg ${msgType.name}: ackType=${msg.ackType}');
+        _runMessageCallbacks(msg, msgType);
+        break;
+      case pix.PixelMessageType.transferInstantAnimationSetFinished:
+        final msg = pix.MessageTransferInstantAnimationSetFinished.parse(data);
+        _log.fine('Received msg ${msgType.name}');
+        _runMessageCallbacks(msg, msgType);
         break;
       default:
         var msg = pix.MessageNone.parse(data);
@@ -522,7 +602,8 @@ class PixelDie extends GenericBleDie {
   }
 
   void _updateStateIAmADie(pix.MessageIAmADie msg) {
-    info ??= pix.PixelDiceInfo(
+    _log.fine('IAmADie dataSetHash=0x${msg.dataSetHash.toUnsigned(32).toRadixString(16).toUpperCase().padLeft(8, '0')} firmware=${msg.buildTimestamp}');
+    info = pix.PixelDiceInfo(
       ledCount: msg.ledCount,
       designAndColor: msg.designAndColor,
       pixelDieTypeFaces: msg.pixelDieTypeFaces,
@@ -534,7 +615,9 @@ class PixelDie extends GenericBleDie {
 
     state.rollState = msg.rollState;
     state.currentFaceIndex = msg.currentFaceIndex;
-    state.currentFaceValue = msg.currentFaceValue;
+    // Convert the firmware's face index to a value per die type (d10→0-9,
+    // d00→0/10/…/90, else index+1) rather than the naïve index+1.
+    state.currentFaceValue = PixelFaces.faceFromIndex(msg.currentFaceIndex, msg.pixelDieTypeFaces);
     state.batteryLevel = msg.batteryLevel;
     state.batteryState = BatteryState.values[msg.batteryState];
   }
@@ -547,7 +630,9 @@ class PixelDie extends GenericBleDie {
   void _updateStateRoll(pix.MessageRollState msg) {
     state.rollState = msg.rollState;
     state.currentFaceIndex = msg.currentFaceIndex;
-    state.currentFaceValue = msg.currentFaceValue;
+    // Per-die-type value from the index (uses the die type learned from IAmADie).
+    final dieType = info?.pixelDieTypeFaces ?? pix.PixelDieType.unknown;
+    state.currentFaceValue = PixelFaces.faceFromIndex(msg.currentFaceIndex, dieType);
     state.lastRolled = DateTime.now();
   }
 
@@ -562,8 +647,16 @@ class PixelDie extends GenericBleDie {
       _readNotify,
       onError: (e) => _log.severe('notify stream error: $e'),
     );
+
     await Future.delayed(Duration(milliseconds: 100)); // sleep needed on web??
-    await _sendMessageBuffer(pix.MessageWhoAreYou().toBuffer());
+    try {
+      await sendAndWaitFor<pix.MessageIAmADie>(
+        pix.MessageWhoAreYou(),
+        pix.PixelMessageType.iAmADie.index,
+      );
+    } on TimeoutException {
+      _log.warning('IAmADie not received within 5s during init');
+    }
   }
 
   @override

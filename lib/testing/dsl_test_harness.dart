@@ -156,11 +156,13 @@ class TestBleRepository extends BleRepository {
   Future<void> stopScan() async {}
 }
 
-/// Fake DieDomain that records blink, blinkRolling, and stopAnimations calls.
+/// Fake DieDomain that records blink, blinkRolling, stopAnimations, and
+/// setDieName calls.
 class RecordingDieDomain extends DieDomain {
   final List<String> blinked = [];
   final List<String> rollingBlinked = [];
   final List<String> animationsStopped = [];
+  final List<String> renamed = [];
 
   final _testDiceStream =
       StreamController<Map<String, GenericDie>>.broadcast();
@@ -191,6 +193,12 @@ class RecordingDieDomain extends DieDomain {
   @override
   Future<void> stopAnimations(GenericDie die) async =>
       animationsStopped.add(die.dieId);
+
+  @override
+  Future<void> setDieName(GenericDie die, String name) async {
+    // Record only firmware renames (Pixels); app-named dice don't push to a die.
+    if (die.type == GenericDieType.pixel) renamed.add('${die.dieId}:$name');
+  }
 }
 
 /// Minimal AppService that stores rules and die settings in-memory.

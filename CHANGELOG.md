@@ -1,15 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.14.0
 
 ### Features
 
 - **Pixels LED animation profiles** — Full management of the LED animation profiles on [Pixels](https://gamewithpixels.com) dice. Browse a library of built-in profiles (ported from the official app and byte-for-byte hash-identical to it), flash one to a connected die, and see at a glance which profile is currently on the die — matched against the die's reported DataSet hash. A profile editor lets you create, duplicate, edit, import animations from other profiles, and live-preview an animation on a connected die. Animations and rule conditions (rolled face, rolling, hello/goodbye, connection state, battery state, handling, crooked, idle) are all editable. Built-in profiles are die-type-correct: they generate the right face masks for every Pixels die type — d4, d6, d8, d10, d00, d12, d20 — while staying hash-matched to the official app per type.
 - **Physical Pixels die rename** — Renaming a Pixels die now issues a real BLE rename and waits for the die to confirm before updating the UI; the firmware name is authoritative (the app no longer keeps a separate stored name for Pixels). Virtual and GoDice dice keep their app-stored names.
-- **dddice integration** — Physical dice rolls can be mirrored to a [dddice](https://dddice.com) virtual tabletop room in real time. Enable in settings, supply an API key (or leave blank for guest mode as `bees`), pick a room, and optionally assign a theme per die. Guest sessions auto-create a temporary room on first roll.
-- **Integration test suite** — Flutter integration tests covering BLE, dddice, and Home Assistant flows added under `integration_test/`. A `DddiceMockServer` and `HaMockServer` stand-in for remote APIs during CI runs. The test script (`scripts/integration_tests.sh`) handles macOS, Android, and iOS targets.
-- **dddice mock server** — `lib/testing/dddice_mock_server.dart` provides a local HTTP server that simulates the dddice API; used by both integration tests and unit tests.
-- **HA mock server** — `lib/testing/ha_mock_server.dart` provides a local HTTP server that simulates the Home Assistant API.
 
 ### Bug Fixes
 
@@ -17,10 +13,6 @@
 - **On-die "rolled" animation clobbered by the app** — When the app's rolling-flash effect was disabled, the app still sent `StopAllAnimations` on the `rolled` telemetry, which killed a die's own on-die "rolled" animation. The stop is now gated on `rollingFlashEnabled`.
 - **Profile editor crash on a rule with no animations** — Saving/previewing a rule whose profile had no animations could throw; the editor now guards the animation-index lookups and roll-callback registration.
 - **Black frame on startup** — The app now renders a lightweight splash immediately and initializes BLE/HA/HTTP/SharedPreferences asynchronously, instead of showing a black window while async init completes.
-- **`$THRESHOLD` / `$MODIFIER` ignored in evaluation reparse** — The evaluator's `_prepareEvaluation` reparse (which substitutes `$MAX`, `$MIN`, `$ROLLED` just before evaluation) did not substitute `$THRESHOLD` or `$MODIFIER`, so rules using those variables in `with over`, `with dupes`, or similar transforms silently produced wrong selections. Both variables are now included in the reparse substitution. Rules affected: `nDupes`, `allAboveThreshold`, `maxWithModifier`.
-- **Die-name whitespace in `dieParser` caused roll matching to always fail** — `dieParser` used `.flatten()` which captures the entire matched span including surrounding whitespace consumed by adjacent `.trim()` calls. This produced tokens like `"*d10\n\n  "` rather than `"*d10"`, so `_checkRollConditions` never matched the clean roll names from BLE events and the rule's use-block never ran. Fixed by adding `.map((s) => s.trim())` to `dieParser`. Rule affected: `averagePassFailD10` (and any rule using wildcard count matchers like `*d10`).
-- **Layout overflow on narrow screens** — Fixed `RenderFlex` overflow errors on the main dice screen header and the roll controls row on small/narrow viewport widths.
-- **Port-in-use error swallowed on API server start** — `SocketException` on `HttpServer.bind` (e.g. port already taken) was previously uncaught; it is now caught and logged.
 
 ### Internal
 
@@ -31,13 +23,42 @@
 - **Pixels SDK constants consolidated** — `dice_sdks/pixels/pixels_constants.dart` is the single home for shared protocol constants: `kFaceMaskAll`, `PixelAnimFlags`, normals/noise color-override modes, the condition flag classes (`PixelBatteryFlags` / `PixelHelloFlags` / `PixelConnectionFlags`), and bulk-transfer tuning (`PixelTransfer`). Removes literals/named-constant duplication across the SDK. Little-endian byte writers were hoisted to `TxMessage` (`setU16`/`setU32`).
 - **Platform detection centralized behind `PlatformInfo`** — `util/platform_info.dart` resolves the host platform once at the composition root (`DiWrapper.initDi`) and is injected wherever behavior depends on it: the BLE repository, HA repository, both HTTP client providers, and the UI (via VM `isWeb` getters). No `Platform.is*` / `kIsWeb` / `kIsWasm` checks remain outside `platform_info.dart`.
 - **Pixels BLE transfer protocol + test simulators** — Fixed the bulk-transfer (`TransferAnimationSet` → chunked `BulkData` → ack/finished) protocol and added live-die integration tests. Two fakes stand in for hardware: a message-level `PixelsDieSimulator` (stores flash bytes, computes and reports the DataSet hash) and a BLE-device `PixelsBleDeviceSimulator` (die-type-aware `IAmADie`/`RollState`). BLE message request/response correlation was consolidated into `GenericBleDie`.
-- **`buildApiHandler` extracted from `ApiDomainServer.create()`** — Integration tests can now exercise HTTP routes without binding a socket. Accepts an optional `port` parameter.
-- **`DddiceRepository` accepts optional `baseUrl` override** — Allows tests to point at `DddiceMockServer` without touching production DI.
-- **`DDDICE_BASE_URL` dart-define** — DI reads `--dart-define=DDDICE_BASE_URL` at compile time and passes it to `DddiceRepository` when non-empty, enabling test builds to hit a local mock server.
+
+## 0.13.1
+
+### Features
+
+- **Remove-dice confirmation dialogs** — The "Remove Virtual Dice" and "Remove All Dice" drawer actions now prompt before acting, and the empty state hints how to add or pair dice.
+
+### Bug Fixes
+
+- **`$THRESHOLD` / `$MODIFIER` ignored in evaluation reparse** — The evaluator's `_prepareEvaluation` reparse (which substitutes `$MAX`, `$MIN`, `$ROLLED` just before evaluation) did not substitute `$THRESHOLD` or `$MODIFIER`, so rules using those variables in `with over`, `with dupes`, or similar transforms silently produced wrong selections. Both variables are now included in the reparse substitution. Rules affected: `nDupes`, `allAboveThreshold`, `maxWithModifier`.
+- **Die-name whitespace in `dieParser` caused roll matching to always fail** — `dieParser` used `.flatten()` which captures the entire matched span including surrounding whitespace consumed by adjacent `.trim()` calls. This produced tokens like `"*d10\n\n  "` rather than `"*d10"`, so `_checkRollConditions` never matched the clean roll names from BLE events and the rule's use-block never ran. Fixed by adding `.map((s) => s.trim())` to `dieParser`. Rule affected: `averagePassFailD10` (and any rule using wildcard count matchers like `*d10`).
+- **Layout overflow on narrow screens** — Fixed `RenderFlex` overflow errors on the main dice screen header and the roll controls row on small/narrow viewport widths.
+- **Port-in-use error swallowed on API server start** — `SocketException` on `HttpServer.bind` (e.g. port already taken) was previously uncaught; it is now caught and logged.
+- **Windows build failure on newer MSVC** — `permission_handler_windows` pulls in `<experimental/coroutine>`, which MSVC 14.51+ flags as a hard error. The Windows build now defines `_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS` to suppress it.
+
+### Internal
+
 - **`Color.value` deprecation** — Replaced uses of the deprecated `Color.value` property with `Color.toARGB32()`.
 - **`SharedPreferences` / `SharedPreferencesAsync` in tests** — Replaced deprecated `SharedPreferences.setMockInitialValues` with `SharedPreferencesAsyncPlatform.instance` mock setup where required by updated plugin APIs.
 - **README updated** — Added dddice, webhooks, and Discord to Features; added Webhooks & Discord and dddice Integration sections; rewrote Rule Scripting section with current v1.1 DSL syntax (prior content used the removed v1.0 syntax).
 - **docs/TODO.md cleaned up** — Removed resolved items: iOS ATS, parse/evaluate split, PackageInfo logging, FormatException logging, GET webhook payload doc.
+
+## 0.13.0
+
+### Features
+
+- **dddice integration** — Physical dice rolls can be mirrored to a [dddice](https://dddice.com) virtual tabletop room in real time. Enable in settings, supply an API key (or leave blank for guest mode as `bees`), pick a room, and optionally assign a theme per die. Guest sessions auto-create a temporary room on first roll.
+- **Integration test suite** — Flutter integration tests covering BLE, dddice, and Home Assistant flows added under `integration_test/`. A `DddiceMockServer` and `HaMockServer` stand-in for remote APIs during CI runs. The test script (`scripts/integration_tests.sh`) handles macOS, Android, and iOS targets.
+- **dddice mock server** — `lib/testing/dddice_mock_server.dart` provides a local HTTP server that simulates the dddice API; used by both integration tests and unit tests.
+- **HA mock server** — `lib/testing/ha_mock_server.dart` provides a local HTTP server that simulates the Home Assistant API.
+
+### Internal
+
+- **`buildApiHandler` extracted from `ApiDomainServer.create()`** — Integration tests can now exercise HTTP routes without binding a socket. Accepts an optional `port` parameter.
+- **`DddiceRepository` accepts optional `baseUrl` override** — Allows tests to point at `DddiceMockServer` without touching production DI.
+- **`DDDICE_BASE_URL` dart-define** — DI reads `--dart-define=DDDICE_BASE_URL` at compile time and passes it to `DddiceRepository` when non-empty, enabling test builds to hit a local mock server.
 
 ## 0.12.19
 

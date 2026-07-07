@@ -71,6 +71,12 @@ final colorMap = {
   'deepOrangeAccent': Colors.deepOrangeAccent,
 };
 
+/// RGB (no alpha) as `#RRGGBB` — for payload/webhook templates.
+String colorToHex(Color c) => '#${(c.toARGB32() & 0xFFFFFF).toRadixString(16).toUpperCase().padLeft(6, '0')}';
+
+/// RGB (no alpha) as a decimal int — the form Discord embed `color` wants.
+int colorToInt(Color c) => c.toARGB32() & 0xFFFFFF;
+
 mixin Color255 {
   Color getColor();
 

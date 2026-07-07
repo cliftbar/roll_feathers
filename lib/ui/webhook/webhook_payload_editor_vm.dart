@@ -20,12 +20,18 @@ class WebhookPayloadEditorViewModel extends ChangeNotifier {
   String body;
 
   late final Command0 save;
+  late final Command0 testSend;
 
   PreviewResult _preview = const PreviewResult.success('');
   PreviewResult get preview => _preview;
 
   String? _nameError;
   String? get nameError => _nameError;
+
+  /// URL for the "Test send" affordance, and the last result.
+  String testUrl = '';
+  String? _testResult;
+  String? get testResult => _testResult;
 
   WebhookPayloadEditorViewModel(this._domain, PayloadTemplate initial)
       : _id = initial.id,
@@ -39,6 +45,17 @@ class WebhookPayloadEditorViewModel extends ChangeNotifier {
     _recompute();
     _validateNameSync();
     save = Command0(_save);
+    testSend = Command0(_testSend);
+  }
+
+  void setTestUrl(String v) => testUrl = v;
+
+  Future<Result<void>> _testSend() async {
+    _testResult = 'Sending…';
+    notifyListeners();
+    _testResult = await _domain.testSend(build(), testUrl.trim());
+    notifyListeners();
+    return Result.value(null);
   }
 
   /// The available substitution tokens, grouped, for the helper palette.

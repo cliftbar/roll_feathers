@@ -108,11 +108,46 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
             ],
             const SizedBox(height: 16),
             _preview(context),
+            const SizedBox(height: 16),
+            _testSend(context),
           ],
         ),
       ),
     );
   }
+
+  Widget _testSend(BuildContext context) => ExpansionTile(
+        title: const Text('Test send'),
+        childrenPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        children: [
+          const Text(
+            'Fires the rendered sample payload to a URL right now (ignores the global '
+            'webhooks toggle). Handy for catching CORS / endpoint errors while editing.',
+            style: TextStyle(fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  decoration: const InputDecoration(labelText: 'URL', isDense: true),
+                  onChanged: vm.setTestUrl,
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                onPressed: () => vm.testSend.execute(),
+                child: const Text('Send'),
+              ),
+            ],
+          ),
+          if (vm.testResult != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(vm.testResult!, style: const TextStyle(fontFamily: 'monospace', fontSize: 12)),
+            ),
+        ],
+      );
 
   Widget _advanced(bool readOnly) => ExpansionTile(
         title: const Text('Advanced'),

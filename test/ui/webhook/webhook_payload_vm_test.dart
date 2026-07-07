@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:roll_feathers/domains/webhook/builtin_payloads.dart';
 import 'package:roll_feathers/domains/webhook/payload_template.dart';
 import 'package:roll_feathers/domains/webhook/webhook_payload_domain.dart';
@@ -84,6 +86,23 @@ void main() {
       final vm = WebhookPayloadEditorViewModel(domain, domain.newBlank());
       expect(vm.variablePalette.keys, contains('Die (single / in loop)'));
       expect(vm.variablePalette.values.expand((e) => e), contains('{{die.name}}'));
+    });
+
+    test('testSend renders the draft and POSTs, reporting the status', () async {
+      http.Request? captured;
+      final client = MockClient((r) async {
+        captured = r;
+        return http.Response('', 204);
+      });
+      final d = WebhookPayloadDomain(_MemRepo(), client: client);
+      final res = await d.testSend(const PayloadTemplate(id: 'x', name: 'x', body: '{"a":1}'), 'http://x/y');
+      expect(res, contains('204'));
+      expect(captured!.method, 'POST');
+    });
+
+    test('testSend with an empty URL prompts instead of sending', () async {
+      final d = WebhookPayloadDomain(_MemRepo());
+      expect(await d.testSend(const PayloadTemplate(id: 'x', name: 'x', body: '{}'), ''), contains('URL'));
     });
   });
 

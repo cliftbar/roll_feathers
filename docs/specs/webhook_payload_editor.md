@@ -534,6 +534,29 @@ framework a thin shell (list + lifecycle + persistence + preview affordance). If
 generic abstraction starts needing per-type special-casing in the shell, that's the
 signal to stop generalizing and let the type keep its own code. Rules are the canary.
 
+### Outcome (as built)
+
+Extracting from the *one* concrete example (the webhook editor) confirmed Issue I:
+only the **contract** generalizes cleanly, so that's all that was extracted —
+`lib/domains/library/editable_library.dart`: `EditableLibraryItem` (id/name/category/
+isBuiltin) + `LibraryRepository<T>` (builtins/loadUserItems/upsert/delete).
+`PayloadTemplate` and `WebhookPayloadRepository` implement them.
+
+The **screens were not genericized**, and the retrofits are **declined**, with reason:
+
+- **Pixels profiles — declined.** `PixelProfile` has no `category`/`isBuiltin` (built-ins
+  are a separate `BuiltinProfile` type built per die type) and its list carries
+  flash-to-die / on-die-hash / preview concerns; conforming it to the contract or a
+  generic list widget means model changes + a leaky shell on working, tested code — pure
+  churn for no functional gain. This is exactly Issue I's "stop" signal.
+- **Rules — declined (the canary).** Rules persist as DSL *strings* via `AppService` /
+  `RuleEvaluator` (hide/unhide, enable-toggle, reorder — not a `LibraryRepository`), and
+  the editor body is freeform DSL text. It doesn't fit the contract; forcing it would be
+  the over-abstraction the spec warned against.
+
+Net: the shared contract exists and is proven by one implementer; future library-shaped
+features can adopt it, but the existing Pixels/rules UIs stay as-is by design.
+
 ---
 
 ## Samples (the canned preview context + gallery)

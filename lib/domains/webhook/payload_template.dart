@@ -1,3 +1,4 @@
+import 'package:roll_feathers/domains/library/editable_library.dart';
 import 'package:roll_feathers/util/json_serializable.dart';
 
 /// How a payload body serializes: escaping, array-join, and default Content-Type.
@@ -17,17 +18,21 @@ enum PayloadFormat {
 
 /// A named, user-editable webhook payload template. Discord and the generic
 /// payloads are ordinary built-in instances of this — nothing is hardcoded.
-class PayloadTemplate implements JsonSerializable {
+class PayloadTemplate implements JsonSerializable, EditableLibraryItem {
   /// UUID for user items; stable slug for built-ins ("discord", "generic").
+  @override
   final String id;
 
   /// User-facing label; also the `webhook <url> with <name>` reference key.
+  @override
   final String name;
 
   /// Grouping in the list: "discord" | "generic" | "custom".
+  @override
   final String category;
 
   /// Built-ins are read-only (duplicate to edit).
+  @override
   final bool isBuiltin;
 
   /// Transport: "GET" (query string) or "POST" (request body).

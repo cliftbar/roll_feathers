@@ -2,17 +2,22 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:roll_feathers/domains/library/editable_library.dart';
 import 'package:roll_feathers/domains/webhook/builtin_payloads.dart';
 import 'package:roll_feathers/domains/webhook/payload_template.dart';
 
-/// Repository over webhook payload templates — built-in catalog + user items,
-/// mirroring [PixelProfileRepository]. Load/save/query only; no business logic.
-abstract class WebhookPayloadRepository {
+/// Repository over webhook payload templates — the [LibraryRepository] contract
+/// (built-in catalog + user items) plus name resolution. Load/save/query only.
+abstract class WebhookPayloadRepository implements LibraryRepository<PayloadTemplate> {
   /// Built-in payloads (shipped in code, read-only).
+  @override
   List<PayloadTemplate> builtins();
 
+  @override
   Future<List<PayloadTemplate>> loadUserItems();
+  @override
   Future<void> upsert(PayloadTemplate item);
+  @override
   Future<void> delete(String id);
 
   /// Resolve a payload for a DSL `with <name>` / target-keyword reference: by

@@ -95,42 +95,54 @@ final pp.Parser<ResultTargetFunction> resultTarget = (() {
       .seq3(
         ResultTargetType.webhook.key.toParser(),
         pp.whitespace().plus(),
-        pp.any().plusLazy(lineOrReservedSentinel).flatten(),
+        // The URL (+ optional ` with <name>`) is the whole rest of the line — don't
+        // stop at reserved words that legitimately appear inside a URL (e.g. /roll).
+        pp.any().plusLazy(pp.newline().or(pp.endOfInput())).flatten(),
       )
       .map3((_, __, rest) {
         final String trimmed = rest.trimRight();
         final parts = trimmed.split(RegExp(r'\s+'));
         final String method;
-        final String url;
+        String remainder; // "<url> [with <payloadName>]"
         if (parts.isNotEmpty &&
             (parts.first.toUpperCase() == 'GET' || parts.first.toUpperCase() == 'POST')) {
           method = parts.first.toUpperCase();
-          url = trimmed.substring(parts.first.length).trimLeft();
+          remainder = trimmed.substring(parts.first.length).trimLeft();
         } else {
           method = 'POST';
-          url = trimmed;
+          remainder = trimmed;
+        }
+        // Optional trailing " with <payloadName>" (URLs can't contain a bare " with ").
+        String url = remainder;
+        String? payloadName;
+        final withMatch = RegExp(r'\s+with\s+(.+)$').firstMatch(remainder);
+        if (withMatch != null) {
+          url = remainder.substring(0, withMatch.start).trimRight();
+          payloadName = withMatch.group(1)!.trim();
         }
         return ResultTargetFunction(
           rtType: ResultTargetType.webhook,
           target: url,
-          args: [method],
+          args: payloadName == null ? [method] : [method, payloadName],
         );
       });
   choices.add(webhookP);
 
-  // Discord: "discord <url-to-end-of-line>"
-  // Always POST. URL stored in action, args is empty.
+  // Discord: "discord <url-to-end-of-line>" — DEPRECATED sugar for
+  // `webhook <url> with discord`. Still parses; tagged deprecated so the UI can
+  // offer a one-tap migrate.
   final discordP = pp
       .seq3(
         ResultTargetType.discord.key.toParser(),
         pp.whitespace().plus(),
-        pp.any().plusLazy(lineOrReservedSentinel).flatten(),
+        pp.any().plusLazy(pp.newline().or(pp.endOfInput())).flatten(),
       )
       .map3((_, __, rest) {
         return ResultTargetFunction(
           rtType: ResultTargetType.discord,
           target: rest.trim(),
           args: [],
+          deprecated: true,
         );
       });
   choices.add(discordP);
@@ -187,7 +199,11 @@ class ResultTargetFunction {
   String target;
   List<String> args;
 
-  ResultTargetFunction({required this.rtType, required this.target, required this.args});
+  /// True for deprecated syntax (the `discord` keyword) — surfaced in the UI so
+  /// rules can be migrated to `webhook <url> with discord`.
+  bool deprecated;
+
+  ResultTargetFunction({required this.rtType, required this.target, required this.args, this.deprecated = false});
 }
 
 class ScriptResultTarget {

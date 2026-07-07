@@ -115,5 +115,29 @@ define coexist for roll *d*
       final types = targets.map((t) => t.targetFunction.rtType).toSet();
       expect(types, containsAll([ResultTargetType.action, ResultTargetType.webhook]));
     });
+
+    test('with <name>: payload name captured, method preserved', () {
+      final t = parseTarget('webhook https://example.com/roll with discord');
+      expect(t.target, equals('https://example.com/roll'));
+      expect(t.args, equals(['POST', 'discord']));
+    });
+
+    test('GET with <name>', () {
+      final t = parseTarget('webhook GET https://example.com/hook with my-payload');
+      expect(t.target, equals('https://example.com/hook'));
+      expect(t.args, equals(['GET', 'my-payload']));
+    });
+
+    test('no with-clause is unchanged (single-arg method)', () {
+      final t = parseTarget('webhook POST https://example.com/roll');
+      expect(t.args, equals(['POST']));
+    });
+
+    test('discord keyword still parses and is tagged deprecated', () {
+      final t = parseTarget('discord https://example.com/roll');
+      expect(t.rtType, equals(ResultTargetType.discord));
+      expect(t.target, equals('https://example.com/roll'));
+      expect(t.deprecated, isTrue);
+    });
   });
 }

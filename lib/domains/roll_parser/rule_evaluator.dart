@@ -436,8 +436,16 @@ class RuleEvaluator {
             final method = isDiscord
                 ? 'POST'
                 : (res.targetFunction.args.isNotEmpty ? res.targetFunction.args[0].toUpperCase() : 'POST');
-            // Default payload by target + method (Phase 4 adds explicit `with <name>`).
-            final payloadName = isDiscord ? 'discord' : (method == 'GET' ? 'generic-get' : 'generic');
+            // Explicit `webhook <url> with <name>` (args[1]) wins; otherwise the
+            // default payload by target + method.
+            final String payloadName;
+            if (isDiscord) {
+              payloadName = 'discord';
+            } else if (res.targetFunction.args.length > 1) {
+              payloadName = res.targetFunction.args[1];
+            } else {
+              payloadName = method == 'GET' ? 'generic-get' : 'generic';
+            }
             final payloadCtx = PayloadContext.fromRollData(
               ruleName: ctx.result.name,
               ruleDisplayName: ctx.result.displayName,

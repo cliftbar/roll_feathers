@@ -144,7 +144,7 @@ define webhookExample "Webhook Example" for roll *d*
     aggregate over selection max
     on result [*:*] action blink green
     on result [*:*] webhook POST http://localhost:8765/hook
-    on result [*:*] discord https://discord.com/api/webhooks/your_webhook_id/your_webhook_token
+    on result [*:*] webhook https://discord.com/api/webhooks/your_webhook_id/your_webhook_token with discord
 """;
 
 const String maxWithModifier = """

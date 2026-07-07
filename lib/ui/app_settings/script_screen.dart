@@ -112,6 +112,12 @@ class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
+                                if (scriptUsesDeprecatedDiscord(scripts[index].script))
+                                  IconButton(
+                                    icon: const Icon(Icons.warning_amber, color: Colors.orange, size: 20),
+                                    tooltip: 'Uses the deprecated `discord` target',
+                                    onPressed: () => _showMigrateDiscordDialog(context, scripts[index].script),
+                                  ),
                                 IconButton(
                                   icon: const Icon(Icons.edit),
                                   onPressed: () =>
@@ -275,4 +281,36 @@ class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
       },
     );
   }
+
+  Future<void> _showMigrateDiscordDialog(BuildContext context, String script) async {
+    final migrate = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Deprecated: `discord`'),
+        content: const Text(
+          'The `discord` target is deprecated — use `webhook <url> with discord` '
+          'instead (same message). It still works for now.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Not now')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Migrate')),
+        ],
+      ),
+    );
+    if (migrate == true) {
+      await widget.viewModel.addRuleScript(migrateDeprecatedDiscord(script));
+    }
+  }
 }
+
+/// True if [script] uses the deprecated `discord` target keyword (as opposed to
+/// the new `webhook <url> with discord`).
+bool scriptUsesDeprecatedDiscord(String script) =>
+    RegExp(r'^\s*on\s+result\s*\[[^\]]*\]\s+discord\s', multiLine: true).hasMatch(script);
+
+/// Rewrites deprecated `on result [range] discord <url>` lines to
+/// `on result [range] webhook <url> with discord` — identical output.
+String migrateDeprecatedDiscord(String script) => script.replaceAllMapped(
+      RegExp(r'^(\s*on\s+result\s*\[[^\]]*\]\s+)discord\s+(\S+)\s*$', multiLine: true),
+      (m) => '${m[1]}webhook ${m[2]} with discord',
+    );

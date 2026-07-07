@@ -86,6 +86,13 @@ A template is raw text with substitution tokens. Rendering takes a
 
 ### Grammar
 
+> **Delimiter (implementation finding):** tokens are **`{{ }}`** (Mustache-style),
+> not single braces — single `{`/`}` collide with JSON's own object braces and must
+> pass through literally. The samples below use single-brace shorthand for brevity;
+> the real syntax doubles every brace (`{{rule.name}}`, `{{#resultDice}}…{{/resultDice}}`,
+> `{{?die.battery}}…{{/?}}`). Also: the `{{?}}` conditional shipped in phase 1 (needed
+> for the Generic-JSON null-battery parity), not phase 2.
+
 - **Scalar** — `{path.to.value}`: a dotted lookup into the render context. Numeric
   segments index arrays (`{resultDice.0.name}`).
 - **`{die.*}` — the die in scope**: inside a loop it's the current die; at top level
@@ -95,7 +102,7 @@ A template is raw text with substitution tokens. Rendering takes a
 - **Loop** — `{#resultDice} … {/resultDice}` (or `{#allDice}`): renders the inner
   block once per die for multi-die rolls; the renderer joins iterations with the
   **mode separator** (`,` for JSON, `&` for query). Outer scalars stay accessible.
-- **Conditional (phase 2)** — `{?die.battery} … {/?}`: renders the block only when
+- **Conditional** — `{?die.battery} … {/?}`: renders the block only when
   the value is present/non-empty (optional fields like battery, or a null ruleName).
 
 Grammar is deliberately tiny (scalars + one loop + one optional conditional): enough

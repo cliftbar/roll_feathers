@@ -909,8 +909,12 @@ tests agree:
 - **Q2:** Should the editor later offer a "Discord-friendly" knob panel (color picker,
   title field) layered over the raw body? Raw-only for v1 per decision; revisit.
 - **Q4 (resolved):** Wire format is a per-payload advanced option (`format` +
-  `contentType` + static `headers`). v1 = json / form / text (three escaping
-  strategies); **deferred** = XML and computed HMAC/signature headers.
+  `contentType` + static `headers`). Shipped: json / form / text / **xml** (four
+  escaping strategies). **Deferred — computed HMAC/signature headers**: no current
+  use case (Discord/Slack/ntfy don't sign), and it would require storing a
+  per-payload secret in plaintext `SharedPreferences`. Revisit when a target
+  endpoint actually requires signed webhooks (then decide: generic `sha256=<hex>`
+  vs a configurable algorithm/header/format).
 - **Q5:** Export portability of `with <name>` (Issue E) — future bundling story.
 - **Q6 (leaning defer):** Conditional block (`{?..}`) — the null-rendering defaults
   (Defaults & Fallbacks) already keep optional fields valid (`null` / empty), so the

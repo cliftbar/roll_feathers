@@ -80,6 +80,24 @@ void main() {
     });
   });
 
+  group('xml mode', () {
+    test('escapes values and concatenates loop iterations', () {
+      const c = PayloadContext({
+        'aggregate': 3,
+        'resultDice': [
+          {'name': 'A<b>', 'value': 1},
+          {'name': 'C&D', 'value': 2},
+        ],
+      });
+      final out = PayloadRenderer.render(
+        '<roll total="{{aggregate}}">{{#resultDice}}<die>{{die.name}}</die>{{/resultDice}}</roll>',
+        c,
+        PayloadFormat.xml,
+      );
+      expect(out, '<roll total="3"><die>A&lt;b&gt;</die><die>C&amp;D</die></roll>');
+    });
+  });
+
   group('convenience tokens', () {
     test('count / names / values', () {
       expect(json('{"n":{{resultDice.count}}}'), '{"n":2}');

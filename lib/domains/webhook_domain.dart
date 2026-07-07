@@ -57,7 +57,14 @@ class WebhookDomain {
     };
     try {
       if (tmpl.isGet) {
-        final sep = url.contains('?') ? '&' : '?';
+        final String sep;
+        if (url.endsWith('?') || url.endsWith('&')) {
+          sep = '';
+        } else if (url.contains('?')) {
+          sep = '&';
+        } else {
+          sep = '?';
+        }
         await client.get(Uri.parse('$url$sep$body'), headers: headers);
       } else {
         headers['Content-Type'] = tmpl.effectiveContentType;
@@ -65,7 +72,10 @@ class WebhookDomain {
           ..headers.addAll(headers)
           ..body = body;
         final response = await client.send(request);
-        if (response.statusCode >= 400) {
+        if (response.statusCode == 429) {
+          _log.warning('[fire] POST to $url rate-limited (429)'
+              '${response.headers['retry-after'] != null ? '; retry-after=${response.headers['retry-after']}' : ''}');
+        } else if (response.statusCode >= 400) {
           _log.warning('[fire] POST to $url failed with status ${response.statusCode}');
         }
       }

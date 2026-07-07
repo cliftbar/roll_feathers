@@ -27,11 +27,20 @@ class MakeSelectionDef {
 class UseSelectionBlockV11 {
   final String selectionToken;
   final RollAggregate aggregate;
+
+  /// The aggregate keyword ("sum"/"max"/"min"/"avg"/"count") — surfaced to
+  /// webhook payloads as `{{rollType}}`.
+  final String aggregateName;
   final List<ScriptResultTarget> targets;
 
   bool get isAllDice => selectionToken == allDiceKey;
 
-  UseSelectionBlockV11({required this.selectionToken, required this.aggregate, required this.targets});
+  UseSelectionBlockV11({
+    required this.selectionToken,
+    required this.aggregate,
+    required this.targets,
+    this.aggregateName = 'sum',
+  });
 }
 
 class ParsedScriptV11 {
@@ -102,10 +111,10 @@ class RuleParser {
       )
       .map((e) {
         final String sel = e.$3;
-        final RollAggregate agg = e.$6;
+        final (String, RollAggregate) agg = e.$6;
         final List<ScriptResultTarget> targets = e.$8.elements;
         Logger("RuleParser").finer(() => "[DSL v1.1] parsed use-block targets=${targets.length} for sel=$sel");
-        return UseSelectionBlockV11(selectionToken: sel, aggregate: agg, targets: targets);
+        return UseSelectionBlockV11(selectionToken: sel, aggregate: agg.$2, aggregateName: agg.$1, targets: targets);
       });
 
   static final pp.Parser<ScriptResultTarget> _v11ResultDef = pp

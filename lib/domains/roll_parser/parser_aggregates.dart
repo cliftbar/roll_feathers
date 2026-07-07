@@ -4,13 +4,15 @@ import 'package:petitparser/parser.dart' as pp;
 
 typedef RollAggregate = int Function(List<int> list);
 
-final pp.Parser<RollAggregate> aggregateParsers =
+/// Parses an aggregate keyword into (name, function). The name is surfaced to
+/// webhook payloads as `{{rollType}}`.
+final pp.Parser<(String, RollAggregate)> aggregateParsers =
     [
-      "sum".toParser().map((f) => sum),
-      "min".toParser().map((f) => min),
-      "max".toParser().map((f) => max),
-      "avg".toParser().map((f) => avg),
-      "count".toParser().map((f) => count),
+      "sum".toParser().map((f) => ('sum', sum)),
+      "min".toParser().map((f) => ('min', min)),
+      "max".toParser().map((f) => ('max', max)),
+      "avg".toParser().map((f) => ('avg', avg)),
+      "count".toParser().map((f) => ('count', count)),
     ].toChoiceParser();
 
 int sum(List<int> list) {

@@ -235,6 +235,7 @@ class PayloadRenderer {
         }).where((p) => p.isNotEmpty);
         return cleaned.join('&');
       case PayloadFormat.text:
+      case PayloadFormat.xml:
         return parts.join();
     }
   }
@@ -266,8 +267,19 @@ class PayloadRenderer {
       case PayloadFormat.text:
         buf.write((value is String) ? value : (value is num || value is bool) ? value.toString() : jsonEncode(value));
         break;
+      case PayloadFormat.xml:
+        final s = (value is String) ? value : (value is num || value is bool) ? value.toString() : jsonEncode(value);
+        buf.write(_xmlEscape(s));
+        break;
     }
   }
+
+  static String _xmlEscape(String s) => s
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&apos;');
 
   static bool _truthy(dynamic v) => v != null && v != false && !(v is String && v.isEmpty);
 

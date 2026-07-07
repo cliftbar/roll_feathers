@@ -47,6 +47,22 @@ void main() {
     expect(render('{"c":{{die.colorInt}}}', c), '{"c":65280}');
   });
 
+  test('exposes rollType / threshold / modifier', () {
+    final die = FakeDie('d', 'x', 5, dName: 'd6');
+    final c = PayloadContext.fromRollData(
+      ruleName: 'r',
+      rollType: 'max',
+      aggregate: 5,
+      timestamp: DateTime.utc(2026),
+      matchedRange: RollResultRange(true, 1, 6, true),
+      allDice: [die],
+      resultDiceMap: {die: 5},
+      threshold: 15,
+      modifier: 2,
+    );
+    expect(render('{"t":"{{rollType}}","th":{{threshold}},"m":{{modifier}}}', c), '{"t":"max","th":15,"m":2}');
+  });
+
   test('unknown blink color falls back to white (matches the blink action)', () {
     final die = FakeDie('d1', 'x', 5, dName: 'd6');
     final c = PayloadContext.fromRollData(

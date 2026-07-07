@@ -6,7 +6,8 @@ import 'package:roll_feathers/util/json_serializable.dart';
 enum PayloadFormat {
   json('application/json'),
   form('application/x-www-form-urlencoded'),
-  text('text/plain');
+  text('text/plain'),
+  xml('application/xml');
 
   const PayloadFormat(this.defaultContentType);
 

@@ -449,11 +449,14 @@ class RuleEvaluator {
             final payloadCtx = PayloadContext.fromRollData(
               ruleName: ctx.result.name,
               ruleDisplayName: ctx.result.displayName,
+              rollType: block.aggregateName,
               aggregate: aggValue,
               timestamp: rollTimestamp,
               matchedRange: res.resultRange,
               allDice: rolls,
               resultDiceMap: selMap,
+              threshold: ctx.result.threshold,
+              modifier: ctx.result.modifier,
               coActions: coActions,
             );
             effects.add(() => _webhookDomain.fire(url: url, payloadName: payloadName, context: payloadCtx));

@@ -9,6 +9,8 @@ import 'package:roll_feathers/services/app_service.dart';
 import 'package:roll_feathers/services/dddice/dddice_config_service.dart';
 import 'package:roll_feathers/ui/app_settings/app_settings_screen_vm.dart';
 import 'package:roll_feathers/ui/app_settings/script_screen.dart';
+import 'package:roll_feathers/ui/webhook/webhook_payloads_screen.dart';
+import 'package:roll_feathers/ui/webhook/webhook_payloads_screen_vm.dart';
 
 // ---------------------------------------------------------------------------
 // dddice settings dialog
@@ -787,6 +789,23 @@ class AppSettingsWidget extends StatelessWidget {
                   onChanged: (bool value) {
                     vm.toggleWebhooksEnabled.execute();
                   },
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.data_object),
+              title: const Text('Webhook Payloads'),
+              subtitle: const Text('Built-in + custom payload templates (Discord, JSON, …)'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => WebhookPayloadsScreen(
+                      vm: WebhookPayloadsScreenViewModel(vm.webhookPayloadDomain),
+                      domain: vm.webhookPayloadDomain,
+                    ),
+                  ),
                 );
               },
             ),

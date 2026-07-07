@@ -10,6 +10,7 @@ import 'package:roll_feathers/dice_sdks/pixels/pixels.dart';
 import 'package:roll_feathers/domains/api_domain.dart';
 import 'package:roll_feathers/domains/dddice_domain.dart';
 import 'package:roll_feathers/domains/die_domain.dart';
+import 'package:roll_feathers/domains/webhook/webhook_payload_domain.dart';
 import 'package:roll_feathers/domains/roll_parser/parser_rules.dart';
 import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
 import 'package:roll_feathers/repositories/app_repository.dart';
@@ -31,6 +32,9 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
   final ApiDomain _apiDomain;
   final RuleEvaluator _ruleParser;
   final PlatformInfo _platform;
+
+  /// Domain for the webhook payload editor (list/edit/preview).
+  final WebhookPayloadDomain webhookPayloadDomain;
 
   /// Whether the app is running on the web, for view-layer presentation.
   bool get isWeb => _platform.isWeb;
@@ -84,7 +88,8 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
         _dieDomain = di.dieDomain,
         _apiDomain = di.apiDomain,
         _ruleParser = di.ruleParser,
-        _platform = di.platformInfo {
+        _platform = di.platformInfo,
+        webhookPayloadDomain = WebhookPayloadDomain(di.webhookPayloadRepository) {
     // init
     load = Command0(_load)..execute();
 

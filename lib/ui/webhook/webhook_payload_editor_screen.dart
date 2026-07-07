@@ -121,25 +121,31 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
           Row(
             children: [
               Expanded(
-                child: DropdownButtonFormField<String>(
-                  value: vm.method.toUpperCase(),
-                  decoration: const InputDecoration(labelText: 'Method'),
-                  items: const [
-                    DropdownMenuItem(value: 'POST', child: Text('POST')),
-                    DropdownMenuItem(value: 'GET', child: Text('GET')),
-                  ],
-                  onChanged: readOnly ? null : (v) => vm.setMethod(v!),
+                child: _labeled(
+                  'Method',
+                  DropdownButton<String>(
+                    isExpanded: true,
+                    value: vm.method.toUpperCase(),
+                    items: const [
+                      DropdownMenuItem(value: 'POST', child: Text('POST')),
+                      DropdownMenuItem(value: 'GET', child: Text('GET')),
+                    ],
+                    onChanged: readOnly ? null : (v) => vm.setMethod(v!),
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: DropdownButtonFormField<PayloadFormat>(
-                  value: vm.format,
-                  decoration: const InputDecoration(labelText: 'Format'),
-                  items: PayloadFormat.values
-                      .map((f) => DropdownMenuItem(value: f, child: Text(f.name)))
-                      .toList(),
-                  onChanged: readOnly ? null : (v) => vm.setFormat(v!),
+                child: _labeled(
+                  'Format',
+                  DropdownButton<PayloadFormat>(
+                    isExpanded: true,
+                    value: vm.format,
+                    items: PayloadFormat.values
+                        .map((f) => DropdownMenuItem(value: f, child: Text(f.name)))
+                        .toList(),
+                    onChanged: readOnly ? null : (v) => vm.setFormat(v!),
+                  ),
                 ),
               ),
             ],
@@ -147,6 +153,14 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
           const SizedBox(height: 8),
           Text('Content-Type: ${vm.build().effectiveContentType}',
               style: Theme.of(context).textTheme.bodySmall),
+        ],
+      );
+
+  Widget _labeled(String label, Widget child) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.labelSmall),
+          child,
         ],
       );
 

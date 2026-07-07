@@ -7,8 +7,8 @@ import 'package:roll_feathers/ui/webhook/webhook_payload_editor_vm.dart';
 import 'package:roll_feathers/ui/webhook/webhook_payloads_screen_vm.dart';
 
 /// Library screen for webhook payloads: built-in templates + your payloads, with
-/// new / duplicate / edit / delete. Referenced from a rule via `webhook <url>
-/// with <name>`.
+/// new / duplicate / edit / delete. Referenced from a rule via
+/// `webhook <url> with <name>`.
 class WebhookPayloadsScreen extends StatelessWidget {
   const WebhookPayloadsScreen({super.key, required this.vm, required this.domain});
 

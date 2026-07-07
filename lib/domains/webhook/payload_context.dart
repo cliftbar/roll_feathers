@@ -64,12 +64,13 @@ class PayloadContext {
   }
 
   /// The reactive blink for this result block: the first `blink` co-action's
-  /// color (resolved via the shared color map) as hex + int, plus any style arg.
+  /// color as hex + int, plus any style arg. Resolves the color name via the
+  /// shared color map with the **same white fallback the blink action uses**
+  /// (`result_targets.dart`), so the token reflects the color that actually blinked.
   static Map<String, dynamic>? _blinkFrom(List<ActionDTO> coActions) {
     for (final a in coActions) {
       if (a.type == 'blink' && a.args.isNotEmpty) {
-        final col = colorMap[a.args.first.toLowerCase()];
-        if (col == null) return null;
+        final col = colorMap[a.args.first.toLowerCase()] ?? colorMap['white']!;
         return {
           'color': colorToHex(col),
           'colorInt': colorToInt(col),

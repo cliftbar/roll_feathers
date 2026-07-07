@@ -16,6 +16,7 @@ import 'package:roll_feathers/domains/pixel_profile_domain.dart';
 import 'package:roll_feathers/domains/webhook_domain.dart';
 import 'package:roll_feathers/repositories/app_repository.dart';
 import 'package:roll_feathers/repositories/pixels/pixel_profile_repository.dart';
+import 'package:roll_feathers/repositories/webhook/webhook_payload_repository.dart';
 import 'package:roll_feathers/repositories/dddice_repository.dart';
 import 'package:roll_feathers/services/dddice/dddice_config_service.dart';
 import 'package:roll_feathers/repositories/ble/ble_noop_repository.dart';
@@ -48,6 +49,9 @@ class DiWrapper {
   final ApiDomain apiDomain;
   final DddiceDomain dddiceDomain;
   final PixelProfileDomain pixelProfileDomain;
+
+  /// Webhook payload templates (built-ins + user items) — for the editor UI.
+  final WebhookPayloadRepository webhookPayloadRepository;
 
   /// Host platform facts, resolved once at composition time. The single source
   /// of truth for platform branching; UI reads it via VM getters.
@@ -93,8 +97,13 @@ class DiWrapper {
 
     DieDomain dieDomain = DieDomain(bleRepo, haRepository, appService);
 
-    WebhookDomain webhookDomain =
-        WebhookDomain(httpClient: httpClient, appVersion: appVersion, appService: appService);
+    final webhookPayloadRepository = SharedPrefsWebhookPayloadRepository();
+    WebhookDomain webhookDomain = WebhookDomain(
+      httpClient: httpClient,
+      appVersion: appVersion,
+      appService: appService,
+      payloads: webhookPayloadRepository,
+    );
 
     // Lets integration tests redirect dddice traffic to a local mock server
     // (see lib/testing/dddice_mock_server.dart) via
@@ -134,6 +143,7 @@ class DiWrapper {
       apiDomain,
       dddiceDomain,
       pixelProfileDomain,
+      webhookPayloadRepository,
       platform,
     );
   }
@@ -153,6 +163,7 @@ class DiWrapper {
     this.apiDomain,
     this.dddiceDomain,
     this.pixelProfileDomain,
+    this.webhookPayloadRepository,
     this.platformInfo,
   );
 
@@ -189,6 +200,7 @@ class DiWrapper {
       EmptyApiDomain(),
       DddiceDomain(dddiceRepo, dddiceCs),
       PixelProfileDomain(SharedPrefsPixelProfileRepository()),
+      SharedPrefsWebhookPayloadRepository(),
       platform,
     );
   }

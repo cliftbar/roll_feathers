@@ -1,70 +1,79 @@
-import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:logging/logging.dart';
+
+import 'package:roll_feathers/domains/webhook/payload_context.dart';
+import 'package:roll_feathers/domains/webhook/payload_renderer.dart';
+import 'package:roll_feathers/repositories/webhook/webhook_payload_repository.dart';
 import 'package:roll_feathers/services/app_service.dart';
-import 'package:roll_feathers/util/json_serializable.dart';
 
 final Logger _log = Logger('WebhookDomain');
-
-abstract interface class WebhookPayload implements JsonSerializable {
-  Map<String, String> toQueryParams();
-}
 
 class WebhookDomain {
   final http.Client? _httpClient;
   final String _appVersion;
   final AppService _appService;
+  final WebhookPayloadRepository _payloads;
 
   WebhookDomain({
     http.Client? httpClient,
     String appVersion = 'unknown',
     required AppService appService,
+    WebhookPayloadRepository? payloads,
   })  : _httpClient = httpClient,
         _appVersion = appVersion,
-        _appService = appService;
+        _appService = appService,
+        _payloads = payloads ?? SharedPrefsWebhookPayloadRepository();
 
-  Future<void> fireWebhook({
+  /// Resolve [payloadName] → render it against [context] in the template's
+  /// format → send to [url]. Method + content-type come from the resolved
+  /// template. Never throws: a disabled setting, an unknown payload, a render
+  /// error, or a network failure logs and skips.
+  Future<void> fire({
     required String url,
-    required String method,
-    required WebhookPayload payload,
+    required String payloadName,
+    required PayloadContext context,
   }) async {
-    final enabled = await _appService.getWebhooksEnabled();
-    if (!enabled) {
-      _log.fine('[fireWebhook] webhooks disabled in settings; skipping $url');
+    if (!await _appService.getWebhooksEnabled()) {
+      _log.fine('[fire] webhooks disabled; skipping $url');
+      return;
+    }
+    final tmpl = await _payloads.byName(payloadName);
+    if (tmpl == null) {
+      _log.warning('[fire] unknown payload "$payloadName"; skipping $url');
+      return;
+    }
+    final String body;
+    try {
+      body = PayloadRenderer.render(tmpl.body, context, tmpl.format);
+    } on PayloadRenderException catch (e) {
+      _log.warning('[fire] payload "$payloadName" render failed: ${e.message}');
       return;
     }
 
     final client = _httpClient ?? http.Client();
-    final headers = <String, String>{};
-
-    // TODO: Surface CORS and forbidden header errors in the UI.
-    // Setting User-Agent manually is forbidden on web and will cause a silent failure/CORS error in some browsers.
-    headers['User-Agent'] = 'roll-feathers/$_appVersion';
-
+    final headers = <String, String>{
+      'User-Agent': 'roll-feathers/$_appVersion',
+      ...tmpl.headers,
+    };
     try {
-      if (method == 'GET') {
-        final uri = Uri.parse(url).replace(queryParameters: payload.toQueryParams());
-        await client.get(uri, headers: headers);
+      if (tmpl.isGet) {
+        final sep = url.contains('?') ? '&' : '?';
+        await client.get(Uri.parse('$url$sep$body'), headers: headers);
       } else {
-        // NOTE: application/json triggers a CORS preflight (OPTIONS) request on web.
-        // The target server must be configured to handle this and return correct CORS headers.
-        headers['Content-Type'] = 'application/json';
-
-        final request = http.Request(method, Uri.parse(url));
-        request.headers.addAll(headers);
-        request.body = jsonEncode(payload.toJson());
-
+        headers['Content-Type'] = tmpl.effectiveContentType;
+        final request = http.Request('POST', Uri.parse(url))
+          ..headers.addAll(headers)
+          ..body = body;
         final response = await client.send(request);
         if (response.statusCode >= 400) {
-          _log.warning('[fireWebhook] $method to $url failed with status ${response.statusCode}');
+          _log.warning('[fire] POST to $url failed with status ${response.statusCode}');
         }
       }
     } on FormatException catch (e) {
-      _log.warning('[fireWebhook] invalid URL "$url": $e');
+      _log.warning('[fire] invalid URL "$url": $e');
     } catch (e) {
-      _log.warning('[fireWebhook] error firing to $url: $e');
+      _log.warning('[fire] error firing to $url: $e');
     } finally {
-      // Only close if we created it here.
       if (_httpClient == null) client.close();
     }
   }

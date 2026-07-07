@@ -6,6 +6,7 @@ import 'package:roll_feathers/domains/roll_parser/parser_rules.dart';
 import 'package:roll_feathers/domains/roll_parser/result_targets.dart';
 import 'package:roll_feathers/domains/roll_parser/rule_parser.dart';
 import 'package:roll_feathers/domains/roll_parser/target_dtos.dart';
+import 'package:roll_feathers/domains/webhook/payload_context.dart';
 import 'package:roll_feathers/domains/webhook_domain.dart';
 import 'package:roll_feathers/services/app_service.dart';
 
@@ -426,39 +427,28 @@ class RuleEvaluator {
               ));
             }
             break;
+          // webhook and discord unify: both fire a named payload template.
+          // `discord` is deprecated sugar for `webhook … with discord`.
           case ResultTargetType.webhook:
-            final capturedRes = res;
-            final capturedAggValue = aggValue;
-            final capturedSelMap = selMap;
-            final capturedCoActions = coActions;
-            effects.add(() => _webhookDomain.fireWebhook(
-              url: capturedRes.targetFunction.target,
-              method: capturedRes.targetFunction.args.isNotEmpty ? capturedRes.targetFunction.args[0] : 'POST',
-              payload: RollResultDTO.fromRollData(
-                ruleName: ctx.result.name,
-                aggregate: capturedAggValue,
-                timestamp: rollTimestamp,
-                matchedRange: capturedRes.resultRange,
-                allDice: rolls,
-                resultDiceMap: capturedSelMap,
-                coActions: capturedCoActions,
-              ),
-            ));
-            break;
           case ResultTargetType.discord:
-            final capturedRes = res;
-            final capturedAggValue = aggValue;
-            final capturedSelMap = selMap;
-            effects.add(() => _webhookDomain.fireWebhook(
-              url: capturedRes.targetFunction.target,
-              method: 'POST',
-              payload: DiscordRollDTO.fromRollData(
-                ruleName: ctx.result.name,
-                aggregate: capturedAggValue,
-                timestamp: rollTimestamp,
-                resultDiceMap: capturedSelMap,
-              ),
-            ));
+            final isDiscord = res.targetFunction.rtType == ResultTargetType.discord;
+            final url = res.targetFunction.target;
+            final method = isDiscord
+                ? 'POST'
+                : (res.targetFunction.args.isNotEmpty ? res.targetFunction.args[0].toUpperCase() : 'POST');
+            // Default payload by target + method (Phase 4 adds explicit `with <name>`).
+            final payloadName = isDiscord ? 'discord' : (method == 'GET' ? 'generic-get' : 'generic');
+            final payloadCtx = PayloadContext.fromRollData(
+              ruleName: ctx.result.name,
+              ruleDisplayName: ctx.result.displayName,
+              aggregate: aggValue,
+              timestamp: rollTimestamp,
+              matchedRange: res.resultRange,
+              allDice: rolls,
+              resultDiceMap: selMap,
+              coActions: coActions,
+            );
+            effects.add(() => _webhookDomain.fire(url: url, payloadName: payloadName, context: payloadCtx));
             break;
         }
       }

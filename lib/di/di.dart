@@ -14,6 +14,7 @@ import 'package:roll_feathers/domains/roll_parser/rule_evaluator.dart';
 import 'package:roll_feathers/domains/dddice_domain.dart';
 import 'package:roll_feathers/domains/pixel_profile_domain.dart';
 import 'package:roll_feathers/domains/webhook_domain.dart';
+import 'package:roll_feathers/domains/webhook/webhook_payload_domain.dart';
 import 'package:roll_feathers/repositories/app_repository.dart';
 import 'package:roll_feathers/repositories/pixels/pixel_profile_repository.dart';
 import 'package:roll_feathers/repositories/webhook/webhook_payload_repository.dart';
@@ -51,7 +52,9 @@ class DiWrapper {
   final PixelProfileDomain pixelProfileDomain;
 
   /// Webhook payload templates (built-ins + user items) — for the editor UI.
-  final WebhookPayloadRepository webhookPayloadRepository;
+  /// Built at the composition root with the platform-selected [httpClient] so
+  /// the editor's test-send uses the right (e.g. web CORS-aware) client.
+  final WebhookPayloadDomain webhookPayloadDomain;
 
   /// Host platform facts, resolved once at composition time. The single source
   /// of truth for platform branching; UI reads it via VM getters.
@@ -104,6 +107,8 @@ class DiWrapper {
       appService: appService,
       payloads: webhookPayloadRepository,
     );
+    // Editor domain shares the same repo and the platform-selected client.
+    final webhookPayloadDomain = WebhookPayloadDomain(webhookPayloadRepository, client: httpClient);
 
     // Lets integration tests redirect dddice traffic to a local mock server
     // (see lib/testing/dddice_mock_server.dart) via
@@ -143,7 +148,7 @@ class DiWrapper {
       apiDomain,
       dddiceDomain,
       pixelProfileDomain,
-      webhookPayloadRepository,
+      webhookPayloadDomain,
       platform,
     );
   }
@@ -163,7 +168,7 @@ class DiWrapper {
     this.apiDomain,
     this.dddiceDomain,
     this.pixelProfileDomain,
-    this.webhookPayloadRepository,
+    this.webhookPayloadDomain,
     this.platformInfo,
   );
 
@@ -200,7 +205,7 @@ class DiWrapper {
       EmptyApiDomain(),
       DddiceDomain(dddiceRepo, dddiceCs),
       PixelProfileDomain(SharedPrefsPixelProfileRepository()),
-      SharedPrefsWebhookPayloadRepository(),
+      WebhookPayloadDomain(SharedPrefsWebhookPayloadRepository()),
       platform,
     );
   }

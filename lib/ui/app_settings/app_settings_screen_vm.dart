@@ -89,7 +89,7 @@ class AppSettingsScreenViewModel extends ChangeNotifier {
         _apiDomain = di.apiDomain,
         _ruleParser = di.ruleParser,
         _platform = di.platformInfo,
-        webhookPayloadDomain = WebhookPayloadDomain(di.webhookPayloadRepository) {
+        webhookPayloadDomain = di.webhookPayloadDomain {
     // init
     load = Command0(_load)..execute();
 

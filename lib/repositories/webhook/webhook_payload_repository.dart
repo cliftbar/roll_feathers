@@ -8,18 +8,8 @@ import 'package:roll_feathers/domains/webhook/payload_template.dart';
 
 /// Repository over webhook payload templates — the [LibraryRepository] contract
 /// (built-in catalog + user items) plus name resolution. Load/save/query only.
+/// CRUD comes from [LibraryRepository]; only [byName] is additive here.
 abstract class WebhookPayloadRepository implements LibraryRepository<PayloadTemplate> {
-  /// Built-in payloads (shipped in code, read-only).
-  @override
-  List<PayloadTemplate> builtins();
-
-  @override
-  Future<List<PayloadTemplate>> loadUserItems();
-  @override
-  Future<void> upsert(PayloadTemplate item);
-  @override
-  Future<void> delete(String id);
-
   /// Resolve a payload for a DSL `with <name>` / target-keyword reference: by
   /// id first, then by name, across built-ins then user items. Null if missing.
   Future<PayloadTemplate?> byName(String ref);
@@ -68,11 +58,15 @@ class SharedPrefsWebhookPayloadRepository implements WebhookPayloadRepository {
 
   @override
   Future<PayloadTemplate?> byName(String ref) async {
+    // Case-insensitive so a rule's `with Discord` resolves the `discord` built-in
+    // (the method keyword is already case-insensitive; keep the name symmetric).
+    final needle = ref.trim().toLowerCase();
+    bool matches(PayloadTemplate p) => p.id.toLowerCase() == needle || p.name.toLowerCase() == needle;
     for (final b in builtins()) {
-      if (b.id == ref || b.name == ref) return b;
+      if (matches(b)) return b;
     }
     for (final u in await loadUserItems()) {
-      if (u.id == ref || u.name == ref) return u;
+      if (matches(u)) return u;
     }
     return null;
   }

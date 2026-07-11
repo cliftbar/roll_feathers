@@ -243,9 +243,9 @@ class PayloadRenderer {
   static void _appendValue(StringBuffer buf, dynamic value, PayloadFormat fmt) {
     if (value == null) {
       if (fmt == PayloadFormat.json) {
-        final s = buf.toString().trimRight();
-        final quoted = s.isNotEmpty && s.codeUnitAt(s.length - 1) == 0x22; // "
-        buf.write(quoted ? '' : 'null');
+        // Inside a JSON string (`"hi {{x}}"`) a null must render as empty, not the
+        // literal word `null`; in a value position (`{"a":{{x}}}`) it becomes null.
+        buf.write(_insideJsonString(buf.toString()) ? '' : 'null');
       }
       return; // form/text: empty
     }
@@ -282,6 +282,20 @@ class PayloadRenderer {
       .replaceAll("'", '&apos;');
 
   static bool _truthy(dynamic v) => v != null && v != false && !(v is String && v.isEmpty);
+
+  /// Whether the JSON buffer currently ends inside an open string literal.
+  static bool _insideJsonString(String s) {
+    var inStr = false;
+    for (var i = 0; i < s.length; i++) {
+      final c = s[i];
+      if (inStr && c == r'\') {
+        i++; // skip the escaped char
+        continue;
+      }
+      if (c == '"') inStr = !inStr;
+    }
+    return inStr;
+  }
 
   // ── path resolution ─────────────────────────────────────────────────────────
 

@@ -94,11 +94,15 @@ class PayloadContext {
         'allDice': [_gandalf, _shadowfax],
         'threshold': null,
         'modifier': null,
-        'blink': {'color': '#00FF00', 'colorInt': 65280, 'style': null},
+        'blink': {'color': '#00FF00', 'colorInt': _hexToInt('#00FF00'), 'style': null},
         'actions': [
           {'type': 'blink', 'args': ['green']},
         ],
       });
+
+  /// Decimal RGB for a `#RRGGBB` hex string — keeps the sample's `colorInt`
+  /// values derived from their `color` so the two can't silently drift.
+  static int _hexToInt(String hex) => int.parse(hex.replaceFirst('#', ''), radix: 16);
 
   static Map<String, dynamic> get _gandalf => {
         'id': 'd1',
@@ -107,7 +111,7 @@ class PayloadContext {
         'value': 18,
         'battery': 87,
         'color': '#5865F2',
-        'colorInt': 5793266,
+        'colorInt': _hexToInt('#5865F2'),
       };
 
   static Map<String, dynamic> get _shadowfax => {
@@ -117,6 +121,6 @@ class PayloadContext {
         'value': 11,
         'battery': null, // exercises conditional / null handling
         'color': '#2ECC71',
-        'colorInt': 3066993,
+        'colorInt': _hexToInt('#2ECC71'),
       };
 }

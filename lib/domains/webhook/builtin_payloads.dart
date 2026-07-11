@@ -33,7 +33,8 @@ const List<PayloadTemplate> kBuiltinPayloads = [
     category: 'discord',
     isBuiltin: true,
     body: '{"embeds":[{{#resultDice}}'
-        '{"title":"{{die.name}}","description":"rolled {{die.value}} on {{die.type}}","color":{{die.colorInt}}},'
+        '{"title":"{{die.name}}","description":"rolled {{die.value}} on {{die.type}}"'
+        '{{?die.colorInt}},"color":{{die.colorInt}}{{/?}}},'
         '{{/resultDice}}]}',
   ),
 

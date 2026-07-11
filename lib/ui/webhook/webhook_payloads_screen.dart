@@ -43,7 +43,7 @@ class WebhookPayloadsScreen extends StatelessWidget {
               _sectionHeader(context, 'Built-in'),
               for (final p in vm.builtins)
                 ListTile(
-                  leading: const Icon(Icons.lock_outline),
+                  leading: const Icon(Icons.lock_outline, semanticLabel: 'Built-in (read-only)'),
                   title: Text(p.name),
                   subtitle: Text('${p.method} · ${p.format.name} · use with `${p.id}`'),
                   trailing: IconButton(

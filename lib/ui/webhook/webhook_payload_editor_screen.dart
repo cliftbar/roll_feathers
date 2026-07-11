@@ -29,6 +29,7 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
     with SingleTickerProviderStateMixin {
   late final TextEditingController _name;
   late final TextEditingController _body;
+  late final TextEditingController _contentType;
 
   /// Owned here (not a DefaultTabController) so the selected tab survives the
   /// frequent rebuilds driven by the VM's live-preview notifications.
@@ -41,6 +42,7 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
     super.initState();
     _name = TextEditingController(text: vm.name);
     _body = TextEditingController(text: vm.body);
+    _contentType = TextEditingController(text: vm.contentType ?? '');
     _tabs = TabController(length: 2, vsync: this);
   }
 
@@ -48,9 +50,25 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
   void dispose() {
     _name.dispose();
     _body.dispose();
+    _contentType.dispose();
     _tabs.dispose();
     super.dispose();
   }
+
+  /// Confirms discarding unsaved edits before leaving the editor.
+  Future<bool> _confirmDiscard(BuildContext context) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Discard changes?'),
+          content: const Text('You have unsaved edits to this payload.'),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep editing')),
+            TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Discard')),
+          ],
+        ),
+      ) ??
+      false;
 
   void _insert(String token) {
     final sel = _body.selection;
@@ -69,33 +87,40 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
   @override
   Widget build(BuildContext context) {
     final readOnly = vm.isBuiltin;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(readOnly ? '${vm.name} (built-in)' : 'Edit payload'),
-        actions: [
-          if (!readOnly)
-            ListenableBuilder(
-              listenable: vm,
-              builder: (context, _) => TextButton(
-                onPressed: vm.canSave
-                    ? () async {
-                        await vm.save.execute();
-                        if (context.mounted) Navigator.pop(context, true);
-                      }
-                    : null,
-                child: const Text('Save'),
-              ),
-            ),
-        ],
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final wide = constraints.maxWidth >= _kWideBreakpoint;
-          return ListenableBuilder(
-            listenable: vm,
-            builder: (context, _) => wide ? _wideLayout(context, readOnly) : _narrowLayout(context, readOnly),
-          );
+    // Outer ListenableBuilder so PopScope.canPop tracks the dirty flag reactively.
+    return ListenableBuilder(
+      listenable: vm,
+      builder: (context, _) => PopScope(
+        canPop: readOnly || !vm.dirty,
+        onPopInvokedWithResult: (didPop, _) async {
+          if (didPop) return;
+          if (await _confirmDiscard(context) && context.mounted) {
+            Navigator.pop(context);
+          }
         },
+        child: Scaffold(
+          appBar: AppBar(
+            title: Text(readOnly ? '${vm.name} (built-in)' : 'Edit payload'),
+            actions: [
+              if (!readOnly)
+                TextButton(
+                  onPressed: vm.canSave
+                      ? () async {
+                          await vm.save.execute();
+                          if (context.mounted) Navigator.pop(context, true);
+                        }
+                      : null,
+                  child: const Text('Save'),
+                ),
+            ],
+          ),
+          body: LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= _kWideBreakpoint;
+              return wide ? _wideLayout(context, readOnly) : _narrowLayout(context, readOnly);
+            },
+          ),
+        ),
       ),
     );
   }
@@ -127,7 +152,10 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
                       const Text('Preview'),
                       if (!vm.preview.ok) ...[
                         const SizedBox(width: 6),
-                        Icon(Icons.error_outline, size: 16, color: Theme.of(context).colorScheme.error),
+                        Semantics(
+                          label: 'Preview has an error',
+                          child: Icon(Icons.error_outline, size: 16, color: Theme.of(context).colorScheme.error),
+                        ),
                       ],
                     ],
                   ),
@@ -158,6 +186,7 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
               ),
             ),
           TextField(
+            key: const Key('payload-name-field'),
             controller: _name,
             enabled: !readOnly,
             decoration: InputDecoration(labelText: 'Name', errorText: vm.nameError),
@@ -273,15 +302,96 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            if (vm.method.toUpperCase() == 'GET')
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text('GET sends the body as a query string (form-encoded).',
+                      style: Theme.of(context).textTheme.bodySmall),
+                ),
+              ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _contentType,
+              enabled: !readOnly,
+              decoration: InputDecoration(
+                labelText: 'Content-Type override',
+                hintText: vm.format.defaultContentType,
+                isDense: true,
+              ),
+              onChanged: vm.setContentType,
+            ),
+            const SizedBox(height: 4),
             Align(
               alignment: Alignment.centerLeft,
-              child: Text('Content-Type: ${vm.build().effectiveContentType}',
+              child: Text('Effective: ${vm.effectiveContentType}',
                   style: Theme.of(context).textTheme.bodySmall),
             ),
+            const SizedBox(height: 12),
+            _headersEditor(readOnly),
           ],
         ),
       );
+
+  /// Custom request headers (e.g. `Authorization`). Chips with delete + an add
+  /// dialog; the VM owns the map (persisted with the template).
+  Widget _headersEditor(bool readOnly) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Headers', style: Theme.of(context).textTheme.labelMedium),
+              if (!readOnly)
+                TextButton.icon(
+                  onPressed: () => _addHeader(context),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add'),
+                ),
+            ],
+          ),
+          if (vm.headers.isEmpty)
+            Text('None', style: Theme.of(context).textTheme.bodySmall)
+          else
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: [
+                for (final e in vm.headers.entries)
+                  InputChip(
+                    label: Text('${e.key}: ${e.value}', style: const TextStyle(fontSize: 11)),
+                    onDeleted: readOnly ? null : () => vm.removeHeader(e.key),
+                  ),
+              ],
+            ),
+        ],
+      );
+
+  Future<void> _addHeader(BuildContext context) async {
+    final keyC = TextEditingController();
+    final valC = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Add header'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(controller: keyC, decoration: const InputDecoration(labelText: 'Name', hintText: 'Authorization')),
+            TextField(controller: valC, decoration: const InputDecoration(labelText: 'Value')),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Add')),
+        ],
+      ),
+    );
+    if (ok == true && keyC.text.trim().isNotEmpty) vm.setHeader(keyC.text, valC.text);
+    keyC.dispose();
+    valC.dispose();
+  }
 
   Widget _labeled(String label, Widget child) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -332,7 +442,16 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Preview (sample roll)', style: Theme.of(context).textTheme.titleSmall),
+            Row(
+              children: [
+                if (!p.ok) ...[
+                  Icon(Icons.error_outline, size: 16, color: Theme.of(context).colorScheme.onErrorContainer),
+                  const SizedBox(width: 6),
+                ],
+                Text(p.ok ? 'Preview (sample roll)' : 'Preview error',
+                    style: Theme.of(context).textTheme.titleSmall),
+              ],
+            ),
             const SizedBox(height: 6),
             SelectableText(
               p.ok ? (p.output ?? '') : 'Error: ${p.error}',

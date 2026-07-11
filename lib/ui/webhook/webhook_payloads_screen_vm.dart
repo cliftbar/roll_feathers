@@ -28,11 +28,12 @@ class WebhookPayloadsScreenViewModel extends ChangeNotifier {
   Future<Result<void>> _load() async {
     try {
       _user = await _domain.loadUserPayloads();
-      _loading = false;
       return Result.value(null);
     } on Exception catch (e) {
       return Result.error(e);
     } finally {
+      // Always clear the spinner — even on failure it must not spin forever.
+      _loading = false;
       notifyListeners();
     }
   }

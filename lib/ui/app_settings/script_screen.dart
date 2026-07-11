@@ -303,14 +303,19 @@ class _ScriptScreenWidgetState extends State<ScriptScreenWidget> {
   }
 }
 
+/// Shared prefix for a deprecated `discord` target line: captures the
+/// `on result [range] ` lead-in (group 1) up to the `discord` keyword, so the
+/// detector and the migrator can't drift.
+const String _discordTargetPrefix = r'^(\s*on\s+result\s*\[[^\]]*\]\s+)discord';
+
 /// True if [script] uses the deprecated `discord` target keyword (as opposed to
 /// the new `webhook <url> with discord`).
 bool scriptUsesDeprecatedDiscord(String script) =>
-    RegExp(r'^\s*on\s+result\s*\[[^\]]*\]\s+discord\s', multiLine: true).hasMatch(script);
+    RegExp('$_discordTargetPrefix\\s', multiLine: true).hasMatch(script);
 
 /// Rewrites deprecated `on result [range] discord <url>` lines to
 /// `on result [range] webhook <url> with discord` — identical output.
 String migrateDeprecatedDiscord(String script) => script.replaceAllMapped(
-      RegExp(r'^(\s*on\s+result\s*\[[^\]]*\]\s+)discord\s+(\S+)\s*$', multiLine: true),
+      RegExp('$_discordTargetPrefix\\s+(\\S+)\\s*\$', multiLine: true),
       (m) => '${m[1]}webhook ${m[2]} with discord',
     );

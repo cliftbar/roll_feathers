@@ -749,7 +749,11 @@ A tiny template compiler, no external engine:
 1. **Scan** the template into nodes on one pass, disambiguating by the char after `{`:
    `{#name}` loop-open, `{/name}` loop-close, `{?path}`/`{/?}` conditional (phase 2),
    otherwise `{path}` scalar. `{{`/`}}` escape a literal brace.
-2. **Parse** nodes into a tree (loops nest); unbalanced open/close → validation error.
+2. **Parse** nodes into a tree; unbalanced open/close → validation error. Loops
+   **nest**, but a nested block descends through the `die` scope alias (the current
+   item) — e.g. `{{#groups}}…{{#die.items}}{{die.v}}{{/die.items}}…{{/groups}}`. A
+   bare (non-`die`) path always resolves against the top-level roll context, not the
+   enclosing loop item (there is no parent-scope `../`).
 3. **Render** by walking the tree with a **scope stack** (the current die inside a
    loop, roll context at top level). Each scalar resolves its dotted path (numeric
    segments index arrays; `die` = current-loop-die or first result die) against the
@@ -914,7 +918,26 @@ tests agree:
   use case (Discord/Slack/ntfy don't sign), and it would require storing a
   per-payload secret in plaintext `SharedPreferences`. Revisit when a target
   endpoint actually requires signed webhooks (then decide: generic `sha256=<hex>`
-  vs a configurable algorithm/header/format).
+  vs a configurable algorithm/header/format). **Note:** static custom headers
+  (e.g. `Authorization: Bearer …`) are *already* persisted in plaintext
+  `SharedPreferences` — the same local, single-user storage limitation. Acceptable
+  for this app; if secret material ever needs stronger at-rest protection, move it to
+  the platform secure store.
+
+### Transport security (shipped hardening)
+
+- **Log/secret redaction:** webhook URLs often embed a secret (e.g. Discord
+  `.../webhooks/<id>/<token>`). The fire path and the editor test-send log/return only
+  the **host** (`redactUrl`), never the full URL, and network errors are surfaced via
+  `ClientException.message` (not `toString()`, which includes the URI).
+- **Timeouts:** all sends are bounded by `kWebhookTimeout` (10s) so a slow endpoint
+  can't accumulate pending fire-and-forget futures across rolls.
+- **Scheme allowlist:** only `http`/`https` absolute URLs are sent (`isAllowedWebhookUrl`);
+  other schemes and hostless URLs are rejected.
+- **iOS ATS:** `NSAllowsArbitraryLoads` is enabled **app-wide** (not domain-scoped)
+  because user-configured webhook hosts are unknowable at build time. This is an
+  intentional, reviewed trade-off; it permits cleartext `http` webhooks (which then
+  transmit any secret headers in the clear — prefer `https`).
 - **Q5:** Export portability of `with <name>` (Issue E) — future bundling story.
 - **Q6 (leaning defer):** Conditional block (`{?..}`) — the null-rendering defaults
   (Defaults & Fallbacks) already keep optional fields valid (`null` / empty), so the

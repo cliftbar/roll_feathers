@@ -54,10 +54,35 @@ void main() {
     expect(PayloadRenderer.render(byId('generic-get').body, ctx, PayloadFormat.form), 'rule=attackRoll&aggregate=18');
   });
 
-  test('additive Discord built-ins render valid JSON', () {
-    for (final id in ['discord-message', 'discord-colored']) {
-      expect(() => renderJson(id), returnsNormally);
-    }
+  test('Discord Message == the friendly one-liner (first result die)', () {
+    expect(renderJson('discord-message'),
+        jsonEncode({'content': '**Gandalf** rolled a **18** on their d20!'}));
+  });
+
+  test('Discord Colored == one tinted embed per die', () {
+    final expected = {
+      'embeds': [
+        {'title': 'Gandalf', 'description': 'rolled 18 on d20', 'color': 5793266},
+        {'title': 'Shadowfax', 'description': 'rolled 11 on d20', 'color': 3066993},
+      ],
+    };
+    expect(renderJson('discord-colored'), jsonEncode(expected));
+  });
+
+  test('Discord Colored omits color when a die has no blink color', () {
+    const noColor = PayloadContext({
+      'resultDice': [
+        {'name': 'Plain', 'value': 5, 'type': 'd6', 'colorInt': null},
+      ],
+    });
+    expect(
+      PayloadRenderer.render(byId('discord-colored').body, noColor, PayloadFormat.json),
+      jsonEncode({
+        'embeds': [
+          {'title': 'Plain', 'description': 'rolled 5 on d6'},
+        ],
+      }),
+    );
   });
 
   test('reserved names include the built-ins', () {

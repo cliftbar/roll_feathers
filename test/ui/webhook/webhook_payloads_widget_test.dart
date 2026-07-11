@@ -40,7 +40,7 @@ void main() {
     final vm = WebhookPayloadEditorViewModel(domain, domain.newBlank());
     await tester.pumpWidget(MaterialApp(home: WebhookPayloadEditorScreen(vm: vm)));
     await tester.pumpAndSettle();
-    expect(find.widgetWithText(TextField, 'New Payload'), findsOneWidget); // name field
+    expect(find.byKey(const Key('payload-name-field')), findsOneWidget); // name field
     expect(find.text('Body'), findsOneWidget);
     expect(find.text('Advanced'), findsOneWidget);
     // The VM has a valid preview for the seeded generic body.
@@ -52,7 +52,7 @@ void main() {
     final vm = WebhookPayloadEditorViewModel(domain, domain.newBlank());
     await tester.pumpWidget(MaterialApp(home: WebhookPayloadEditorScreen(vm: vm)));
     await tester.pumpAndSettle();
-    await tester.enterText(find.widgetWithText(TextField, 'New Payload').first, 'discord');
+    await tester.enterText(find.byKey(const Key('payload-name-field')), 'discord');
     await tester.pumpAndSettle();
     expect(find.text('Reserved name — pick another'), findsOneWidget);
     final save = tester.widget<TextButton>(find.widgetWithText(TextButton, 'Save'));
@@ -102,5 +102,47 @@ void main() {
     vm.setBody('{{#resultDice}}oops'); // unbalanced → preview error
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.error_outline), findsOneWidget);
+  });
+
+  testWidgets('tapping a variable chip inserts its token into the body', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(600, 2000)); // tall: palette fully rendered
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final domain = WebhookPayloadDomain(_MemRepo());
+    final vm = WebhookPayloadEditorViewModel(domain, domain.newBlank());
+    await tester.pumpWidget(MaterialApp(home: WebhookPayloadEditorScreen(vm: vm)));
+    await tester.pumpAndSettle();
+    expect(vm.body.contains('{{blink.color}}'), isFalse); // not in the seeded generic body
+    await tester.tap(find.widgetWithText(ActionChip, '{{blink.color}}'));
+    await tester.pumpAndSettle();
+    expect(vm.body.contains('{{blink.color}}'), isTrue);
+  });
+
+  testWidgets('deleting a user payload asks for confirmation then removes it', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(800, 1400)); // tall: user row on screen
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final repo = _MemRepo();
+    await repo.upsert(const PayloadTemplate(id: 'u1', name: 'Mine', body: '{}'));
+    final domain = WebhookPayloadDomain(repo);
+    final vm = WebhookPayloadsScreenViewModel(domain);
+    await tester.pumpWidget(MaterialApp(home: WebhookPayloadsScreen(vm: vm, domain: domain)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.delete_outline));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete "Mine"?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+    await tester.pumpAndSettle();
+    expect(vm.userPayloads.map((p) => p.name), isNot(contains('Mine')));
+  });
+
+  testWidgets('tapping a built-in opens a read-only editor (banner, no Save)', (tester) async {
+    final domain = WebhookPayloadDomain(_MemRepo());
+    final vm = WebhookPayloadsScreenViewModel(domain);
+    await tester.pumpWidget(MaterialApp(home: WebhookPayloadsScreen(vm: vm, domain: domain)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Generic JSON'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('(built-in)'), findsOneWidget);
+    expect(find.textContaining('Duplicate it to make an editable copy'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Save'), findsNothing);
   });
 }

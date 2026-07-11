@@ -37,6 +37,22 @@ void main() {
       const empty = PayloadContext({'resultDice': []});
       expect(PayloadRenderer.render('[{{#resultDice}}{"v":{{die.value}}}{{/resultDice}}]', empty, PayloadFormat.json), '[]');
     });
+    test('loops nest via the `die` scope alias (current item)', () {
+      const nested = PayloadContext({
+        'groups': [
+          {'name': 'A', 'items': [{'v': 1}, {'v': 2}]},
+          {'name': 'B', 'items': [{'v': 3}]},
+        ],
+      });
+      expect(
+        PayloadRenderer.render(
+          '[{{#groups}}{"g":"{{die.name}}","vs":[{{#die.items}}{{die.v}},{{/die.items}}]}{{/groups}}]',
+          nested,
+          PayloadFormat.json,
+        ),
+        '[{"g":"A","vs":[1,2]},{"g":"B","vs":[3]}]',
+      );
+    });
   });
 
   group('conditional', () {
@@ -51,6 +67,10 @@ void main() {
   group('null handling', () {
     test('null numeric in unquoted position → null literal', () {
       expect(json('{"b":{{resultDice.1.battery}}}'), '{"b":null}');
+    });
+    test('null inside a JSON string → empty, not the literal word null', () {
+      // Shadowfax (resultDice.1) has a null battery.
+      expect(json('{"msg":"battery {{resultDice.1.battery}} pct"}'), '{"msg":"battery  pct"}');
     });
   });
 

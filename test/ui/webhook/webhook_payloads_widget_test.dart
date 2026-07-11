@@ -145,4 +145,27 @@ void main() {
     expect(find.textContaining('Duplicate it to make an editable copy'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Save'), findsNothing);
   });
+
+  testWidgets('user payload rows show the `use with` rule reference', (tester) async {
+    final repo = _MemRepo();
+    await repo.upsert(const PayloadTemplate(id: 'u1', name: 'My Hook', body: '{}'));
+    final domain = WebhookPayloadDomain(repo);
+    final vm = WebhookPayloadsScreenViewModel(domain);
+    await tester.pumpWidget(MaterialApp(home: WebhookPayloadsScreen(vm: vm, domain: domain)));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('use with `My Hook`'), findsOneWidget);
+  });
+
+  testWidgets('editor shows a copyable rule reference', (tester) async {
+    final domain = WebhookPayloadDomain(_MemRepo());
+    final vm = WebhookPayloadEditorViewModel(domain, domain.newBlank());
+    vm.setName('My Hook');
+    await tester.pumpWidget(MaterialApp(home: WebhookPayloadEditorScreen(vm: vm)));
+    await tester.pumpAndSettle();
+    final copyBtn = find.byTooltip('Copy "with My Hook"');
+    expect(copyBtn, findsOneWidget);
+    await tester.tap(copyBtn);
+    await tester.pumpAndSettle();
+    expect(find.text('Copied "with My Hook"'), findsOneWidget); // snackbar confirms the copy
+  });
 }

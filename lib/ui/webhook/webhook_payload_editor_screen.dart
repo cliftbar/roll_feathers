@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:roll_feathers/domains/webhook/payload_template.dart';
 import 'package:roll_feathers/ui/webhook/webhook_payload_editor_vm.dart';
@@ -192,6 +193,7 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
             decoration: InputDecoration(labelText: 'Name', errorText: vm.nameError),
             onChanged: vm.setName,
           ),
+          if (vm.reference.isNotEmpty) _referenceRow(context),
           const SizedBox(height: 12),
           _advanced(readOnly),
           const SizedBox(height: 12),
@@ -213,6 +215,43 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
         ],
       );
 
+  /// Shows how a rule references this payload — `webhook <url> with <ref>` — with
+  /// a one-tap copy, so users don't have to guess the DSL. This is the bridge
+  /// between the library and the rule editor.
+  Widget _referenceRow(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  style: Theme.of(context).textTheme.bodySmall,
+                  children: [
+                    const TextSpan(text: 'Use in a rule:  '),
+                    TextSpan(
+                      text: 'webhook <url> ${vm.ruleFragment}',
+                      style: const TextStyle(fontFamily: 'monospace'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Copy "${vm.ruleFragment}"',
+              icon: const Icon(Icons.copy, size: 16),
+              onPressed: () => _copyReference(context),
+            ),
+          ],
+        ),
+      );
+
+  void _copyReference(BuildContext context) {
+    Clipboard.setData(ClipboardData(text: vm.ruleFragment));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Copied "${vm.ruleFragment}"'), duration: const Duration(seconds: 2)),
+    );
+  }
+
   Widget _previewPane(BuildContext context) => ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -231,8 +270,9 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
             const Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Fires the rendered sample payload to a URL right now (ignores the global '
-                'webhooks toggle). Handy for catching CORS / endpoint errors while editing.',
+                'Fires the rendered sample payload to any URL right now — this test URL is '
+                'separate from the one your rule uses, and it ignores the global webhooks '
+                'toggle. Handy for catching CORS / endpoint errors while editing.',
                 style: TextStyle(fontSize: 12),
               ),
             ),
@@ -311,23 +351,26 @@ class _WebhookPayloadEditorScreenState extends State<WebhookPayloadEditorScreen>
                       style: Theme.of(context).textTheme.bodySmall),
                 ),
               ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _contentType,
-              enabled: !readOnly,
-              decoration: InputDecoration(
-                labelText: 'Content-Type override',
-                hintText: vm.format.defaultContentType,
-                isDense: true,
+            // Content-Type only applies to the POST body; GET sends no body.
+            if (vm.method.toUpperCase() != 'GET') ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _contentType,
+                enabled: !readOnly,
+                decoration: InputDecoration(
+                  labelText: 'Content-Type override',
+                  hintText: vm.format.defaultContentType,
+                  isDense: true,
+                ),
+                onChanged: vm.setContentType,
               ),
-              onChanged: vm.setContentType,
-            ),
-            const SizedBox(height: 4),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text('Effective: ${vm.effectiveContentType}',
-                  style: Theme.of(context).textTheme.bodySmall),
-            ),
+              const SizedBox(height: 4),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Effective: ${vm.effectiveContentType}',
+                    style: Theme.of(context).textTheme.bodySmall),
+              ),
+            ],
             const SizedBox(height: 12),
             _headersEditor(readOnly),
           ],

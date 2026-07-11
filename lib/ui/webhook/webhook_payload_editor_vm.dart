@@ -36,6 +36,14 @@ class WebhookPayloadEditorViewModel extends ChangeNotifier {
   /// so the UI doesn't allocate a PayloadTemplate every rebuild just to show it.
   String get effectiveContentType => contentType ?? format.defaultContentType;
 
+  /// The token a rule uses to reference this payload: `webhook <url> with <ref>`.
+  /// Built-ins reference by their stable id (e.g. `generic`); user payloads by
+  /// name. Empty until the payload has a usable name.
+  String get reference => isBuiltin ? _id : name.trim();
+
+  /// The full DSL fragment to paste after a webhook URL in a rule.
+  String get ruleFragment => 'with $reference';
+
   /// URL for the "Test send" affordance, and the last result.
   String testUrl = '';
   String? _testResult;
@@ -95,6 +103,19 @@ class WebhookPayloadEditorViewModel extends ChangeNotifier {
     dirty = true;
     _validateNameSync();
     notifyListeners();
+    _checkNameUniqueLive(v);
+  }
+
+  /// Async uniqueness check so a duplicate name is flagged while typing, not only
+  /// on Save. Ignores a stale result if the user kept typing.
+  Future<void> _checkNameUniqueLive(String candidate) async {
+    if (_nameError != null) return; // already blocked (empty/reserved)
+    final taken = await _domain.isNameTaken(candidate.trim(), excludeId: _id);
+    if (candidate != name || _nameError != null) return; // stale, or newly blocked
+    if (taken) {
+      _nameError = 'Name already used';
+      notifyListeners();
+    }
   }
 
   void setBody(String v) {

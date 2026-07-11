@@ -63,7 +63,7 @@ class WebhookPayloadsScreen extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.webhook),
                   title: Text(p.name),
-                  subtitle: Text('${p.method} · ${p.format.name}'),
+                  subtitle: Text('${p.method} · ${p.format.name} · use with `${p.name}`'),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [

@@ -215,6 +215,31 @@ void main() {
       expect(t.body, contains('{{rule.name}}'));
     });
 
+    test('reference is the id for built-ins and the name for user payloads', () {
+      final b = WebhookPayloadEditorViewModel(domain, domain.builtins().firstWhere((p) => p.id == 'generic'));
+      expect(b.reference, 'generic');
+      expect(b.ruleFragment, 'with generic');
+      final u = WebhookPayloadEditorViewModel(domain, domain.newBlank());
+      u.setName('My Hook');
+      expect(u.reference, 'My Hook');
+      expect(u.ruleFragment, 'with My Hook');
+    });
+
+    test('a duplicate name is flagged live while typing (before Save)', () async {
+      final repo = _MemRepo();
+      await repo.upsert(const PayloadTemplate(id: 'a', name: 'Foo', body: '{}'));
+      final d = WebhookPayloadDomain(repo);
+      final vm = WebhookPayloadEditorViewModel(d, d.newBlank());
+      vm.setName('Foo');
+      await Future<void>.delayed(Duration.zero); // let the async check resolve
+      expect(vm.nameError, 'Name already used');
+      expect(vm.canSave, isFalse);
+      // Typing a free name clears it.
+      vm.setName('Bar');
+      await Future<void>.delayed(Duration.zero);
+      expect(vm.nameError, isNull);
+    });
+
     test('variable palette has 24 well-formed tokens', () {
       final vm = WebhookPayloadEditorViewModel(domain, domain.newBlank());
       final tokens = vm.variablePalette.values.expand((e) => e).toList();

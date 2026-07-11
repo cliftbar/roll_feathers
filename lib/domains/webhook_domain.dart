@@ -3,6 +3,7 @@ import 'package:logging/logging.dart';
 
 import 'package:roll_feathers/domains/webhook/payload_context.dart';
 import 'package:roll_feathers/domains/webhook/payload_renderer.dart';
+import 'package:roll_feathers/domains/webhook/webhook_send.dart';
 import 'package:roll_feathers/repositories/webhook/webhook_payload_repository.dart';
 import 'package:roll_feathers/services/app_service.dart';
 
@@ -37,9 +38,15 @@ class WebhookDomain {
       _log.fine('[fire] webhooks disabled; skipping $url');
       return;
     }
+    // Redacted for logs: a webhook URL often embeds a secret token in its path.
+    final safeUrl = redactUrl(url);
+    if (!isAllowedWebhookUrl(url)) {
+      _log.warning('[fire] refusing non-http(s) or malformed URL $safeUrl; skipping');
+      return;
+    }
     final tmpl = await _payloads.byName(payloadName);
     if (tmpl == null) {
-      _log.warning('[fire] unknown payload "$payloadName"; skipping $url');
+      _log.warning('[fire] unknown payload "$payloadName"; skipping $safeUrl');
       return;
     }
     final String body;
@@ -52,37 +59,32 @@ class WebhookDomain {
 
     final client = _httpClient ?? http.Client();
     final headers = <String, String>{
-      'User-Agent': 'roll-feathers/$_appVersion',
+      'User-Agent': webhookUserAgent(_appVersion),
       ...tmpl.headers,
     };
     try {
       if (tmpl.isGet) {
-        final String sep;
-        if (url.endsWith('?') || url.endsWith('&')) {
-          sep = '';
-        } else if (url.contains('?')) {
-          sep = '&';
-        } else {
-          sep = '?';
-        }
-        await client.get(Uri.parse('$url$sep$body'), headers: headers);
+        await client.get(buildGetUri(url, body), headers: headers).timeout(kWebhookTimeout);
       } else {
         headers['Content-Type'] = tmpl.effectiveContentType;
         final request = http.Request('POST', Uri.parse(url))
           ..headers.addAll(headers)
           ..body = body;
-        final response = await client.send(request);
+        final response = await client.send(request).timeout(kWebhookTimeout);
         if (response.statusCode == 429) {
-          _log.warning('[fire] POST to $url rate-limited (429)'
+          _log.warning('[fire] POST to $safeUrl rate-limited (429)'
               '${response.headers['retry-after'] != null ? '; retry-after=${response.headers['retry-after']}' : ''}');
         } else if (response.statusCode >= 400) {
-          _log.warning('[fire] POST to $url failed with status ${response.statusCode}');
+          _log.warning('[fire] POST to $safeUrl failed with status ${response.statusCode}');
         }
       }
-    } on FormatException catch (e) {
-      _log.warning('[fire] invalid URL "$url": $e');
+    } on http.ClientException catch (e) {
+      // e.toString() includes the request URI (with any secret); log only .message.
+      _log.warning('[fire] error firing to $safeUrl: ${e.message}');
+    } on FormatException {
+      _log.warning('[fire] invalid URL $safeUrl');
     } catch (e) {
-      _log.warning('[fire] error firing to $url: $e');
+      _log.warning('[fire] error firing to $safeUrl: $e');
     } finally {
       if (_httpClient == null) client.close();
     }

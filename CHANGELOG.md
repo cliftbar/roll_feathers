@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.15.0
+
+### Breaking Changes
+
+- **Rule scripts must end with a `report` clause** — Every rule now declares the single value the roll is recorded as: `report <sum|min|max|avg|count> over <@selection|$ALL_DICE>`, written as the last clause. Previously that value fell out of whichever `use` block happened to be evaluated last, which was frequently the wrong one — all three High/Low rules reported the *minimum* die on every roll (a 6/1/3 roll recorded **1**), while the dice recorded alongside it came from a different block entirely. A `use` block's aggregate now only decides whether its `on result` ranges match; the reported value comes from the `report` clause. **Rules saved before this change will not parse.** They are logged and skipped — the rest of your rules still run and the roll is still recorded — but each needs a `report` line added. All built-in rules have been updated.
+
+### Features
+
+- **Rules report meaningful values** — High/Low rules now report the roll's total instead of the minimum. `Doubles`, `Duplicates`, and `All Above Threshold` report the total of the dice they selected rather than *how many* they selected, so a pair of 4s reads 8 rather than 2. Advantage and Disadvantage continue to report the max and min, which is correct for them.
+
+### Bug Fixes
+
+- **Android: flashing a Pixels profile silently corrupted it** — Android is the only platform where the BLE ATT MTU must be requested explicitly; it defaults to 23 (a 20-byte payload) and `universal_ble` never negotiates on its own, while CoreBluetooth (macOS/iOS) and the browser negotiate at connect. Every message over 20 bytes was therefore truncated in both directions. Animation transfer writes are 104 bytes, so flashed profiles landed on the die as garbage — *while reporting complete success at every step*, because the chunk offset lives in the first four bytes and survives truncation, so each chunk still acked. The app now requests an MTU at connect on Android (dice grant 128), and the post-transfer hash check that catches this runs unconditionally instead of only under debug logging. Verified against a real d20 on an Android device: all built-in profiles now flash with a matching DataSet hash.
+- **Android reported 0% battery for every Pixels die** — Same root cause: the truncated `IAmADie` message lost its trailing battery fields. Fixed by the MTU negotiation above.
+- **A rule with no matching result hijacked the roll** — A rule claimed a roll as soon as its `for roll ...` die-matcher accepted the dice, without checking whether any `on result` range actually matched. `Doubles` is `for roll *d*`, so it claimed *every* roll and recorded its duplicate count — **0** when there was no pair — in place of the roll's natural sum, while also preventing every rule after it from running. Rolling 1, 2, 3 with Doubles enabled recorded a result of 0 instead of 6. A rule must now produce a result to claim the roll.
+- **A broken rule no longer destroys the roll record** — Rule evaluation runs before the roll is recorded, and a rule that failed to parse took the whole roll down with it. Such a rule is now reported and skipped, and the roll is still recorded.
+
+### Internal
+
+- **`report` clause and per-block outputs** — `report` is a required trailing element of the v1.1 grammar, so both a missing clause and a misplaced one are rejected at parse time. `ParseResult.blockOutputs` exposes a `UseBlockOutput` per `use` block in script order — including blocks that matched nothing — carrying that block's selection token, its own aggregate, whether any range fired, and its selected dice. Nothing consumes it yet. `ParseResult.matchedResult` distinguishes "the die-matcher accepted this roll" from "the rule produced a result", and `rolledEvaluated` now carries the acted-on selection rather than being a duplicate of `allRolled`.
+- **ATT MTU negotiated on Android** — `UniversalBleDevice.setDeviceUuids` requests an MTU of 247 before any message traffic, gated on `PlatformInfo.isAndroid` and wrapped in its own error handling so a refusal degrades to the previous behaviour rather than breaking pairing. The granted value is logged, at SEVERE if it falls below what a full bulk-transfer chunk needs. It lives in the device wrapper rather than `BleUniversalRepository._connectDevice` because the live-die integration tests connect directly and would otherwise bypass it. A comment on `PixelTransfer.maxChunkSize` records the resulting ceiling: raising it past 121 silently re-breaks Android.
+- **Profile transfers always verify their hash** — Comparing our computed DataSet hash against the die's stored hash was gated behind FINE logging, which is precisely why the Android corruption shipped unnoticed. It now always runs, logging SEVERE on mismatch. It deliberately does not throw: the bytes are already on the die either way, and failing the call would turn a silent problem into a broken flash button on platforms where this has always worked. The byte-level hex dump stays behind FINE.
+- **`$MAX` / `$MIN` no longer break the structural parse** — Those variables are only known at evaluation time, so the first parse left them in place and the block containing them failed. That passed silently before; with `report` required immediately after the blocks it became a hard rejection of any rule using them. The structural parse now substitutes a placeholder, and evaluation still does the real substitution and reparse.
+- **Lint pass** — `dart fix` across the touched files (deprecations, import and identifier lints) and `dart format` on the files changed by the DSL work.
+
 ## 0.14.0
 
 ### Features

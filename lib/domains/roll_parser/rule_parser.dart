@@ -20,10 +20,17 @@ final pp.Parser<String> dieParser = (numberOrStarParser & 'd'.toParser() & numbe
 
 class MakeSelectionDef {
   final String name;
-  final String? parent;
+
+  /// Parent selections, merged left to right with **later parents overriding
+  /// earlier ones** on the same die. Empty means "start from all rolled dice".
+  ///
+  /// The override is what lets a rule express a special case without a
+  /// conditional: a parent that is empty when it does not apply contributes
+  /// nothing, and the earlier parent passes through untouched.
+  final List<String> parents;
   final List<ScriptTransform> steps;
 
-  MakeSelectionDef({required this.name, this.parent, required this.steps});
+  MakeSelectionDef({required this.name, this.parents = const [], required this.steps});
 }
 
 class UseSelectionBlockV11 {
@@ -96,7 +103,9 @@ class RuleParser {
         pp.whitespace().star(),
         (
           pp.string("from ").times(1).flatten(),
-          [_atNameParser, variableParser].toChoiceParser(),
+          [_atNameParser, variableParser]
+              .toChoiceParser()
+              .plusSeparated(pp.seq3(pp.whitespace().star(), ",".toParser(), pp.whitespace().star())),
         ).toSequenceParser().optional(),
         pp.whitespace().star(),
         transformDef.starSeparated(pp.whitespace().star()),
@@ -104,9 +113,9 @@ class RuleParser {
       )
       .map((e) {
         final String name = e.$3;
-        final String? parent = e.$5?.$2;
+        final List<String> parents = e.$5?.$2.elements ?? const <String>[];
         final List<ScriptTransform> steps = (e.$7).elements;
-        return MakeSelectionDef(name: name, parent: parent, steps: steps);
+        return MakeSelectionDef(name: name, parents: parents, steps: steps);
       });
 
   static final pp.Parser<UseSelectionBlockV11> _useSelectionParser = pp

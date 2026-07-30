@@ -49,7 +49,30 @@ final pp.Parser<List<int>> _valueRangeParser = pp
   return [effStart, effEnd];
 });
 
+/// `dtype <name>` — keep only dice of the given die type, e.g. `with dtype d00`.
+///
+/// The type name is a string, while [ScriptTransform.args] is `List<num>`, so the
+/// name is captured by the closure rather than passed as an arg. That keeps every
+/// other transform's signature untouched.
+///
+/// An unrecognised name is not an error; it simply matches no dice and yields an
+/// empty selection.
+final pp.Parser<ScriptTransform> _dtypeTransformParser = pp
+    .seq3("dtype".toParser(), pp.whitespace().plus(), wholeWordParser)
+    .map((e) {
+      final String typeName = e.$3;
+      return ScriptTransform(
+        transformFunction: (dieMap, _) => dtypeFilter(dieMap, typeName),
+        args: const [],
+      );
+    });
+
+/// Keeps dice whose [GenericDType.name] equals [typeName]. Exposed for tests.
+Map<GenericDie, int> dtypeFilter(Map<GenericDie, int> dieMap, String typeName) =>
+    Map.fromEntries(dieMap.entries.where((e) => e.key.dType.name == typeName));
+
 final pp.Parser<ScriptTransform> transformParser = [
+  _dtypeTransformParser,
   pp
       .seq3("top".toParser().map((_) => top), pp.whitespace().star(), numberParser.repeatSeparated(" ".toParser(), 1, 1))
       .map3((RollTransform f, _, pp.SeparatedList<num, String> a) =>

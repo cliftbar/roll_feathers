@@ -69,9 +69,28 @@ define d20percentiles "Percentiles (2d20)" for roll 2d20
 const String percentiles = """
 define percentiles "Percentiles (1d10,1d100)" for roll 1d10,1d00
 
-  use selection \$ALL_DICE
+  make selection @NORM
+    from \$ALL_DICE
+
+  # Only non-empty on 00+0: both dice show 0, then narrow to the tens die and
+  # read it as 100. Order matters — dupes must see both zeros before dtype
+  # narrows, and offset is only a "set to 100" because match pinned the value
+  # to 0.
+  make selection @HUNDRED
+    from \$ALL_DICE
+    with match [0:0]
+    with dupes [2:2]
+    with dtype d00
+    with offset 100
+
+  # Later parent wins: @HUNDRED overrides the tens die when it fired and
+  # contributes nothing otherwise. That is the whole conditional.
+  make selection @FINAL
+    from @NORM, @HUNDRED
+
+  use selection @FINAL
     aggregate over selection sum
-    on result [0:10)  action blink red
+    on result [1:10)  action blink red
     on result [10:25) action blink orange
     on result [25:50) action blink yellow
     on result [50:75) action blink green
@@ -79,7 +98,7 @@ define percentiles "Percentiles (1d10,1d100)" for roll 1d10,1d00
     on result [90:99) action blink purple
     on result [99:*)  action sequence 1 red orange green blue violet
 
-  report sum over \$ALL_DICE
+  report sum over @FINAL
 """;
 
 const String doubles = """

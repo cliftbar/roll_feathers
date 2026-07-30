@@ -375,10 +375,23 @@ class RuleEvaluator {
     }
 
     final named = <String, Map<GenericDie, int>>{};
-    Map<GenericDie, int> resolveParent(String? parent) => parent == null ? baseMap : (named[parent] ?? baseMap);
+    /// Merges parent selections left to right; a later parent overrides an
+    /// earlier one for the same die. No parents means "all rolled dice".
+    ///
+    /// The override is load-bearing: a parent that is empty when it does not
+    /// apply contributes nothing and leaves the earlier parent intact, which is
+    /// how a rule expresses a special case without a conditional.
+    Map<GenericDie, int> resolveParents(List<String> parents) {
+      if (parents.isEmpty) return baseMap;
+      final merged = <GenericDie, int>{};
+      for (final p in parents) {
+        merged.addAll(named[p] ?? baseMap);
+      }
+      return merged;
+    }
 
     for (final def in result.selections) {
-      var cur = Map<GenericDie, int>.of(resolveParent(def.parent));
+      var cur = Map<GenericDie, int>.of(resolveParents(def.parents));
       int stepIdx = 0;
       for (final step in def.steps) {
         cur = step.transformFunction(cur, step.args);
@@ -386,7 +399,8 @@ class RuleEvaluator {
       }
       named[def.name] = cur;
       _log.fine(
-        () => "[DSL v1.1] make ${def.name} built size=${cur.length}${def.parent != null ? ' from ${def.parent!}' : ''}",
+        () =>
+            "[DSL v1.1] make ${def.name} built size=${cur.length}${def.parents.isNotEmpty ? ' from ${def.parents.join(', ')}' : ''}",
       );
     }
 

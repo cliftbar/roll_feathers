@@ -1,0 +1,83 @@
+# Build the web app and deploy it to the homelab's Garage bucket `roll-feathers`, served at
+# rollfeathers.ungawatkt.com by the homelab's Caddy (homelab issue #56, wiki how-to/static-sites.md).
+# The S3 keys (STATIC_S3_<ENV>_*) are this repo's, set by the homelab's static-sites playbook; they
+# can only write this bucket.
+#
+#   push to main  -> dev   https://roll-feathers.s3.dev.honeybee.haus/ (LAN only)
+#   push a tag    -> prod  https://rollfeathers.ungawatkt.com/
+#   by hand       -> either:
+#     tea api --login git.cliftbar.site -X POST -d '{"ref":"<branch>","inputs":{"env":"dev"}}' \
+#       /repos/cliftbar/roll_feathers/actions/workflows/web-deploy.yml/dispatches < /dev/null
+#
+# Gitea runs .gitea/workflows only, so .github/workflows (the GitHub release build) stays GitHub's.
+name: web-deploy
+on:
+  push:
+    branches: [main]
+    tags: ["*"]
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "dev or prod"
+        default: dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      ENV: ${{ inputs.env || (startsWith(github.ref, 'refs/tags/') && 'prod') || 'dev' }}
+      # Flutter SDK from Google's release archive, pinned by version and checksum (releases_linux.json).
+      # Keep in step with pubspec.yaml `environment.flutter`; the first step checks.
+      FLUTTER_VERSION: 3.41.6
+      FLUTTER_SHA256: 503b3e6b7d352fca5d21b6474eca95ad544d8fc3b053782eab63a360c7fc7569
+      # AWS CLI v2 from AWS, pinned by version and checksum (computed 2026-11-16).
+      AWSCLI_VERSION: 2.40.4
+      AWSCLI_SHA256: 81f573c2a0ace70cfb97aa4d014c17cbd605cb04cbad09adbc7aaf9c0979ae8e
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
+
+      - name: Check the Flutter pin matches pubspec.yaml
+        run: |
+          grep -qE "^[[:space:]]+flutter: ${FLUTTER_VERSION}[[:space:]]*$" pubspec.yaml || {
+            echo "pubspec.yaml wants $(grep -E '^[[:space:]]+flutter: [0-9]' pubspec.yaml); update FLUTTER_VERSION/FLUTTER_SHA256 here" >&2; exit 1; }
+
+      - name: Install Flutter
+        run: |
+          curl -sSfL -o /tmp/flutter.tar.xz \
+            "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+          echo "${FLUTTER_SHA256}  /tmp/flutter.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/flutter.tar.xz -C /tmp --no-same-owner && rm /tmp/flutter.tar.xz
+          git config --global --add safe.directory /tmp/flutter
+          echo /tmp/flutter/bin >> "$GITHUB_PATH"
+          /tmp/flutter/bin/flutter --disable-analytics
+          /tmp/flutter/bin/flutter --version
+
+      - name: Build the web app
+        run: |
+          flutter pub get
+          flutter build web --release
+          echo "built $(git describe --tags --always) for $ENV"
+
+      - name: Install the AWS CLI
+        run: |
+          curl -sSfL -o /tmp/awscli.zip "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${AWSCLI_VERSION}.zip"
+          echo "${AWSCLI_SHA256}  /tmp/awscli.zip" | sha256sum -c -
+          cd /tmp && unzip -q awscli.zip && ./aws/install --install-dir /tmp/aws-cli --bin-dir /tmp/bin
+          /tmp/bin/aws --version
+
+      - name: Sync build/web/ to the roll-feathers bucket
+        env:
+          PROD_KEY_ID: ${{ secrets.STATIC_S3_PROD_KEY_ID }}
+          PROD_SECRET: ${{ secrets.STATIC_S3_PROD_SECRET }}
+          DEV_KEY_ID: ${{ secrets.STATIC_S3_DEV_KEY_ID }}
+          DEV_SECRET: ${{ secrets.STATIC_S3_DEV_SECRET }}
+        run: |
+          case "$ENV" in
+            prod) endpoint=https://s3.cozy.honeybee.haus; export AWS_ACCESS_KEY_ID="$PROD_KEY_ID" AWS_SECRET_ACCESS_KEY="$PROD_SECRET" ;;
+            dev)  endpoint=https://s3.dev.honeybee.haus;  export AWS_ACCESS_KEY_ID="$DEV_KEY_ID"  AWS_SECRET_ACCESS_KEY="$DEV_SECRET" ;;
+            *) echo "env must be prod or dev" >&2; exit 1 ;;
+          esac
+          [ -n "$AWS_ACCESS_KEY_ID" ] || { echo "no STATIC_S3_${ENV^^}_* secrets (homelab apps/static-sites)" >&2; exit 1; }
+          export AWS_DEFAULT_REGION=garage
+          /tmp/bin/aws configure set default.s3.addressing_style path
+          /tmp/bin/aws s3 sync build/web/ s3://roll-feathers --delete --no-progress --endpoint-url "$endpoint"

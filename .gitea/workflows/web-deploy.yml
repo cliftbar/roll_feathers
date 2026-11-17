@@ -26,31 +26,55 @@ jobs:
     runs-on: ubuntu-latest
     env:
       ENV: ${{ inputs.env || (startsWith(github.ref, 'refs/tags/') && 'prod') || 'dev' }}
-      # Flutter SDK from Google's release archive, pinned by version and checksum (releases_linux.json).
-      # Keep in step with pubspec.yaml `environment.flutter`; the first step checks.
-      FLUTTER_VERSION: 3.41.6
-      FLUTTER_SHA256: 503b3e6b7d352fca5d21b6474eca95ad544d8fc3b053782eab63a360c7fc7569
       # AWS CLI v2 from AWS, pinned by version and checksum (computed 2026-11-16).
       AWSCLI_VERSION: 2.40.4
       AWSCLI_SHA256: 81f573c2a0ace70cfb97aa4d014c17cbd605cb04cbad09adbc7aaf9c0979ae8e
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4.4.0
 
-      - name: Check the Flutter pin matches pubspec.yaml
+      # Flutter: the version is pubspec.yaml's `environment.flutter`; archive and checksum come from
+      # Google's release index (releases_linux.json, stable/x64). The SDK is cached on the runner,
+      # keyed by version and checksum, so only a version bump downloads it (~1.5 GB) again.
+      - name: Resolve the Flutter release from pubspec.yaml
         run: |
-          grep -qE "^[[:space:]]+flutter: ${FLUTTER_VERSION}[[:space:]]*$" pubspec.yaml || {
-            echo "pubspec.yaml wants $(grep -E '^[[:space:]]+flutter: [0-9]' pubspec.yaml); update FLUTTER_VERSION/FLUTTER_SHA256 here" >&2; exit 1; }
+          version=$(sed -nE 's/^[[:space:]]+flutter:[[:space:]]*"?([0-9]+\.[0-9]+\.[0-9]+)"?[[:space:]]*$/\1/p' pubspec.yaml | head -1)
+          [ -n "$version" ] || { echo "no environment.flutter version in pubspec.yaml" >&2; exit 1; }
+          curl -sSfL https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json \
+            | jq -er --arg v "$version" '[.releases[] | select(.version == $v and .channel == "stable"
+                and (.dart_sdk_arch // "x64") == "x64")][0] | "\(.archive) \(.sha256)"' > /tmp/flutter-release \
+            || { echo "Flutter $version (stable, linux x64) is not in releases_linux.json" >&2; exit 1; }
+          read -r archive sha256 < /tmp/flutter-release
+          echo "Flutter $version: $archive sha256 $sha256"
+          { echo "FLUTTER_VERSION=$version"; echo "FLUTTER_ARCHIVE=$archive"; echo "FLUTTER_SHA256=$sha256"; } >> "$GITHUB_ENV"
 
-      - name: Install Flutter
+      - name: Restore the Flutter SDK from the runner cache
+        id: flutter-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: /tmp/flutter
+          key: flutter-linux-x64-${{ env.FLUTTER_VERSION }}-${{ env.FLUTTER_SHA256 }}
+
+      - name: Download Flutter
+        if: steps.flutter-cache.outputs.cache-hit != 'true'
         run: |
           curl -sSfL -o /tmp/flutter.tar.xz \
-            "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
+            "https://storage.googleapis.com/flutter_infra_release/releases/${FLUTTER_ARCHIVE}"
           echo "${FLUTTER_SHA256}  /tmp/flutter.tar.xz" | sha256sum -c -
           tar -xJf /tmp/flutter.tar.xz -C /tmp --no-same-owner && rm /tmp/flutter.tar.xz
+
+      - name: Set up Flutter
+        run: |
           git config --global --add safe.directory /tmp/flutter
           echo /tmp/flutter/bin >> "$GITHUB_PATH"
           /tmp/flutter/bin/flutter --disable-analytics
           /tmp/flutter/bin/flutter --version
+
+      - name: Restore pub packages from the runner cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4.3.0
+        with:
+          path: ~/.pub-cache
+          key: pub-${{ env.FLUTTER_VERSION }}-${{ hashFiles('pubspec.lock') }}
+          restore-keys: pub-${{ env.FLUTTER_VERSION }}-
 
       - name: Build the web app
         run: |
